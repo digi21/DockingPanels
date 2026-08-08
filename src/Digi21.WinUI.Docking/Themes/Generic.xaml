@@ -189,7 +189,7 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <primitives:ToolWindowTitleBar x:Name="PART_TitleBar" />
-                            <Grid x:Name="PART_ContentHost" Grid.Row="1" />
+                            <ContentPresenter x:Name="PART_ContentHost" Grid.Row="1" />
                             <StackPanel
                                 x:Name="PART_TabStrip"
                                 Grid.Row="2"
@@ -368,7 +368,7 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <primitives:ToolWindowTitleBar x:Name="PART_TitleBar" />
-                            <Grid x:Name="PART_ContentHost" Grid.Row="1" />
+                            <ContentPresenter x:Name="PART_ContentHost" Grid.Row="1" />
                         </Grid>
                     </Border>
                 </ControlTemplate>

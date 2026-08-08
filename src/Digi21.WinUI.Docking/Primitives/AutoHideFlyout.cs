@@ -12,7 +12,10 @@ namespace Digi21.WinUI.Docking.Primitives;
 public partial class AutoHideFlyout : Control
 {
     private ToolWindow? window;
-    private Grid? contentHost;
+
+    // Owned host for the shown window; survives template re-application (see ToolWindowContainer).
+    private readonly Grid windowHost = new();
+    private ContentPresenter? contentSlot;
     private ToolWindowTitleBar? titleBar;
 
     /// <summary>Initializes a new instance of the <see cref="AutoHideFlyout"/> class.</summary>
@@ -29,7 +32,18 @@ public partial class AutoHideFlyout : Control
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
-        contentHost = GetTemplateChild("PART_ContentHost") as Grid;
+
+        if (contentSlot is not null)
+        {
+            contentSlot.Content = null;
+        }
+
+        contentSlot = GetTemplateChild("PART_ContentHost") as ContentPresenter;
+        if (contentSlot is not null)
+        {
+            contentSlot.Content = windowHost;
+        }
+
         titleBar = GetTemplateChild("PART_TitleBar") as ToolWindowTitleBar;
     }
 
@@ -41,7 +55,7 @@ public partial class AutoHideFlyout : Control
 
         window = newWindow;
         window.Visibility = Visibility.Visible;
-        contentHost?.Children.Add(window);
+        windowHost.Children.Add(window);
 
         if (titleBar is not null)
         {
@@ -57,7 +71,7 @@ public partial class AutoHideFlyout : Control
     {
         if (window is not null)
         {
-            contentHost?.Children.Remove(window);
+            windowHost.Children.Remove(window);
             if (titleBar is not null)
             {
                 titleBar.Window = null;

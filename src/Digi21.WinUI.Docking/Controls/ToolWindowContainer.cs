@@ -30,7 +30,14 @@ public partial class ToolWindowContainer : Control
         new PropertyMetadata(null, (d, _) => ((ToolWindowContainer)d).OnSelectedItemChanged()));
 
     private readonly ObservableCollection<ToolWindow> items = [];
-    private Grid? contentHost;
+
+    // The windows are hosted in a grid OWNED by this container, not by its template: templates
+    // are re-applied when the container is disconnected and reconnected by layout mutations,
+    // and windows still associated with a discarded template's panel cannot be re-added
+    // elsewhere (COMException 0x800F1000). The template only provides a ContentPresenter slot
+    // that this grid is plugged into.
+    private readonly Grid windowsHost = new();
+    private ContentPresenter? contentSlot;
     private StackPanel? tabStrip;
     private ToolWindowTitleBar? titleBar;
     private bool syncingSelection;
@@ -87,18 +94,19 @@ public partial class ToolWindowContainer : Control
     {
         base.OnApplyTemplate();
 
-        // The template can be re-applied after the container is disconnected and reconnected
-        // by a layout mutation. Release the windows from the previous template's content host
-        // first: they stay associated with it otherwise, and re-adding them to the new host
-        // would fail with a cryptic COM error.
-        contentHost?.Children.Clear();
-        tabStrip?.Children.Clear();
-        if (titleBar is not null)
+        // Release the owned windows host from the previous template's slot (the old presenter
+        // reference is kept exactly for this) before plugging it into the new one.
+        if (contentSlot is not null)
         {
-            titleBar.Window = null;
+            contentSlot.Content = null;
         }
 
-        contentHost = GetTemplateChild("PART_ContentHost") as Grid;
+        contentSlot = GetTemplateChild("PART_ContentHost") as ContentPresenter;
+        if (contentSlot is not null)
+        {
+            contentSlot.Content = windowsHost;
+        }
+
         tabStrip = GetTemplateChild("PART_TabStrip") as StackPanel;
         titleBar = GetTemplateChild("PART_TitleBar") as ToolWindowTitleBar;
 
@@ -207,22 +215,19 @@ public partial class ToolWindowContainer : Control
     /// <summary>Synchronizes the visual parts (content host, tab strip, title bar) with <see cref="Items"/>.</summary>
     private void Rebuild()
     {
-        if (contentHost is not null)
+        for (var i = windowsHost.Children.Count - 1; i >= 0; i--)
         {
-            for (var i = contentHost.Children.Count - 1; i >= 0; i--)
+            if (windowsHost.Children[i] is ToolWindow window && !items.Contains(window))
             {
-                if (contentHost.Children[i] is ToolWindow window && !items.Contains(window))
-                {
-                    contentHost.Children.RemoveAt(i);
-                }
+                windowsHost.Children.RemoveAt(i);
             }
+        }
 
-            foreach (var window in items)
+        foreach (var window in items)
+        {
+            if (!windowsHost.Children.Contains(window))
             {
-                if (!contentHost.Children.Contains(window))
-                {
-                    contentHost.Children.Add(window);
-                }
+                windowsHost.Children.Add(window);
             }
         }
 
