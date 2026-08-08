@@ -38,6 +38,15 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+                        <ContentPresenter
+                            x:Name="PART_LayoutRoot"
+                            Grid.Row="0"
+                            Grid.RowSpan="3"
+                            Grid.Column="0"
+                            Grid.ColumnSpan="3"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                            Content="{TemplateBinding Child}" />
                         <primitives:AutoHideTabStrip
                             x:Name="PART_AutoHideStripTop"
                             Grid.Row="0"
@@ -62,15 +71,6 @@
                             Grid.Column="1"
                             Edge="Bottom"
                             Visibility="Collapsed" />
-                        <ContentPresenter
-                            x:Name="PART_LayoutRoot"
-                            Grid.Row="0"
-                            Grid.RowSpan="3"
-                            Grid.Column="0"
-                            Grid.ColumnSpan="3"
-                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                            Content="{TemplateBinding Child}" />
                         <Canvas
                             x:Name="PART_Overlay"
                             Grid.RowSpan="3"
