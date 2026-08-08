@@ -104,17 +104,85 @@ public class LayoutXmlTests
         Assert.Equal(1.0, node.RelativeSize);
     }
 
+    [Fact]
+    public void RoundTrip_AutoHideGroups_ArePreserved()
+    {
+        var layout = new LayoutDocument { Root = new WorkspaceLayoutNode() };
+        var group = new AutoHideGroupNode { Edge = DockSide.Right, Size = 250 };
+        group.Windows.Add(new LayoutWindowEntry("a", "AutoHide"));
+        group.Windows.Add(new LayoutWindowEntry("b", "AutoHide"));
+        layout.AutoHideGroups.Add(group);
+
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, layout);
+        stream.Position = 0;
+        var restored = LayoutXml.Read(stream);
+
+        Assert.IsType<WorkspaceLayoutNode>(restored.Root);
+        var restoredGroup = Assert.Single(restored.AutoHideGroups);
+        Assert.Equal(DockSide.Right, restoredGroup.Edge);
+        Assert.Equal(250, restoredGroup.Size);
+        Assert.Equal(["a", "b"], restoredGroup.Windows.Select(w => w.Id));
+    }
+
+    [Fact]
+    public void RoundTrip_AutoHideGroupRestoreHints_ArePreserved()
+    {
+        var layout = new LayoutDocument { Root = new WorkspaceLayoutNode() };
+        var group = new AutoHideGroupNode
+        {
+            Edge = DockSide.Bottom,
+            Size = 180,
+            Offset = 241.5,
+            RestoreSibling = "Workspace:0",
+            RestoreSide = DockSide.Top,
+            RestoreRelativeSize = 0.3,
+        };
+        group.Windows.Add(new LayoutWindowEntry("output", "AutoHide"));
+        layout.AutoHideGroups.Add(group);
+
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, layout);
+        stream.Position = 0;
+        var restored = LayoutXml.Read(stream);
+
+        var restoredGroup = Assert.Single(restored.AutoHideGroups);
+        Assert.Equal(241.5, restoredGroup.Offset);
+        Assert.Equal("Workspace:0", restoredGroup.RestoreSibling);
+        Assert.Equal(DockSide.Top, restoredGroup.RestoreSide);
+        Assert.Equal(0.3, restoredGroup.RestoreRelativeSize);
+    }
+
+    [Fact]
+    public void Read_AutoHideGroupWithoutRestoreHints_UsesDefaults()
+    {
+        var xml = """
+            <DockSiteLayout Version="1">
+              <AutoHideGroup Edge="Bottom" Size="180">
+                <ToolWindow Id="output" State="AutoHide" />
+              </AutoHideGroup>
+            </DockSiteLayout>
+            """;
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
+        var restored = LayoutXml.Read(stream);
+
+        var group = Assert.Single(restored.AutoHideGroups);
+        Assert.Equal(0, group.Offset);
+        Assert.Null(group.RestoreSibling);
+        Assert.Equal(1.0, group.RestoreRelativeSize);
+    }
+
     private static LayoutNode? RoundTrip(LayoutNode? node)
     {
         using var stream = new MemoryStream();
-        LayoutXml.Write(stream, node);
+        LayoutXml.Write(stream, new LayoutDocument { Root = node });
         stream.Position = 0;
-        return LayoutXml.Read(stream);
+        return LayoutXml.Read(stream).Root;
     }
 
     private static LayoutNode? Read(string xml)
     {
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
-        return LayoutXml.Read(stream);
+        return LayoutXml.Read(stream).Root;
     }
 }

@@ -19,6 +19,14 @@ internal static class LayoutManager
         Detach(window);
 
         var newContainer = new ToolWindowContainer();
+        DockContainerToSide(site, newContainer, side);
+        newContainer.Items.Add(window);
+        FinishDock(site, window, wasOpen);
+    }
+
+    /// <summary>Inserts an existing container as a new pane at an edge of the dock site.</summary>
+    private static void DockContainerToSide(DockSite site, ToolWindowContainer newContainer, DockSide side)
+    {
         var orientation = side is DockSide.Left or DockSide.Right ? Orientation.Horizontal : Orientation.Vertical;
         var prepend = side is DockSide.Left or DockSide.Top;
         var root = site.Child;
@@ -67,9 +75,6 @@ internal static class LayoutManager
 
             site.Child = newSplit;
         }
-
-        newContainer.Items.Add(window);
-        FinishDock(site, window, wasOpen);
     }
 
     /// <summary>Docks a window as a new pane beside an existing layout node (container or workspace).</summary>
@@ -85,6 +90,14 @@ internal static class LayoutManager
         Detach(window);
 
         var newContainer = new ToolWindowContainer();
+        InsertRelativeTo(newContainer, targetNode, side);
+        newContainer.Items.Add(window);
+        FinishDock(site, window, wasOpen);
+    }
+
+    /// <summary>Inserts a container as a new pane beside an existing layout node.</summary>
+    private static void InsertRelativeTo(ToolWindowContainer newContainer, FrameworkElement targetNode, DockSide side)
+    {
         var orientation = side is DockSide.Left or DockSide.Right ? Orientation.Horizontal : Orientation.Vertical;
         var before = side is DockSide.Left or DockSide.Top;
         var targetRelative = SplitContainer.GetEffectiveRelativeSize(targetNode);
@@ -118,9 +131,6 @@ internal static class LayoutManager
                 newSplit.Children.Add(newContainer);
             }
         }
-
-        newContainer.Items.Add(window);
-        FinishDock(site, window, wasOpen);
     }
 
     /// <summary>Attaches a window as a new tab of an existing container.</summary>
@@ -175,10 +185,184 @@ internal static class LayoutManager
         window.Activate();
     }
 
+    /// <summary>Collapses a container and all its windows to the nearest auto-hide edge.</summary>
+    internal static void AutoHideContainer(DockSite site, ToolWindowContainer container)
+    {
+        var edge = NearestEdge(site, container);
+        var horizontalEdge = edge is DockSide.Left or DockSide.Right;
+        var size = horizontalEdge ? container.ActualWidth : container.ActualHeight;
+        if (!double.IsFinite(size) || size < 100)
+        {
+            size = 300;
+        }
+
+        // Remember the neighbor pane so pinning back can restore the original position.
+        FrameworkElement? restoreSibling = null;
+        var restoreSide = edge;
+        if (VisualTreeHelper.GetParent(container) is SplitContainer parentSplit)
+        {
+            var panes = parentSplit.GetPanes();
+            var index = panes.IndexOf(container);
+            if (index >= 0 && panes.Count > 1)
+            {
+                var vertical = parentSplit.Orientation == Orientation.Vertical;
+                if (index > 0)
+                {
+                    restoreSibling = panes[index - 1] as FrameworkElement;
+                    restoreSide = vertical ? DockSide.Bottom : DockSide.Right;
+                }
+                else
+                {
+                    restoreSibling = panes[index + 1] as FrameworkElement;
+                    restoreSide = vertical ? DockSide.Top : DockSide.Left;
+                }
+            }
+        }
+
+        var restoreRelative = SplitContainer.GetEffectiveRelativeSize(container);
+
+        // Position of the container along the edge, so its tabs land under where it was.
+        double offset = 0;
+        try
+        {
+            var reference = (UIElement?)site.LayoutRoot ?? site;
+            var origin = container.TransformToVisual(reference).TransformPoint(default);
+            offset = edge is DockSide.Left or DockSide.Right ? origin.Y : origin.X;
+            if (!double.IsFinite(offset) || offset < 0)
+            {
+                offset = 0;
+            }
+        }
+        catch (ArgumentException)
+        {
+            offset = 0;
+        }
+
+        var windows = container.Items.ToList();
+        foreach (var window in windows)
+        {
+            window.IsRelocating = true;
+        }
+
+        while (container.Items.Count > 0)
+        {
+            container.Items.RemoveAt(container.Items.Count - 1);
+        }
+
+        RemoveFromParent(container);
+
+        foreach (var window in windows)
+        {
+            window.IsRelocating = false;
+            window.State = DockingWindowState.AutoHide;
+            window.IsOpen = true;
+
+            if (ReferenceEquals(site.ActiveWindow, window))
+            {
+                site.SetActiveWindow(null);
+            }
+        }
+
+        site.AddAutoHideGroup(new AutoHideGroup(edge, windows, size)
+        {
+            RestoreSibling = restoreSibling,
+            RestoreSide = restoreSide,
+            RestoreRelativeSize = restoreRelative,
+            Offset = offset,
+        });
+        site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
+    }
+
+    /// <summary>Pins an auto-hide group back into the layout at the edge it collapsed from.</summary>
+    internal static void DockAutoHideGroup(DockSite site, AutoHideGroup group)
+    {
+        site.RemoveAutoHideGroup(group);
+
+        var container = new ToolWindowContainer();
+        foreach (var window in group.Windows)
+        {
+            window.IsRelocating = true;
+            container.Items.Add(window);
+            window.IsRelocating = false;
+        }
+
+        // Restore next to the original neighbor when it is still part of this dock site's
+        // layout; otherwise fall back to docking at the edge the group collapsed to.
+        if (group.RestoreSibling is { } sibling
+            && ReferenceEquals(sibling.FindAncestor<DockSite>(), site))
+        {
+            var siblingRelative = SplitContainer.GetEffectiveRelativeSize(sibling);
+            InsertRelativeTo(container, sibling, group.RestoreSide);
+            DockSite.SetRelativeSize(sibling, siblingRelative);
+            DockSite.SetRelativeSize(container, group.RestoreRelativeSize);
+        }
+        else
+        {
+            DockContainerToSide(site, container, group.Edge);
+        }
+
+        site.NotifyLayoutChanged(LayoutChangeKind.WindowDocked);
+        group.Windows.FirstOrDefault()?.Activate();
+    }
+
+    /// <summary>
+    /// Picks the auto-hide edge for an element from its position in the layout tree, like
+    /// Visual Studio: the orientation of the parent split decides the axis, and the pane's
+    /// position within it decides the side. Geometry alone is ambiguous, since a pane can
+    /// touch two dock site edges at once (e.g. a full-width bottom pane also touches the right edge).
+    /// </summary>
+    private static DockSide NearestEdge(DockSite site, FrameworkElement element)
+    {
+        _ = site;
+
+        if (VisualTreeHelper.GetParent(element) is SplitContainer parent)
+        {
+            var panes = parent.GetPanes();
+            var index = panes.IndexOf(element);
+            if (index < 0)
+            {
+                return DockSide.Left;
+            }
+
+            var leading = index < panes.Count - index - 1;
+
+            return parent.Orientation == Orientation.Vertical
+                ? (leading ? DockSide.Top : DockSide.Bottom)
+                : (leading ? DockSide.Left : DockSide.Right);
+        }
+
+        return DockSide.Left;
+    }
+
     /// <summary>Removes a window from its container and collapses the tree if needed.</summary>
     internal static void RemoveWindow(DockingWindow window)
     {
-        if (window is not ToolWindow tool || tool.Container is null)
+        if (window is not ToolWindow tool)
+        {
+            return;
+        }
+
+        if (tool.State == DockingWindowState.AutoHide && tool.DockSite is { } site
+            && site.FindAutoHideGroup(tool) is { } group)
+        {
+            site.HideAutoHideFlyout();
+            group.Windows.Remove(tool);
+            if (group.Windows.Count == 0)
+            {
+                site.RemoveAutoHideGroup(group);
+            }
+            else
+            {
+                site.RefreshAutoHideStrips();
+            }
+
+            tool.IsOpen = false;
+            tool.IsSelected = false;
+            tool.State = DockingWindowState.Docked;
+            return;
+        }
+
+        if (tool.Container is null)
         {
             return;
         }

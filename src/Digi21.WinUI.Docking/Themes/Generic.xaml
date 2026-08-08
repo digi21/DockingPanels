@@ -13,6 +13,9 @@
     <Style BasedOn="{StaticResource DefaultToolWindowTabItemStyle}" TargetType="primitives:ToolWindowTabItem" />
     <Style BasedOn="{StaticResource DefaultDockGuideStyle}" TargetType="primitives:DockGuide" />
     <Style BasedOn="{StaticResource DefaultDockGuidePanelStyle}" TargetType="primitives:DockGuidePanel" />
+    <Style BasedOn="{StaticResource DefaultAutoHideTabStripStyle}" TargetType="primitives:AutoHideTabStrip" />
+    <Style BasedOn="{StaticResource DefaultAutoHideTabItemStyle}" TargetType="primitives:AutoHideTabItem" />
+    <Style BasedOn="{StaticResource DefaultAutoHideFlyoutStyle}" TargetType="primitives:AutoHideFlyout" />
 
     <Style x:Key="DefaultDockSiteStyle" TargetType="docking:DockSite">
         <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
@@ -25,14 +28,54 @@
             <Setter.Value>
                 <ControlTemplate TargetType="docking:DockSite">
                     <Grid Background="{TemplateBinding Background}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <ContentPresenter
                             x:Name="PART_LayoutRoot"
+                            Grid.Row="1"
+                            Grid.Column="1"
                             HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                             Content="{TemplateBinding Child}" />
-                        <Canvas x:Name="PART_Overlay" IsHitTestVisible="False">
+                        <primitives:AutoHideTabStrip
+                            x:Name="PART_AutoHideStripTop"
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Edge="Top"
+                            Visibility="Collapsed" />
+                        <primitives:AutoHideTabStrip
+                            x:Name="PART_AutoHideStripLeft"
+                            Grid.Row="1"
+                            Grid.Column="0"
+                            Edge="Left"
+                            Visibility="Collapsed" />
+                        <primitives:AutoHideTabStrip
+                            x:Name="PART_AutoHideStripRight"
+                            Grid.Row="1"
+                            Grid.Column="2"
+                            Edge="Right"
+                            Visibility="Collapsed" />
+                        <primitives:AutoHideTabStrip
+                            x:Name="PART_AutoHideStripBottom"
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            Edge="Bottom"
+                            Visibility="Collapsed" />
+                        <Canvas
+                            x:Name="PART_Overlay"
+                            Grid.RowSpan="3"
+                            Grid.ColumnSpan="3">
                             <Rectangle
                                 x:Name="PART_DockPreview"
+                                IsHitTestVisible="False"
                                 Fill="{ThemeResource AccentFillColorDefaultBrush}"
                                 Opacity="0.3"
                                 RadiusX="4"
@@ -40,25 +83,34 @@
                                 Stroke="{ThemeResource AccentFillColorDefaultBrush}"
                                 StrokeThickness="1"
                                 Visibility="Collapsed" />
-                            <primitives:DockGuidePanel x:Name="PART_CenterGuides" Visibility="Collapsed" />
+                            <primitives:DockGuidePanel
+                                x:Name="PART_CenterGuides"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed" />
                             <primitives:DockGuide
                                 x:Name="PART_EdgeGuideLeft"
+                                IsHitTestVisible="False"
                                 Side="Left"
                                 Visibility="Collapsed" />
                             <primitives:DockGuide
                                 x:Name="PART_EdgeGuideTop"
+                                IsHitTestVisible="False"
                                 Side="Top"
                                 Visibility="Collapsed" />
                             <primitives:DockGuide
                                 x:Name="PART_EdgeGuideRight"
+                                IsHitTestVisible="False"
                                 Side="Right"
                                 Visibility="Collapsed" />
                             <primitives:DockGuide
                                 x:Name="PART_EdgeGuideBottom"
+                                IsHitTestVisible="False"
                                 Side="Bottom"
                                 Visibility="Collapsed" />
+                            <primitives:AutoHideFlyout x:Name="PART_AutoHideFlyout" Visibility="Collapsed" />
                             <Border
                                 x:Name="PART_DragGhost"
+                                IsHitTestVisible="False"
                                 Padding="12,6"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
@@ -137,7 +189,7 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <primitives:ToolWindowTitleBar x:Name="PART_TitleBar" />
-                            <Grid x:Name="PART_ContentHost" Grid.Row="1" />
+                            <ContentPresenter x:Name="PART_ContentHost" Grid.Row="1" />
                             <StackPanel
                                 x:Name="PART_TabStrip"
                                 Grid.Row="2"
@@ -167,12 +219,14 @@
                                         <Setter Target="Root.Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
                                         <Setter Target="PART_Title.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                                         <Setter Target="PART_CloseButton.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                        <Setter Target="PART_PinButton.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
                         </VisualStateManager.VisualStateGroups>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock
@@ -181,8 +235,20 @@
                             Style="{ThemeResource CaptionTextBlockStyle}"
                             TextTrimming="CharacterEllipsis" />
                         <Button
-                            x:Name="PART_CloseButton"
+                            x:Name="PART_PinButton"
                             Grid.Column="1"
+                            Width="24"
+                            Height="24"
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            IsTabStop="False">
+                            <FontIcon FontSize="10" Glyph="&#xE718;" />
+                        </Button>
+                        <Button
+                            x:Name="PART_CloseButton"
+                            Grid.Column="2"
                             Width="24"
                             Height="24"
                             Padding="0"
@@ -243,6 +309,65 @@
                             RadiusY="1"
                             Visibility="Collapsed" />
                     </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultAutoHideTabStripStyle" TargetType="primitives:AutoHideTabStrip">
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:AutoHideTabStrip">
+                    <Grid x:Name="PART_Items" Background="{TemplateBinding Background}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultAutoHideTabItemStyle" TargetType="primitives:AutoHideTabItem">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:AutoHideTabItem">
+                    <Grid
+                        x:Name="Root"
+                        Padding="10,6"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                        <TextBlock
+                            x:Name="PART_Title"
+                            VerticalAlignment="Center"
+                            Style="{ThemeResource CaptionTextBlockStyle}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultAutoHideFlyoutStyle" TargetType="primitives:AutoHideFlyout">
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:AutoHideFlyout">
+                    <Border
+                        Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}"
+                        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <primitives:ToolWindowTitleBar x:Name="PART_TitleBar" />
+                            <ContentPresenter x:Name="PART_ContentHost" Grid.Row="1" />
+                        </Grid>
+                    </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
