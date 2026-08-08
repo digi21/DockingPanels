@@ -5,44 +5,91 @@
     xmlns:docking="using:Digi21.WinUI.Docking"
     Title="Docking Gallery">
 
-    <docking:DockSite x:Name="DockSite">
-        <docking:SplitContainer Orientation="Horizontal">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-            <Border
-                docking:DockSite.RelativeSize="0.25"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1">
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Text="Tool window placeholder (left)" />
-            </Border>
+        <StackPanel
+            Padding="8,4"
+            Orientation="Horizontal"
+            Spacing="8">
+            <Button Click="OnReopenSolutionExplorer" Content="Reopen Solution Explorer" />
+            <Button Click="OnReopenOutput" Content="Reopen Output" />
+            <TextBlock
+                x:Name="EventLog"
+                VerticalAlignment="Center"
+                Style="{ThemeResource CaptionTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
 
-            <docking:SplitContainer docking:DockSite.RelativeSize="0.75" Orientation="Vertical">
+        <docking:DockSite
+            x:Name="DockSite"
+            Grid.Row="1"
+            WindowActivated="OnWindowEvent"
+            WindowClosed="OnWindowEvent"
+            WindowOpened="OnWindowEvent">
+            <docking:SplitContainer Orientation="Horizontal">
 
-                <docking:Workspace docking:DockSite.RelativeSize="0.7">
-                    <TextBox
-                        AcceptsReturn="True"
-                        BorderThickness="0"
-                        PlaceholderText="Workspace — type here"
-                        TextWrapping="Wrap" />
-                </docking:Workspace>
+                <docking:ToolWindowContainer x:Name="LeftContainer" docking:DockSite.RelativeSize="0.25">
+                    <docking:ToolWindow
+                        x:Name="SolutionExplorer"
+                        Title="Solution Explorer"
+                        SerializationId="solutionExplorer">
+                        <TreeView>
+                            <TreeView.RootNodes>
+                                <TreeViewNode Content="DockingPanels" IsExpanded="True">
+                                    <TreeViewNode.Children>
+                                        <TreeViewNode Content="src" />
+                                        <TreeViewNode Content="samples" />
+                                        <TreeViewNode Content="tests" />
+                                    </TreeViewNode.Children>
+                                </TreeViewNode>
+                            </TreeView.RootNodes>
+                        </TreeView>
+                    </docking:ToolWindow>
+                    <docking:ToolWindow
+                        Title="Class View"
+                        SerializationId="classView">
+                        <ListView>
+                            <ListViewItem Content="DockSite" />
+                            <ListViewItem Content="ToolWindow" />
+                            <ListViewItem Content="SplitContainer" />
+                        </ListView>
+                    </docking:ToolWindow>
+                </docking:ToolWindowContainer>
 
-                <Border
-                    docking:DockSite.RelativeSize="0.3"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Text="Tool window placeholder (bottom)" />
-                </Border>
+                <docking:SplitContainer docking:DockSite.RelativeSize="0.75" Orientation="Vertical">
+
+                    <docking:Workspace docking:DockSite.RelativeSize="0.7">
+                        <TextBox
+                            AcceptsReturn="True"
+                            BorderThickness="0"
+                            PlaceholderText="Workspace — type here"
+                            TextWrapping="Wrap" />
+                    </docking:Workspace>
+
+                    <docking:ToolWindowContainer x:Name="BottomContainer" docking:DockSite.RelativeSize="0.3">
+                        <docking:ToolWindow
+                            x:Name="Output"
+                            Title="Output"
+                            SerializationId="output">
+                            <TextBlock
+                                Margin="8"
+                                Text="Build started...&#x0a;Build succeeded." />
+                        </docking:ToolWindow>
+                        <docking:ToolWindow
+                            Title="Error List"
+                            SerializationId="errorList">
+                            <TextBlock Margin="8" Text="0 Errors, 0 Warnings" />
+                        </docking:ToolWindow>
+                    </docking:ToolWindowContainer>
+
+                </docking:SplitContainer>
 
             </docking:SplitContainer>
-
-        </docking:SplitContainer>
-    </docking:DockSite>
+        </docking:DockSite>
+    </Grid>
 
 </Window>

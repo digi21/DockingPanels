@@ -56,12 +56,40 @@ public partial class DockSite : Control
         }
     }
 
+    /// <summary>Identifies the <see cref="ActiveWindow"/> dependency property.</summary>
+    public static readonly DependencyProperty ActiveWindowProperty = DependencyProperty.Register(
+        nameof(ActiveWindow),
+        typeof(DockingWindow),
+        typeof(DockSite),
+        new PropertyMetadata(null));
+
+    private readonly List<ToolWindow> toolWindows = [];
+
     /// <summary>Initializes a new instance of the <see cref="DockSite"/> class.</summary>
     public DockSite()
     {
         DefaultStyleKey = typeof(DockSite);
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
+        GotFocus += OnAnyDescendantGotFocus;
     }
+
+    /// <summary>Raised when a window becomes the active window of this dock site.</summary>
+    public event EventHandler<DockingWindowEventArgs>? WindowActivated;
+
+    /// <summary>Raised when a window stops being the active window of this dock site.</summary>
+    public event EventHandler<DockingWindowEventArgs>? WindowDeactivated;
+
+    /// <summary>Raised when a window is added to the layout.</summary>
+    public event EventHandler<DockingWindowEventArgs>? WindowOpened;
+
+    /// <summary>Raised before a window closes. Set <see cref="DockingWindowClosingEventArgs.Cancel"/> to keep it open.</summary>
+    public event EventHandler<DockingWindowClosingEventArgs>? WindowClosing;
+
+    /// <summary>Raised after a window has been removed from the layout.</summary>
+    public event EventHandler<DockingWindowEventArgs>? WindowClosed;
+
+    /// <summary>Raised whenever the docking layout structure changes.</summary>
+    public event EventHandler<LayoutChangedEventArgs>? LayoutChanged;
 
     /// <summary>
     /// Gets or sets the root element of the docking layout tree.
@@ -70,5 +98,108 @@ public partial class DockSite : Control
     {
         get => (UIElement?)GetValue(ChildProperty);
         set => SetValue(ChildProperty, value);
+    }
+
+    /// <summary>Gets the currently active window, or <see langword="null"/> when none is active.</summary>
+    public DockingWindow? ActiveWindow
+    {
+        get => (DockingWindow?)GetValue(ActiveWindowProperty);
+        private set => SetValue(ActiveWindowProperty, value);
+    }
+
+    /// <summary>
+    /// Gets all tool windows known to this dock site, including closed ones that can be reopened.
+    /// </summary>
+    public IReadOnlyList<ToolWindow> ToolWindows => toolWindows;
+
+    /// <summary>Selects and activates the given window. Equivalent to <see cref="DockingWindow.Activate"/>.</summary>
+    /// <param name="window">The window to activate.</param>
+    public void ActivateWindow(DockingWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        window.Activate();
+    }
+
+    /// <summary>Closes the given window. Equivalent to <see cref="DockingWindow.Close"/>.</summary>
+    /// <param name="window">The window to close.</param>
+    public void CloseWindow(DockingWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        window.Close();
+    }
+
+    /// <summary>Adds a window to the registry of known windows.</summary>
+    internal void RegisterWindow(ToolWindow window)
+    {
+        if (!toolWindows.Contains(window))
+        {
+            toolWindows.Add(window);
+        }
+    }
+
+    /// <summary>Makes the given window the active one, deactivating the previous active window.</summary>
+    internal void SetActiveWindow(DockingWindow? window)
+    {
+        var previous = ActiveWindow;
+        if (ReferenceEquals(previous, window))
+        {
+            return;
+        }
+
+        ActiveWindow = window;
+
+        if (previous is not null)
+        {
+            previous.IsActive = false;
+            WindowDeactivated?.Invoke(this, new DockingWindowEventArgs(previous));
+        }
+
+        if (window is not null)
+        {
+            window.IsActive = true;
+            WindowActivated?.Invoke(this, new DockingWindowEventArgs(window));
+        }
+    }
+
+    internal void NotifyWindowOpened(DockingWindow window)
+    {
+        WindowOpened?.Invoke(this, new DockingWindowEventArgs(window));
+        LayoutChanged?.Invoke(this, new LayoutChangedEventArgs(LayoutChangeKind.WindowOpened));
+    }
+
+    /// <summary>Raises <see cref="WindowClosing"/> and returns whether the close may proceed.</summary>
+    internal bool RaiseWindowClosing(DockingWindow window)
+    {
+        var args = new DockingWindowClosingEventArgs(window);
+        WindowClosing?.Invoke(this, args);
+        return !args.Cancel;
+    }
+
+    internal void NotifyWindowClosed(DockingWindow window)
+    {
+        if (ReferenceEquals(ActiveWindow, window))
+        {
+            SetActiveWindow(null);
+        }
+
+        WindowClosed?.Invoke(this, new DockingWindowEventArgs(window));
+        LayoutChanged?.Invoke(this, new LayoutChangedEventArgs(LayoutChangeKind.WindowClosed));
+    }
+
+    internal void NotifyLayoutChanged(LayoutChangeKind kind)
+    {
+        LayoutChanged?.Invoke(this, new LayoutChangedEventArgs(kind));
+    }
+
+    private void OnAnyDescendantGotFocus(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source)
+        {
+            var window = source as DockingWindow ?? source.FindAncestor<DockingWindow>();
+            if (window is not null)
+            {
+                SetActiveWindow(window);
+            }
+        }
     }
 }

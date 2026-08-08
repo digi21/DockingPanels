@@ -7,6 +7,10 @@
     <Style BasedOn="{StaticResource DefaultDockSiteStyle}" TargetType="docking:DockSite" />
     <Style BasedOn="{StaticResource DefaultWorkspaceStyle}" TargetType="docking:Workspace" />
     <Style BasedOn="{StaticResource DefaultDockSplitterStyle}" TargetType="primitives:DockSplitter" />
+    <Style BasedOn="{StaticResource DefaultToolWindowStyle}" TargetType="docking:ToolWindow" />
+    <Style BasedOn="{StaticResource DefaultToolWindowContainerStyle}" TargetType="docking:ToolWindowContainer" />
+    <Style BasedOn="{StaticResource DefaultToolWindowTitleBarStyle}" TargetType="primitives:ToolWindowTitleBar" />
+    <Style BasedOn="{StaticResource DefaultToolWindowTabItemStyle}" TargetType="primitives:ToolWindowTabItem" />
 
     <Style x:Key="DefaultDockSiteStyle" TargetType="docking:DockSite">
         <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
@@ -52,6 +56,154 @@
                             Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}" />
                     </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultToolWindowStyle" TargetType="docking:ToolWindow">
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="docking:ToolWindow">
+                    <ContentPresenter
+                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                        Content="{TemplateBinding Content}"
+                        ContentTemplate="{TemplateBinding ContentTemplate}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultToolWindowContainerStyle" TargetType="docking:ToolWindowContainer">
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="docking:ToolWindowContainer">
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <primitives:ToolWindowTitleBar x:Name="PART_TitleBar" />
+                            <Grid x:Name="PART_ContentHost" Grid.Row="1" />
+                            <StackPanel
+                                x:Name="PART_TabStrip"
+                                Grid.Row="2"
+                                Orientation="Horizontal"
+                                Spacing="2"
+                                Visibility="Collapsed" />
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultToolWindowTitleBarStyle" TargetType="primitives:ToolWindowTitleBar">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Background" Value="{ThemeResource SubtleFillColorTransparentBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:ToolWindowTitleBar">
+                    <Grid x:Name="Root" Background="{TemplateBinding Background}" Padding="8,0,4,0">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="ActivationStates">
+                                <VisualState x:Name="Inactive" />
+                                <VisualState x:Name="Active">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                                        <Setter Target="PART_Title.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                        <Setter Target="PART_CloseButton.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="PART_Title"
+                            VerticalAlignment="Center"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            TextTrimming="CharacterEllipsis" />
+                        <Button
+                            x:Name="PART_CloseButton"
+                            Grid.Column="1"
+                            Width="24"
+                            Height="24"
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            IsTabStop="False">
+                            <FontIcon FontSize="10" Glyph="&#xE8BB;" />
+                        </Button>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultToolWindowTabItemStyle" TargetType="primitives:ToolWindowTabItem">
+        <Setter Property="Height" Value="28" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:ToolWindowTabItem">
+                    <Grid x:Name="Root" Background="{TemplateBinding Background}" Padding="8,0">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="SelectionStates">
+                                <VisualState x:Name="Unselected" />
+                                <VisualState x:Name="Selected">
+                                    <VisualState.Setters>
+                                        <Setter Target="SelectionIndicator.Visibility" Value="Visible" />
+                                        <Setter Target="PART_Title.Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <TextBlock
+                            x:Name="PART_Title"
+                            VerticalAlignment="Center"
+                            Style="{ThemeResource CaptionTextBlockStyle}" />
+                        <Rectangle
+                            x:Name="SelectionIndicator"
+                            Height="2"
+                            VerticalAlignment="Bottom"
+                            Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                            RadiusX="1"
+                            RadiusY="1"
+                            Visibility="Collapsed" />
+                    </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
