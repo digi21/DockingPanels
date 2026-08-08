@@ -1,7 +1,5 @@
-using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Windows.UI;
 
 namespace Digi21.WinUI.Docking.Primitives;
 
@@ -65,16 +63,16 @@ public partial class AutoHideTabStrip : Control
 
         foreach (var group in groups)
         {
-            // The strip itself is transparent and overlays the content edge; each group band
-            // paints its own background, so docked panels outside the group's range (e.g. a
-            // full-height left panel) keep reaching the edge without an empty band under them.
-            // The band reproduces the same background stack a pinned container's tab area has
-            // (opaque base plus card tint) so pinning does not change the perceived color.
+            // The strip reserves a band at the dock site edge; each group's tabs are placed
+            // along it at the offset the group's container had, so they stay aligned with
+            // where the panel used to be.
             var panel = new StackPanel
             {
                 Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal,
                 Spacing = 2,
-                Background = ResolveBrush("CardBackgroundFillColorDefaultBrush", Colors.Transparent),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = vertical ? new Thickness(0, group.Offset, 0, 0) : new Thickness(group.Offset, 0, 0, 0),
             };
 
             foreach (var window in group.Windows)
@@ -82,24 +80,7 @@ public partial class AutoHideTabStrip : Control
                 panel.Children.Add(new AutoHideTabItem { Window = window, Edge = Edge });
             }
 
-            itemsHost.Children.Add(new Border
-            {
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = vertical ? new Thickness(0, group.Offset, 0, 0) : new Thickness(group.Offset, 0, 0, 0),
-                Background = ResolveBrush(
-                    "SolidBackgroundFillColorBaseBrush",
-                    ActualTheme == ElementTheme.Light ? Color.FromArgb(255, 243, 243, 243) : Color.FromArgb(255, 32, 32, 32)),
-                Child = panel,
-            });
+            itemsHost.Children.Add(panel);
         }
-    }
-
-    private static Microsoft.UI.Xaml.Media.Brush ResolveBrush(string key, Color fallback)
-    {
-        return Application.Current.Resources.TryGetValue(key, out var value)
-            && value is Microsoft.UI.Xaml.Media.Brush brush
-            ? brush
-            : new Microsoft.UI.Xaml.Media.SolidColorBrush(fallback);
     }
 }

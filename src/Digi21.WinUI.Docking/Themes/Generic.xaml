@@ -40,10 +40,8 @@
                         </Grid.ColumnDefinitions>
                         <ContentPresenter
                             x:Name="PART_LayoutRoot"
-                            Grid.Row="0"
-                            Grid.RowSpan="3"
-                            Grid.Column="0"
-                            Grid.ColumnSpan="3"
+                            Grid.Row="1"
+                            Grid.Column="1"
                             HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                             Content="{TemplateBinding Child}" />
@@ -317,7 +315,7 @@
     </Style>
 
     <Style x:Key="DefaultAutoHideTabStripStyle" TargetType="primitives:AutoHideTabStrip">
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
