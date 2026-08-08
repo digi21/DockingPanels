@@ -63,6 +63,9 @@ public partial class AutoHideTabStrip : Control
 
         foreach (var group in groups)
         {
+            // The strip itself is transparent and overlays the content edge; each group panel
+            // paints its own background, so docked panels outside the group's range (e.g. a
+            // full-height left panel) keep reaching the edge without an empty band under them.
             var panel = new StackPanel
             {
                 Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal,
@@ -70,6 +73,9 @@ public partial class AutoHideTabStrip : Control
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top,
                 Margin = vertical ? new Thickness(0, group.Offset, 0, 0) : new Thickness(group.Offset, 0, 0, 0),
+                Background = Application.Current.Resources.TryGetValue("LayerFillColorDefaultBrush", out var brush)
+                    ? brush as Microsoft.UI.Xaml.Media.Brush
+                    : null,
             };
 
             foreach (var window in group.Windows)

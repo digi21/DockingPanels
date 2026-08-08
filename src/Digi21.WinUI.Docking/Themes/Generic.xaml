@@ -64,8 +64,10 @@
                             Visibility="Collapsed" />
                         <ContentPresenter
                             x:Name="PART_LayoutRoot"
-                            Grid.Row="1"
-                            Grid.Column="1"
+                            Grid.Row="0"
+                            Grid.RowSpan="3"
+                            Grid.Column="0"
+                            Grid.ColumnSpan="3"
                             HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                             Content="{TemplateBinding Child}" />
@@ -315,7 +317,7 @@
     </Style>
 
     <Style x:Key="DefaultAutoHideTabStripStyle" TargetType="primitives:AutoHideTabStrip">
-        <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
+        <Setter Property="Background" Value="Transparent" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
