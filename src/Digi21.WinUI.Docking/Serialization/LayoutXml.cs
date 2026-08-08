@@ -38,6 +38,18 @@ internal static class LayoutXml
             writer.WriteStartElement("AutoHideGroup");
             writer.WriteAttributeString("Edge", group.Edge.ToString());
             writer.WriteAttributeString("Size", group.Size.ToString("R", CultureInfo.InvariantCulture));
+            if (group.Offset > 0)
+            {
+                writer.WriteAttributeString("Offset", group.Offset.ToString("R", CultureInfo.InvariantCulture));
+            }
+
+            if (group.RestoreSibling is not null)
+            {
+                writer.WriteAttributeString("RestoreSibling", group.RestoreSibling);
+                writer.WriteAttributeString("RestoreSide", group.RestoreSide.ToString());
+                writer.WriteAttributeString("RestoreRelativeSize", group.RestoreRelativeSize.ToString("R", CultureInfo.InvariantCulture));
+            }
+
             foreach (var window in group.Windows)
             {
                 writer.WriteStartElement("ToolWindow");
@@ -83,6 +95,24 @@ internal static class LayoutXml
                 if (double.TryParse(sizeText, NumberStyles.Float, CultureInfo.InvariantCulture, out var size) && size > 0)
                 {
                     group.Size = size;
+                }
+
+                var offsetText = (string?)element.Attribute("Offset");
+                if (double.TryParse(offsetText, NumberStyles.Float, CultureInfo.InvariantCulture, out var offset) && offset > 0)
+                {
+                    group.Offset = offset;
+                }
+
+                group.RestoreSibling = (string?)element.Attribute("RestoreSibling");
+                if (Enum.TryParse<DockSide>((string?)element.Attribute("RestoreSide"), out var restoreSide))
+                {
+                    group.RestoreSide = restoreSide;
+                }
+
+                var restoreRelativeText = (string?)element.Attribute("RestoreRelativeSize");
+                if (double.TryParse(restoreRelativeText, NumberStyles.Float, CultureInfo.InvariantCulture, out var restoreRelative) && restoreRelative > 0)
+                {
+                    group.RestoreRelativeSize = restoreRelative;
                 }
 
                 foreach (var child in element.Elements("ToolWindow"))

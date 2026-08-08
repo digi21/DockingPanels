@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.UI.Xaml;
 
@@ -53,7 +54,15 @@ public class DockSiteLayoutSerializer
 
         foreach (var group in dockSite.AutoHideGroups)
         {
-            var groupNode = new AutoHideGroupNode { Edge = group.Edge, Size = group.Size };
+            var groupNode = new AutoHideGroupNode { Edge = group.Edge, Size = group.Size, Offset = group.Offset };
+
+            if (CaptureSiblingReference(dockSite, group.RestoreSibling) is { } siblingReference)
+            {
+                groupNode.RestoreSibling = siblingReference;
+                groupNode.RestoreSide = group.RestoreSide;
+                groupNode.RestoreRelativeSize = group.RestoreRelativeSize;
+            }
+
             foreach (var window in group.Windows)
             {
                 var id = window.SerializationId
@@ -195,7 +204,19 @@ public class DockSiteLayoutSerializer
 
             if (groupWindows.Count > 0)
             {
-                site.AddAutoHideGroup(new AutoHideGroup(groupNode.Edge, groupWindows, groupNode.Size));
+                var group = new AutoHideGroup(groupNode.Edge, groupWindows, groupNode.Size)
+                {
+                    Offset = groupNode.Offset,
+                };
+
+                if (ResolveSiblingReference(site, groupNode.RestoreSibling, index) is { } sibling)
+                {
+                    group.RestoreSibling = sibling;
+                    group.RestoreSide = groupNode.RestoreSide;
+                    group.RestoreRelativeSize = groupNode.RestoreRelativeSize;
+                }
+
+                site.AddAutoHideGroup(group);
             }
         }
 
@@ -349,6 +370,77 @@ public class DockSiteLayoutSerializer
         {
             DismantleSplits(pane);
         }
+    }
+
+    /// <summary>
+    /// Converts a live restore-sibling element into a stable reference for the XML:
+    /// "Workspace:n" for the n-th workspace in document order, "Window:id" for a tool window
+    /// container. Split containers (and elements no longer in this site) yield no reference,
+    /// so pinning back falls to the group's edge, same as when the sibling disappears at runtime.
+    /// </summary>
+    private static string? CaptureSiblingReference(DockSite site, FrameworkElement? sibling)
+    {
+        if (sibling is null || !ReferenceEquals(sibling.FindAncestor<DockSite>(), site))
+        {
+            return null;
+        }
+
+        switch (sibling)
+        {
+            case Workspace workspace:
+                var workspaces = new Queue<Workspace>();
+                CollectWorkspaces(site.Child, workspaces);
+                var position = 0;
+                foreach (var candidate in workspaces)
+                {
+                    if (ReferenceEquals(candidate, workspace))
+                    {
+                        return $"Workspace:{position}";
+                    }
+
+                    position++;
+                }
+
+                return null;
+
+            case ToolWindowContainer container:
+                var id = container.Items.FirstOrDefault(w => w.SerializationId is not null)?.SerializationId;
+                return id is null ? null : $"Window:{id}";
+
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>Resolves a serialized restore-sibling reference against the rebuilt layout tree.</summary>
+    private static FrameworkElement? ResolveSiblingReference(
+        DockSite site,
+        string? reference,
+        Dictionary<string, ToolWindow> index)
+    {
+        const string workspacePrefix = "Workspace:";
+        const string windowPrefix = "Window:";
+
+        if (reference is null)
+        {
+            return null;
+        }
+
+        if (reference.StartsWith(workspacePrefix, StringComparison.Ordinal)
+            && int.TryParse(reference[workspacePrefix.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var position))
+        {
+            var workspaces = new Queue<Workspace>();
+            CollectWorkspaces(site.Child, workspaces);
+            return workspaces.Skip(position).FirstOrDefault();
+        }
+
+        if (reference.StartsWith(windowPrefix, StringComparison.Ordinal)
+            && index.TryGetValue(reference[windowPrefix.Length..], out var window))
+        {
+            return window.Container;
+        }
+
+        return null;
     }
 
     private static void CollectWorkspaces(UIElement? element, Queue<Workspace> workspaces)
