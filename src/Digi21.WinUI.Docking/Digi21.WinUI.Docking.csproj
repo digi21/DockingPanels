@@ -13,6 +13,7 @@
     <Description>Docking panels for WinUI 3: dockable tool windows with splitters and tabs, Visual Studio-style drag-and-drop dock guides, and layout serialization.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageTags>winui;winui3;docking;dock;toolwindow;layout;panels;windows-app-sdk;windowsappsdk</PackageTags>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <IncludeSymbols>true</IncludeSymbols>
@@ -27,6 +28,7 @@
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
