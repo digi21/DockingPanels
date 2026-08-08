@@ -12,49 +12,6 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-
-        if (Environment.GetCommandLineArgs().Contains("--auto-test"))
-        {
-            RunAutoTest();
-        }
-    }
-
-    // Temporary scripted validation of auto-hide, removed after milestone 6.
-    private void RunAutoTest()
-    {
-        var step = 0;
-        var timer = DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromSeconds(2);
-        timer.Tick += (_, _) =>
-        {
-            step++;
-            try
-            {
-                switch (step)
-                {
-                    case 1:
-                        Output.AutoHide();
-                        break;
-                    case 2:
-                        ;
-                        break;
-                    case 3:
-                        var log = new System.Text.StringBuilder();
-                        DumpTree(DockSite, 0, log);
-                        File.AppendAllText(Path.Combine(Path.GetTempPath(), "DockingGallery-crash.log"), log.ToString());
-                        timer.Stop();
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                File.AppendAllText(
-                    Path.Combine(Path.GetTempPath(), "DockingGallery-crash.log"),
-                    $"[step {step}] {ex}\n\n");
-                timer.Stop();
-            }
-        };
-        timer.Start();
     }
 
     private void OnSaveLayout(object sender, RoutedEventArgs e)
@@ -70,26 +27,6 @@ public sealed partial class MainWindow : Window
         {
             serializer.LoadFromString(DockSite, savedLayout);
             EventLog.Text = "Layout loaded";
-        }
-    }
-
-    private static void DumpTree(Microsoft.UI.Xaml.DependencyObject node, int depth, System.Text.StringBuilder log)
-    {
-        if (depth > 7)
-        {
-            return;
-        }
-
-        if (node is Microsoft.UI.Xaml.FrameworkElement fe)
-        {
-            var text = node is Microsoft.UI.Xaml.Controls.TextBlock tb ? $" '{tb.Text}'" : string.Empty;
-            log.AppendLine($"{new string(' ', depth * 2)}{node.GetType().Name}{text} off=({fe.ActualOffset.X:F0},{fe.ActualOffset.Y:F0}) size=({fe.ActualWidth:F0}x{fe.ActualHeight:F0}) vis={fe.Visibility}");
-        }
-
-        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(node);
-        for (var i = 0; i < count; i++)
-        {
-            DumpTree(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(node, i), depth + 1, log);
         }
     }
 
