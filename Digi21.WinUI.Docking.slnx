@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/DockingGallery/DockingGallery.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Digi21.WinUI.Docking/Digi21.WinUI.Docking.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Digi21.WinUI.Docking.Tests/Digi21.WinUI.Docking.Tests.csproj" />
+  </Folder>
+</Solution>
