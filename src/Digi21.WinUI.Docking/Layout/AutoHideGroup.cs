@@ -36,4 +36,11 @@ internal sealed class AutoHideGroup
 
     /// <summary>Gets or sets the container's relative size at unpin time.</summary>
     internal double RestoreRelativeSize { get; set; } = 1.0;
+
+    /// <summary>
+    /// Gets or sets the position of the container along the edge at unpin time (X for
+    /// top/bottom edges, Y for left/right ones), so the tab group appears aligned with
+    /// where the container was instead of at the start of the strip.
+    /// </summary>
+    internal double Offset { get; set; }
 }

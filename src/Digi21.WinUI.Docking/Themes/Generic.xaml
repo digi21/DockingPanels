@@ -320,10 +320,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:AutoHideTabStrip">
-                    <StackPanel
-                        x:Name="PART_Items"
-                        Background="{TemplateBinding Background}"
-                        Spacing="2" />
+                    <Grid x:Name="PART_Items" Background="{TemplateBinding Background}" />
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

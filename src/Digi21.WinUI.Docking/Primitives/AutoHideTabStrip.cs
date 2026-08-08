@@ -5,6 +5,8 @@ namespace Digi21.WinUI.Docking.Primitives;
 
 /// <summary>
 /// The thin bar at a dock site edge that lists the auto-hidden tool windows of that edge.
+/// Each auto-hide group is positioned along the strip at the offset its container had when
+/// it was unpinned, so the tabs appear aligned with where the panel used to be.
 /// </summary>
 public partial class AutoHideTabStrip : Control
 {
@@ -15,8 +17,8 @@ public partial class AutoHideTabStrip : Control
         typeof(AutoHideTabStrip),
         new PropertyMetadata(DockSide.Left, (d, _) => ((AutoHideTabStrip)d).Rebuild()));
 
-    private readonly List<ToolWindow> windows = [];
-    private StackPanel? itemsHost;
+    private readonly List<AutoHideGroup> groups = [];
+    private Grid? itemsHost;
 
     /// <summary>Initializes a new instance of the <see cref="AutoHideTabStrip"/> class.</summary>
     public AutoHideTabStrip()
@@ -32,11 +34,11 @@ public partial class AutoHideTabStrip : Control
         set => SetValue(EdgeProperty, value);
     }
 
-    /// <summary>Replaces the windows shown by this strip.</summary>
-    internal void SetWindows(IEnumerable<ToolWindow> newWindows)
+    /// <summary>Replaces the auto-hide groups shown by this strip.</summary>
+    internal void SetGroups(IEnumerable<AutoHideGroup> newGroups)
     {
-        windows.Clear();
-        windows.AddRange(newWindows);
+        groups.Clear();
+        groups.AddRange(newGroups);
         Rebuild();
     }
 
@@ -44,7 +46,7 @@ public partial class AutoHideTabStrip : Control
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
-        itemsHost = GetTemplateChild("PART_Items") as StackPanel;
+        itemsHost = GetTemplateChild("PART_Items") as Grid;
         Rebuild();
     }
 
@@ -55,12 +57,27 @@ public partial class AutoHideTabStrip : Control
             return;
         }
 
-        itemsHost.Orientation = Edge is DockSide.Left or DockSide.Right ? Orientation.Vertical : Orientation.Horizontal;
         itemsHost.Children.Clear();
 
-        foreach (var window in windows)
+        var vertical = Edge is DockSide.Left or DockSide.Right;
+
+        foreach (var group in groups)
         {
-            itemsHost.Children.Add(new AutoHideTabItem { Window = window, Edge = Edge });
+            var panel = new StackPanel
+            {
+                Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal,
+                Spacing = 2,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = vertical ? new Thickness(0, group.Offset, 0, 0) : new Thickness(group.Offset, 0, 0, 0),
+            };
+
+            foreach (var window in group.Windows)
+            {
+                panel.Children.Add(new AutoHideTabItem { Window = window, Edge = Edge });
+            }
+
+            itemsHost.Children.Add(panel);
         }
     }
 }

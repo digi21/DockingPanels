@@ -122,6 +122,9 @@ public partial class DockSite : Control
     /// <summary>Gets the controller that runs interactive drag-and-drop re-docking, once the template is applied.</summary>
     internal DragDockController? DragController { get; private set; }
 
+    /// <summary>Gets the presenter that hosts the docked layout, used as the coordinate reference for the edge strips.</summary>
+    internal ContentPresenter? LayoutRoot => layoutRootPresenter;
+
     /// <summary>Gets the elements (containers and workspaces) that can receive dropped windows.</summary>
     internal IReadOnlyCollection<FrameworkElement> DropTargets => dropTargets;
 
@@ -259,9 +262,9 @@ public partial class DockSite : Control
     {
         foreach (var (side, strip) in autoHideStrips)
         {
-            var windows = autoHideGroups.Where(g => g.Edge == side).SelectMany(g => g.Windows).ToList();
-            strip.SetWindows(windows);
-            strip.Visibility = windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            var groups = autoHideGroups.Where(g => g.Edge == side && g.Windows.Count > 0).ToList();
+            strip.SetGroups(groups);
+            strip.Visibility = groups.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 

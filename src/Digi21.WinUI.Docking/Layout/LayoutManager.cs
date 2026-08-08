@@ -221,6 +221,23 @@ internal static class LayoutManager
 
         var restoreRelative = SplitContainer.GetEffectiveRelativeSize(container);
 
+        // Position of the container along the edge, so its tabs land under where it was.
+        double offset = 0;
+        try
+        {
+            var reference = (UIElement?)site.LayoutRoot ?? site;
+            var origin = container.TransformToVisual(reference).TransformPoint(default);
+            offset = edge is DockSide.Left or DockSide.Right ? origin.Y : origin.X;
+            if (!double.IsFinite(offset) || offset < 0)
+            {
+                offset = 0;
+            }
+        }
+        catch (ArgumentException)
+        {
+            offset = 0;
+        }
+
         var windows = container.Items.ToList();
         foreach (var window in windows)
         {
@@ -251,6 +268,7 @@ internal static class LayoutManager
             RestoreSibling = restoreSibling,
             RestoreSide = restoreSide,
             RestoreRelativeSize = restoreRelative,
+            Offset = offset,
         });
         site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
     }
