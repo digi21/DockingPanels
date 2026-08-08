@@ -6,18 +6,43 @@
     Title="Docking Gallery">
 
     <docking:DockSite x:Name="DockSite">
-        <Border
-            Margin="12"
-            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-            BorderThickness="1"
-            CornerRadius="8">
-            <TextBlock
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Style="{ThemeResource SubtitleTextBlockStyle}"
-                Text="DockSite is alive — docking layout comes next." />
-        </Border>
+        <docking:SplitContainer Orientation="Horizontal">
+
+            <Border
+                docking:DockSite.RelativeSize="0.25"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Text="Tool window placeholder (left)" />
+            </Border>
+
+            <docking:SplitContainer docking:DockSite.RelativeSize="0.75" Orientation="Vertical">
+
+                <docking:Workspace docking:DockSite.RelativeSize="0.7">
+                    <TextBox
+                        AcceptsReturn="True"
+                        BorderThickness="0"
+                        PlaceholderText="Workspace — type here"
+                        TextWrapping="Wrap" />
+                </docking:Workspace>
+
+                <Border
+                    docking:DockSite.RelativeSize="0.3"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Text="Tool window placeholder (bottom)" />
+                </Border>
+
+            </docking:SplitContainer>
+
+        </docking:SplitContainer>
     </docking:DockSite>
 
 </Window>
