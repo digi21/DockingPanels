@@ -90,6 +90,14 @@ internal static class LayoutManager
         Detach(window);
 
         var newContainer = new ToolWindowContainer();
+        InsertRelativeTo(newContainer, targetNode, side);
+        newContainer.Items.Add(window);
+        FinishDock(site, window, wasOpen);
+    }
+
+    /// <summary>Inserts a container as a new pane beside an existing layout node.</summary>
+    private static void InsertRelativeTo(ToolWindowContainer newContainer, FrameworkElement targetNode, DockSide side)
+    {
         var orientation = side is DockSide.Left or DockSide.Right ? Orientation.Horizontal : Orientation.Vertical;
         var before = side is DockSide.Left or DockSide.Top;
         var targetRelative = SplitContainer.GetEffectiveRelativeSize(targetNode);
@@ -123,9 +131,6 @@ internal static class LayoutManager
                 newSplit.Children.Add(newContainer);
             }
         }
-
-        newContainer.Items.Add(window);
-        FinishDock(site, window, wasOpen);
     }
 
     /// <summary>Attaches a window as a new tab of an existing container.</summary>
@@ -191,6 +196,31 @@ internal static class LayoutManager
             size = 300;
         }
 
+        // Remember the neighbor pane so pinning back can restore the original position.
+        FrameworkElement? restoreSibling = null;
+        var restoreSide = edge;
+        if (VisualTreeHelper.GetParent(container) is SplitContainer parentSplit)
+        {
+            var panes = parentSplit.GetPanes();
+            var index = panes.IndexOf(container);
+            if (index >= 0 && panes.Count > 1)
+            {
+                var vertical = parentSplit.Orientation == Orientation.Vertical;
+                if (index > 0)
+                {
+                    restoreSibling = panes[index - 1] as FrameworkElement;
+                    restoreSide = vertical ? DockSide.Bottom : DockSide.Right;
+                }
+                else
+                {
+                    restoreSibling = panes[index + 1] as FrameworkElement;
+                    restoreSide = vertical ? DockSide.Top : DockSide.Left;
+                }
+            }
+        }
+
+        var restoreRelative = SplitContainer.GetEffectiveRelativeSize(container);
+
         var windows = container.Items.ToList();
         foreach (var window in windows)
         {
@@ -216,7 +246,12 @@ internal static class LayoutManager
             }
         }
 
-        site.AddAutoHideGroup(new AutoHideGroup(edge, windows, size));
+        site.AddAutoHideGroup(new AutoHideGroup(edge, windows, size)
+        {
+            RestoreSibling = restoreSibling,
+            RestoreSide = restoreSide,
+            RestoreRelativeSize = restoreRelative,
+        });
         site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
     }
 
@@ -233,7 +268,21 @@ internal static class LayoutManager
             window.IsRelocating = false;
         }
 
-        DockContainerToSide(site, container, group.Edge);
+        // Restore next to the original neighbor when it is still part of this dock site's
+        // layout; otherwise fall back to docking at the edge the group collapsed to.
+        if (group.RestoreSibling is { } sibling
+            && ReferenceEquals(sibling.FindAncestor<DockSite>(), site))
+        {
+            var siblingRelative = SplitContainer.GetEffectiveRelativeSize(sibling);
+            InsertRelativeTo(container, sibling, group.RestoreSide);
+            DockSite.SetRelativeSize(sibling, siblingRelative);
+            DockSite.SetRelativeSize(container, group.RestoreRelativeSize);
+        }
+        else
+        {
+            DockContainerToSide(site, container, group.Edge);
+        }
+
         site.NotifyLayoutChanged(LayoutChangeKind.WindowDocked);
         group.Windows.FirstOrDefault()?.Activate();
     }
@@ -252,6 +301,11 @@ internal static class LayoutManager
         {
             var panes = parent.GetPanes();
             var index = panes.IndexOf(element);
+            if (index < 0)
+            {
+                return DockSide.Left;
+            }
+
             var leading = index < panes.Count - index - 1;
 
             return parent.Orientation == Orientation.Vertical

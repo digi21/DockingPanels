@@ -36,7 +36,7 @@ public sealed partial class MainWindow : Window
                         Output.AutoHide();
                         break;
                     case 2:
-                        ClassView.Activate();
+                        Output.Dock();
                         break;
                     case 3:
                         var log = new System.Text.StringBuilder();
