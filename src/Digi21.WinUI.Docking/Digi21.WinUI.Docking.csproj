@@ -29,4 +29,8 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Digi21.WinUI.Docking.Tests" />
+  </ItemGroup>
+
 </Project>

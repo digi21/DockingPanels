@@ -17,6 +17,12 @@
             Spacing="8">
             <Button Click="OnReopenSolutionExplorer" Content="Reopen Solution Explorer" />
             <Button Click="OnReopenOutput" Content="Reopen Output" />
+            <Button Click="OnSaveLayout" Content="Save Layout" />
+            <Button
+                x:Name="LoadLayoutButton"
+                Click="OnLoadLayout"
+                Content="Load Layout"
+                IsEnabled="False" />
             <TextBlock
                 x:Name="EventLog"
                 VerticalAlignment="Center"
