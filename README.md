@@ -1,5 +1,6 @@
 # Digi21.WinUI.Docking
 
+[![CI](https://github.com/Digi21/DockingPanels/actions/workflows/ci.yml/badge.svg)](https://github.com/Digi21/DockingPanels/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Digi21.WinUI.Docking.svg)](https://www.nuget.org/packages/Digi21.WinUI.Docking)
 [![NuGet downloads](https://img.shields.io/nuget/dt/Digi21.WinUI.Docking.svg)](https://www.nuget.org/packages/Digi21.WinUI.Docking)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
