@@ -47,6 +47,9 @@ public enum LayoutChangeKind
     /// <summary>A window was docked or re-docked to a new position.</summary>
     WindowDocked,
 
+    /// <summary>A window group was collapsed to an auto-hide edge.</summary>
+    WindowAutoHidden,
+
     /// <summary>A full layout was loaded, e.g. by the layout serializer.</summary>
     LayoutLoaded,
 }

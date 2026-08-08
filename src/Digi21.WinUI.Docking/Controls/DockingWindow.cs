@@ -29,6 +29,10 @@ public abstract partial class DockingWindow : ContentControl
     public static readonly DependencyProperty CanDragWindowProperty = DependencyProperty.Register(
         nameof(CanDragWindow), typeof(bool), typeof(DockingWindow), new PropertyMetadata(true));
 
+    /// <summary>Identifies the <see cref="CanAutoHide"/> dependency property.</summary>
+    public static readonly DependencyProperty CanAutoHideProperty = DependencyProperty.Register(
+        nameof(CanAutoHide), typeof(bool), typeof(DockingWindow), new PropertyMetadata(true));
+
     /// <summary>Identifies the <see cref="IsOpen"/> dependency property.</summary>
     public static readonly DependencyProperty IsOpenProperty = DependencyProperty.Register(
         nameof(IsOpen), typeof(bool), typeof(DockingWindow), new PropertyMetadata(false));
@@ -91,6 +95,13 @@ public abstract partial class DockingWindow : ContentControl
         set => SetValue(CanDragWindowProperty, value);
     }
 
+    /// <summary>Gets or sets a value indicating whether the window shows a pin button and can auto-hide.</summary>
+    public bool CanAutoHide
+    {
+        get => (bool)GetValue(CanAutoHideProperty);
+        set => SetValue(CanAutoHideProperty, value);
+    }
+
     /// <summary>Gets a value indicating whether the window is currently part of the layout.</summary>
     public bool IsOpen
     {
@@ -131,15 +142,48 @@ public abstract partial class DockingWindow : ContentControl
     /// </summary>
     internal bool IsRelocating { get; set; }
 
-    /// <summary>Selects the window in its container and makes it the active window of its dock site.</summary>
+    /// <summary>
+    /// Selects the window in its container and makes it the active window of its dock site.
+    /// If the window is auto-hidden, its flyout is opened.
+    /// </summary>
     public void Activate()
     {
         if (this is ToolWindow tool)
         {
+            if (State == DockingWindowState.AutoHide)
+            {
+                DockSite?.ShowAutoHideFlyout(tool);
+                return;
+            }
+
             Container?.Select(tool);
         }
 
         DockSite?.SetActiveWindow(this);
+    }
+
+    /// <summary>
+    /// Collapses this window's container to the nearest auto-hide edge, like unpinning in
+    /// Visual Studio. All windows sharing the container are auto-hidden together.
+    /// </summary>
+    public void AutoHide()
+    {
+        if (CanAutoHide && State == DockingWindowState.Docked && Container is { } container && DockSite is { } site)
+        {
+            LayoutManager.AutoHideContainer(site, container);
+        }
+    }
+
+    /// <summary>
+    /// Pins an auto-hidden window back into the layout, re-docking its whole auto-hide group
+    /// to the edge it was collapsed to.
+    /// </summary>
+    public void Dock()
+    {
+        if (State == DockingWindowState.AutoHide && DockSite is { } site && site.FindAutoHideGroup(this) is { } group)
+        {
+            LayoutManager.DockAutoHideGroup(site, group);
+        }
     }
 
     /// <summary>

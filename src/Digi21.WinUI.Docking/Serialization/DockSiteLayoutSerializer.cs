@@ -49,8 +49,23 @@ public class DockSiteLayoutSerializer
         ArgumentNullException.ThrowIfNull(dockSite);
         ArgumentNullException.ThrowIfNull(stream);
 
-        var root = dockSite.Child is null ? null : Capture(dockSite.Child);
-        LayoutXml.Write(stream, root);
+        var layout = new LayoutDocument { Root = dockSite.Child is null ? null : Capture(dockSite.Child) };
+
+        foreach (var group in dockSite.AutoHideGroups)
+        {
+            var groupNode = new AutoHideGroupNode { Edge = group.Edge, Size = group.Size };
+            foreach (var window in group.Windows)
+            {
+                var id = window.SerializationId
+                    ?? throw new InvalidOperationException(
+                        $"The tool window '{window.Title}' has no SerializationId. Every open tool window needs a stable id to save the layout.");
+                groupNode.Windows.Add(new LayoutWindowEntry(id, window.State.ToString()));
+            }
+
+            layout.AutoHideGroups.Add(groupNode);
+        }
+
+        LayoutXml.Write(stream, layout);
     }
 
     /// <summary>Loads a layout previously saved with this serializer from an XML string.</summary>
@@ -80,8 +95,8 @@ public class DockSiteLayoutSerializer
         ArgumentNullException.ThrowIfNull(dockSite);
         ArgumentNullException.ThrowIfNull(stream);
 
-        var rootNode = LayoutXml.Read(stream);
-        Apply(dockSite, rootNode);
+        var layout = LayoutXml.Read(stream);
+        Apply(dockSite, layout);
     }
 
     private static LayoutNode Capture(UIElement element)
@@ -126,7 +141,7 @@ public class DockSiteLayoutSerializer
         }
     }
 
-    private void Apply(DockSite site, LayoutNode? rootNode)
+    private void Apply(DockSite site, LayoutDocument layout)
     {
         var workspaces = new Queue<Workspace>();
         CollectWorkspaces(site.Child, workspaces);
@@ -145,6 +160,10 @@ public class DockSiteLayoutSerializer
             window.IsRelocating = window.IsOpen;
         }
 
+        // Hide the flyout and drop existing auto-hide groups before touching the tree so
+        // any flyout-hosted window is released.
+        site.ClearAutoHideGroups();
+
         // Detach the old tree and dismantle its split containers so every reusable element
         // (the workspace in particular) is fully released before the rebuild. Once the tree
         // is disconnected the visual parent links are no longer discoverable, so this must
@@ -154,7 +173,31 @@ public class DockSiteLayoutSerializer
         DismantleSplits(oldRoot);
 
         var used = new HashSet<ToolWindow>();
-        site.Child = rootNode is null ? null : Build(rootNode, index, workspaces, used);
+        site.Child = layout.Root is null ? null : Build(layout.Root, index, workspaces, used);
+
+        foreach (var groupNode in layout.AutoHideGroups)
+        {
+            var groupWindows = new List<ToolWindow>();
+            foreach (var entry in groupNode.Windows)
+            {
+                if (Resolve(entry.Id, index) is { } window && !used.Contains(window))
+                {
+                    used.Add(window);
+                    window.IsRelocating = true;
+                    window.Container?.Items.Remove(window);
+                    window.IsRelocating = false;
+                    window.State = DockingWindowState.AutoHide;
+                    window.IsOpen = true;
+                    window.IsSelected = false;
+                    groupWindows.Add(window);
+                }
+            }
+
+            if (groupWindows.Count > 0)
+            {
+                site.AddAutoHideGroup(new AutoHideGroup(groupNode.Edge, groupWindows, groupNode.Size));
+            }
+        }
 
         foreach (var window in site.ToolWindows.ToList())
         {

@@ -67,6 +67,10 @@ public partial class DockSite : Control
 
     private readonly List<ToolWindow> toolWindows = [];
     private readonly HashSet<FrameworkElement> dropTargets = [];
+    private readonly List<AutoHideGroup> autoHideGroups = [];
+    private readonly Dictionary<DockSide, AutoHideTabStrip> autoHideStrips = [];
+    private AutoHideFlyout? autoHideFlyout;
+    private ContentPresenter? layoutRootPresenter;
 
     /// <summary>Initializes a new instance of the <see cref="DockSite"/> class.</summary>
     public DockSite()
@@ -125,6 +129,26 @@ public partial class DockSite : Control
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
+
+        autoHideStrips.Clear();
+        foreach (var (name, side) in new[]
+        {
+            ("PART_AutoHideStripLeft", DockSide.Left),
+            ("PART_AutoHideStripTop", DockSide.Top),
+            ("PART_AutoHideStripRight", DockSide.Right),
+            ("PART_AutoHideStripBottom", DockSide.Bottom),
+        })
+        {
+            if (GetTemplateChild(name) is AutoHideTabStrip strip)
+            {
+                autoHideStrips[side] = strip;
+            }
+        }
+
+        autoHideFlyout = GetTemplateChild("PART_AutoHideFlyout") as AutoHideFlyout;
+        layoutRootPresenter = GetTemplateChild("PART_LayoutRoot") as ContentPresenter;
+        RefreshAutoHideStrips();
+        AddHandler(PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnDismissPointerPressed), true);
 
         if (GetTemplateChild("PART_DockPreview") is Rectangle preview
             && GetTemplateChild("PART_DragGhost") is Border ghost
@@ -195,6 +219,130 @@ public partial class DockSite : Control
         }
 
         LayoutManager.AttachAsTab(this, window, container);
+    }
+
+    /// <summary>Gets the auto-hide groups collapsed to the edges of this dock site.</summary>
+    internal IReadOnlyList<AutoHideGroup> AutoHideGroups => autoHideGroups;
+
+    /// <summary>Finds the auto-hide group containing the given window, if any.</summary>
+    internal AutoHideGroup? FindAutoHideGroup(DockingWindow window)
+    {
+        return window is ToolWindow tool ? autoHideGroups.FirstOrDefault(g => g.Windows.Contains(tool)) : null;
+    }
+
+    internal void AddAutoHideGroup(AutoHideGroup group)
+    {
+        autoHideGroups.Add(group);
+        RefreshAutoHideStrips();
+    }
+
+    internal void RemoveAutoHideGroup(AutoHideGroup group)
+    {
+        if (autoHideFlyout?.Window is { } shown && group.Windows.Contains(shown))
+        {
+            HideAutoHideFlyout();
+        }
+
+        autoHideGroups.Remove(group);
+        RefreshAutoHideStrips();
+    }
+
+    internal void ClearAutoHideGroups()
+    {
+        HideAutoHideFlyout();
+        autoHideGroups.Clear();
+        RefreshAutoHideStrips();
+    }
+
+    /// <summary>Synchronizes the edge tab strips with the current auto-hide groups.</summary>
+    internal void RefreshAutoHideStrips()
+    {
+        foreach (var (side, strip) in autoHideStrips)
+        {
+            var windows = autoHideGroups.Where(g => g.Edge == side).SelectMany(g => g.Windows).ToList();
+            strip.SetWindows(windows);
+            strip.Visibility = windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>Shows the auto-hide flyout for the given window.</summary>
+    internal void ShowAutoHideFlyout(ToolWindow window)
+    {
+        if (autoHideFlyout is null || layoutRootPresenter is null
+            || FindAutoHideGroup(window) is not { } group)
+        {
+            return;
+        }
+
+        var cellWidth = layoutRootPresenter.ActualWidth;
+        var cellHeight = layoutRootPresenter.ActualHeight;
+        var size = Math.Min(group.Size, (group.Edge is DockSide.Left or DockSide.Right ? cellWidth : cellHeight) * 0.8);
+
+        var (width, height) = group.Edge is DockSide.Left or DockSide.Right
+            ? (size, cellHeight)
+            : (cellWidth, size);
+
+        autoHideFlyout.Show(window, width, height);
+
+        var origin = layoutRootPresenter
+            .TransformToVisual(this)
+            .TransformPoint(new Windows.Foundation.Point(0, 0));
+        Canvas.SetLeft(autoHideFlyout, origin.X + (group.Edge == DockSide.Right ? cellWidth - width : 0));
+        Canvas.SetTop(autoHideFlyout, origin.Y + (group.Edge == DockSide.Bottom ? cellHeight - height : 0));
+        autoHideFlyout.Visibility = Visibility.Visible;
+
+        SetActiveWindow(window);
+    }
+
+    /// <summary>Hides the auto-hide flyout if it is open.</summary>
+    internal void HideAutoHideFlyout()
+    {
+        if (autoHideFlyout?.Window is { } shown)
+        {
+            if (ReferenceEquals(ActiveWindow, shown))
+            {
+                SetActiveWindow(null);
+            }
+
+            autoHideFlyout.Release();
+        }
+
+        if (autoHideFlyout is not null)
+        {
+            autoHideFlyout.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnDismissPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (autoHideFlyout?.Window is null)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(this).Position;
+        if (IsWithin(autoHideFlyout, point))
+        {
+            return;
+        }
+
+        foreach (var strip in autoHideStrips.Values)
+        {
+            if (strip.Visibility == Visibility.Visible && IsWithin(strip, point))
+            {
+                return;
+            }
+        }
+
+        HideAutoHideFlyout();
+
+        bool IsWithin(FrameworkElement element, Windows.Foundation.Point p)
+        {
+            return element
+                .TransformToVisual(this)
+                .TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight))
+                .Contains(p);
+        }
     }
 
     /// <summary>Adds an element to the set of drop targets considered during drag operations.</summary>

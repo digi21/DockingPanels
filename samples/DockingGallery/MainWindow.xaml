@@ -56,6 +56,7 @@
                         </TreeView>
                     </docking:ToolWindow>
                     <docking:ToolWindow
+                        x:Name="ClassView"
                         Title="Class View"
                         SerializationId="classView">
                         <ListView>
@@ -66,9 +67,12 @@
                     </docking:ToolWindow>
                 </docking:ToolWindowContainer>
 
-                <docking:SplitContainer docking:DockSite.RelativeSize="0.75" Orientation="Vertical">
+                <docking:SplitContainer
+                    x:Name="InnerSplit"
+                    docking:DockSite.RelativeSize="0.75"
+                    Orientation="Vertical">
 
-                    <docking:Workspace docking:DockSite.RelativeSize="0.7">
+                    <docking:Workspace x:Name="MainWorkspace" docking:DockSite.RelativeSize="0.7">
                         <TextBox
                             AcceptsReturn="True"
                             BorderThickness="0"

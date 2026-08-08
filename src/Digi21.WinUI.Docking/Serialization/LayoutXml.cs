@@ -16,7 +16,7 @@ internal static class LayoutXml
     internal const string RootElementName = "DockSiteLayout";
     internal const int CurrentVersion = 1;
 
-    internal static void Write(Stream stream, LayoutNode? root)
+    internal static void Write(Stream stream, LayoutDocument layout)
     {
         var settings = new XmlWriterSettings
         {
@@ -28,15 +28,31 @@ internal static class LayoutXml
         writer.WriteStartElement(RootElementName);
         writer.WriteAttributeString("Version", CurrentVersion.ToString(CultureInfo.InvariantCulture));
 
-        if (root is not null)
+        if (layout.Root is not null)
         {
-            WriteNode(writer, root);
+            WriteNode(writer, layout.Root);
+        }
+
+        foreach (var group in layout.AutoHideGroups)
+        {
+            writer.WriteStartElement("AutoHideGroup");
+            writer.WriteAttributeString("Edge", group.Edge.ToString());
+            writer.WriteAttributeString("Size", group.Size.ToString("R", CultureInfo.InvariantCulture));
+            foreach (var window in group.Windows)
+            {
+                writer.WriteStartElement("ToolWindow");
+                writer.WriteAttributeString("Id", window.Id);
+                writer.WriteAttributeString("State", window.State);
+                writer.WriteEndElement();
+            }
+
+            writer.WriteEndElement();
         }
 
         writer.WriteEndElement();
     }
 
-    internal static LayoutNode? Read(Stream stream)
+    internal static LayoutDocument Read(Stream stream)
     {
         var document = XDocument.Load(stream);
         var root = document.Root ?? throw new InvalidDataException("The layout document has no root element.");
@@ -52,8 +68,43 @@ internal static class LayoutXml
             throw new NotSupportedException($"The layout was saved with a newer format version ({version}) than this library supports ({CurrentVersion}).");
         }
 
-        var child = root.Elements().FirstOrDefault();
-        return child is null ? null : ReadNode(child);
+        var layout = new LayoutDocument();
+
+        foreach (var element in root.Elements())
+        {
+            if (element.Name.LocalName == "AutoHideGroup")
+            {
+                var group = new AutoHideGroupNode
+                {
+                    Edge = Enum.TryParse<DockSide>((string?)element.Attribute("Edge"), out var edge) ? edge : DockSide.Left,
+                };
+
+                var sizeText = (string?)element.Attribute("Size");
+                if (double.TryParse(sizeText, NumberStyles.Float, CultureInfo.InvariantCulture, out var size) && size > 0)
+                {
+                    group.Size = size;
+                }
+
+                foreach (var child in element.Elements("ToolWindow"))
+                {
+                    var id = (string?)child.Attribute("Id")
+                        ?? throw new InvalidDataException("A ToolWindow element is missing its Id attribute.");
+                    group.Windows.Add(new LayoutWindowEntry(id, (string?)child.Attribute("State") ?? nameof(DockingWindowState.AutoHide)));
+                }
+
+                layout.AutoHideGroups.Add(group);
+            }
+            else if (layout.Root is null)
+            {
+                layout.Root = ReadNode(element);
+            }
+            else
+            {
+                throw new InvalidDataException("The layout document has more than one root layout node.");
+            }
+        }
+
+        return layout;
     }
 
     private static void WriteNode(XmlWriter writer, LayoutNode node)

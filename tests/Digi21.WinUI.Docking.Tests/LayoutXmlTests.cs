@@ -104,17 +104,38 @@ public class LayoutXmlTests
         Assert.Equal(1.0, node.RelativeSize);
     }
 
+    [Fact]
+    public void RoundTrip_AutoHideGroups_ArePreserved()
+    {
+        var layout = new LayoutDocument { Root = new WorkspaceLayoutNode() };
+        var group = new AutoHideGroupNode { Edge = DockSide.Right, Size = 250 };
+        group.Windows.Add(new LayoutWindowEntry("a", "AutoHide"));
+        group.Windows.Add(new LayoutWindowEntry("b", "AutoHide"));
+        layout.AutoHideGroups.Add(group);
+
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, layout);
+        stream.Position = 0;
+        var restored = LayoutXml.Read(stream);
+
+        Assert.IsType<WorkspaceLayoutNode>(restored.Root);
+        var restoredGroup = Assert.Single(restored.AutoHideGroups);
+        Assert.Equal(DockSide.Right, restoredGroup.Edge);
+        Assert.Equal(250, restoredGroup.Size);
+        Assert.Equal(["a", "b"], restoredGroup.Windows.Select(w => w.Id));
+    }
+
     private static LayoutNode? RoundTrip(LayoutNode? node)
     {
         using var stream = new MemoryStream();
-        LayoutXml.Write(stream, node);
+        LayoutXml.Write(stream, new LayoutDocument { Root = node });
         stream.Position = 0;
-        return LayoutXml.Read(stream);
+        return LayoutXml.Read(stream).Root;
     }
 
     private static LayoutNode? Read(string xml)
     {
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
-        return LayoutXml.Read(stream);
+        return LayoutXml.Read(stream).Root;
     }
 }

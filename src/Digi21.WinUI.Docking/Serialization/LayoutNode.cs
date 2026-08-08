@@ -40,3 +40,26 @@ internal sealed class ContainerLayoutNode : LayoutNode
 internal sealed class WorkspaceLayoutNode : LayoutNode
 {
 }
+
+/// <summary>A serialized auto-hide group collapsed to a dock site edge.</summary>
+internal sealed class AutoHideGroupNode
+{
+    /// <summary>Gets or sets the edge the group is collapsed to.</summary>
+    internal DockSide Edge { get; set; }
+
+    /// <summary>Gets or sets the flyout size in pixels.</summary>
+    internal double Size { get; set; } = 300;
+
+    /// <summary>Gets the windows in the group, in tab order.</summary>
+    internal List<LayoutWindowEntry> Windows { get; } = [];
+}
+
+/// <summary>The full serialized layout: the docked tree plus the auto-hide groups.</summary>
+internal sealed class LayoutDocument
+{
+    /// <summary>Gets or sets the root of the docked layout tree, if any.</summary>
+    internal LayoutNode? Root { get; set; }
+
+    /// <summary>Gets the auto-hide groups.</summary>
+    internal List<AutoHideGroupNode> AutoHideGroups { get; } = [];
+}

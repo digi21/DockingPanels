@@ -87,6 +87,17 @@ public partial class ToolWindowContainer : Control
     {
         base.OnApplyTemplate();
 
+        // The template can be re-applied after the container is disconnected and reconnected
+        // by a layout mutation. Release the windows from the previous template's content host
+        // first: they stay associated with it otherwise, and re-adding them to the new host
+        // would fail with a cryptic COM error.
+        contentHost?.Children.Clear();
+        tabStrip?.Children.Clear();
+        if (titleBar is not null)
+        {
+            titleBar.Window = null;
+        }
+
         contentHost = GetTemplateChild("PART_ContentHost") as Grid;
         tabStrip = GetTemplateChild("PART_TabStrip") as StackPanel;
         titleBar = GetTemplateChild("PART_TitleBar") as ToolWindowTitleBar;
