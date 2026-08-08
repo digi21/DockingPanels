@@ -17,32 +17,23 @@ public sealed partial class MainWindow : Window
 
     private void OnReopenSolutionExplorer(object sender, RoutedEventArgs e)
     {
-        Reopen(SolutionExplorer, LeftContainer);
+        Reopen(SolutionExplorer, DockSide.Left);
     }
 
     private void OnReopenOutput(object sender, RoutedEventArgs e)
     {
-        Reopen(Output, BottomContainer);
+        Reopen(Output, DockSide.Bottom);
     }
 
-    private void Reopen(ToolWindow window, ToolWindowContainer preferredContainer)
+    private void Reopen(ToolWindow window, DockSide side)
     {
         if (window.IsOpen)
         {
             window.Activate();
-            return;
         }
-
-        // Until programmatic docking arrives (DockToolWindow), reopen into the preferred
-        // container if it is still part of the layout, else into any container that is.
-        var target = preferredContainer.XamlRoot is not null
-            ? preferredContainer
-            : DockSite.ToolWindows.FirstOrDefault(w => w.IsOpen)?.Container;
-
-        if (target is not null)
+        else
         {
-            target.Items.Add(window);
-            window.Activate();
+            DockSite.DockToolWindow(window, side);
         }
     }
 }

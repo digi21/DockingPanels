@@ -35,12 +35,25 @@ public partial class ToolWindowContainer : Control
     private ToolWindowTitleBar? titleBar;
     private bool syncingSelection;
 
+    private DockSite? registeredSite;
+
     /// <summary>Initializes a new instance of the <see cref="ToolWindowContainer"/> class.</summary>
     public ToolWindowContainer()
     {
         DefaultStyleKey = typeof(ToolWindowContainer);
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
         items.CollectionChanged += OnItemsChanged;
+
+        Loaded += (_, _) =>
+        {
+            registeredSite = this.FindAncestor<DockSite>();
+            registeredSite?.RegisterDropTarget(this);
+        };
+        Unloaded += (_, _) =>
+        {
+            registeredSite?.UnregisterDropTarget(this);
+            registeredSite = null;
+        };
     }
 
     /// <summary>Gets the tool windows hosted by this container, in tab order.</summary>

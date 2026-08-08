@@ -1,7 +1,9 @@
+using Digi21.WinUI.Docking.Primitives;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 
 namespace Digi21.WinUI.Docking;
 
@@ -64,6 +66,7 @@ public partial class DockSite : Control
         new PropertyMetadata(null));
 
     private readonly List<ToolWindow> toolWindows = [];
+    private readonly HashSet<FrameworkElement> dropTargets = [];
 
     /// <summary>Initializes a new instance of the <see cref="DockSite"/> class.</summary>
     public DockSite()
@@ -111,6 +114,94 @@ public partial class DockSite : Control
     /// Gets all tool windows known to this dock site, including closed ones that can be reopened.
     /// </summary>
     public IReadOnlyList<ToolWindow> ToolWindows => toolWindows;
+
+    /// <summary>Gets the controller that runs interactive drag-and-drop re-docking, once the template is applied.</summary>
+    internal DragDockController? DragController { get; private set; }
+
+    /// <summary>Gets the elements (containers and workspaces) that can receive dropped windows.</summary>
+    internal IReadOnlyCollection<FrameworkElement> DropTargets => dropTargets;
+
+    /// <inheritdoc />
+    protected override void OnApplyTemplate()
+    {
+        base.OnApplyTemplate();
+
+        if (GetTemplateChild("PART_DockPreview") is Rectangle preview
+            && GetTemplateChild("PART_DragGhost") is Border ghost
+            && GetTemplateChild("PART_DragGhostText") is TextBlock ghostText
+            && GetTemplateChild("PART_CenterGuides") is DockGuidePanel centerGuides
+            && GetTemplateChild("PART_EdgeGuideLeft") is DockGuide left
+            && GetTemplateChild("PART_EdgeGuideTop") is DockGuide top
+            && GetTemplateChild("PART_EdgeGuideRight") is DockGuide right
+            && GetTemplateChild("PART_EdgeGuideBottom") is DockGuide bottom)
+        {
+            DragController = new DragDockController(this, preview, ghost, ghostText, centerGuides, new Dictionary<DockSide, DockGuide>
+            {
+                [DockSide.Left] = left,
+                [DockSide.Top] = top,
+                [DockSide.Right] = right,
+                [DockSide.Bottom] = bottom,
+            });
+        }
+        else
+        {
+            DragController = null;
+        }
+    }
+
+    /// <summary>
+    /// Docks a tool window as a new pane at an edge of this dock site. Also reopens closed windows.
+    /// </summary>
+    /// <param name="window">The window to dock.</param>
+    /// <param name="side">The dock site edge to dock to.</param>
+    public void DockToolWindow(ToolWindow window, DockSide side)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        LayoutManager.DockToSide(this, window, side);
+    }
+
+    /// <summary>
+    /// Docks a tool window as a new pane beside the container of another window.
+    /// </summary>
+    /// <param name="window">The window to dock.</param>
+    /// <param name="target">An open window whose container is the dock target.</param>
+    /// <param name="side">The side of the target to dock to.</param>
+    public void DockToolWindow(ToolWindow window, DockingWindow target, DockSide side)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (target.Container is not { } container)
+        {
+            throw new InvalidOperationException("The target window is not open, so there is no container to dock beside.");
+        }
+
+        LayoutManager.DockRelativeTo(this, window, container, side);
+    }
+
+    /// <summary>
+    /// Attaches a tool window as a new tab in the container of another window.
+    /// </summary>
+    /// <param name="window">The window to attach.</param>
+    /// <param name="target">An open window whose container receives the new tab.</param>
+    public void AttachToolWindow(ToolWindow window, DockingWindow target)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (target.Container is not { } container)
+        {
+            throw new InvalidOperationException("The target window is not open, so there is no container to attach to.");
+        }
+
+        LayoutManager.AttachAsTab(this, window, container);
+    }
+
+    /// <summary>Adds an element to the set of drop targets considered during drag operations.</summary>
+    internal void RegisterDropTarget(FrameworkElement element) => dropTargets.Add(element);
+
+    /// <summary>Removes an element from the set of drop targets.</summary>
+    internal void UnregisterDropTarget(FrameworkElement element) => dropTargets.Remove(element);
 
     /// <summary>Selects and activates the given window. Equivalent to <see cref="DockingWindow.Activate"/>.</summary>
     /// <param name="window">The window to activate.</param>

@@ -67,6 +67,11 @@ public partial class ToolWindowTabItem : Control
         base.OnPointerPressed(e);
         VisualStateManager.GoToState(this, "Pressed", true);
         Window?.Activate();
+
+        if (Window is { } window && window.DockSite?.DragController is { } controller)
+        {
+            controller.BeginPotentialDrag(window, this, e);
+        }
     }
 
     /// <inheritdoc />

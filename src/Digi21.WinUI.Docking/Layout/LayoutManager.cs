@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 
 namespace Digi21.WinUI.Docking;
@@ -11,6 +12,169 @@ namespace Digi21.WinUI.Docking;
 /// </summary>
 internal static class LayoutManager
 {
+    /// <summary>Docks a window as a new pane at an edge of the whole dock site.</summary>
+    internal static void DockToSide(DockSite site, ToolWindow window, DockSide side)
+    {
+        var wasOpen = window.IsOpen;
+        Detach(window);
+
+        var newContainer = new ToolWindowContainer();
+        var orientation = side is DockSide.Left or DockSide.Right ? Orientation.Horizontal : Orientation.Vertical;
+        var prepend = side is DockSide.Left or DockSide.Top;
+        var root = site.Child;
+
+        if (root is null)
+        {
+            site.Child = newContainer;
+        }
+        else if (root is SplitContainer rootSplit && rootSplit.Orientation == orientation)
+        {
+            // Give the new pane a quarter of the resulting space.
+            double total = 0;
+            foreach (var pane in rootSplit.GetPanes())
+            {
+                total += SplitContainer.GetEffectiveRelativeSize(pane);
+            }
+
+            DockSite.SetRelativeSize(newContainer, total / 3.0);
+
+            if (prepend)
+            {
+                rootSplit.Children.Insert(0, newContainer);
+            }
+            else
+            {
+                rootSplit.Children.Add(newContainer);
+            }
+        }
+        else
+        {
+            var newSplit = new SplitContainer { Orientation = orientation };
+            site.Child = null;
+            DockSite.SetRelativeSize(root, 3.0);
+            DockSite.SetRelativeSize(newContainer, 1.0);
+
+            if (prepend)
+            {
+                newSplit.Children.Add(newContainer);
+                newSplit.Children.Add(root);
+            }
+            else
+            {
+                newSplit.Children.Add(root);
+                newSplit.Children.Add(newContainer);
+            }
+
+            site.Child = newSplit;
+        }
+
+        newContainer.Items.Add(window);
+        FinishDock(site, window, wasOpen);
+    }
+
+    /// <summary>Docks a window as a new pane beside an existing layout node (container or workspace).</summary>
+    internal static void DockRelativeTo(DockSite site, ToolWindow window, FrameworkElement targetNode, DockSide side)
+    {
+        if (window.Container is { } own && ReferenceEquals(targetNode, own) && own.Items.Count == 1)
+        {
+            // Splitting a container that only holds the dragged window is a no-op.
+            return;
+        }
+
+        var wasOpen = window.IsOpen;
+        Detach(window);
+
+        var newContainer = new ToolWindowContainer();
+        var orientation = side is DockSide.Left or DockSide.Right ? Orientation.Horizontal : Orientation.Vertical;
+        var before = side is DockSide.Left or DockSide.Top;
+        var targetRelative = SplitContainer.GetEffectiveRelativeSize(targetNode);
+
+        if (VisualTreeHelper.GetParent(targetNode) is SplitContainer parentSplit && parentSplit.Orientation == orientation)
+        {
+            // Insert beside the target, splitting the target's share in half.
+            DockSite.SetRelativeSize(targetNode, targetRelative / 2.0);
+            DockSite.SetRelativeSize(newContainer, targetRelative / 2.0);
+
+            var index = parentSplit.Children.IndexOf(targetNode);
+            parentSplit.Children.Insert(before ? index : index + 1, newContainer);
+        }
+        else
+        {
+            // Wrap the target in a new split that preserves its share of the parent.
+            var newSplit = new SplitContainer { Orientation = orientation };
+            DockSite.SetRelativeSize(newSplit, targetRelative);
+            ReplaceInParent(targetNode, newSplit);
+            DockSite.SetRelativeSize(targetNode, 1.0);
+            DockSite.SetRelativeSize(newContainer, 1.0);
+
+            if (before)
+            {
+                newSplit.Children.Add(newContainer);
+                newSplit.Children.Add(targetNode);
+            }
+            else
+            {
+                newSplit.Children.Add(targetNode);
+                newSplit.Children.Add(newContainer);
+            }
+        }
+
+        newContainer.Items.Add(window);
+        FinishDock(site, window, wasOpen);
+    }
+
+    /// <summary>Attaches a window as a new tab of an existing container.</summary>
+    internal static void AttachAsTab(DockSite site, ToolWindow window, ToolWindowContainer target)
+    {
+        if (ReferenceEquals(target, window.Container))
+        {
+            window.Activate();
+            return;
+        }
+
+        var wasOpen = window.IsOpen;
+        Detach(window);
+        target.Items.Add(window);
+        FinishDock(site, window, wasOpen);
+    }
+
+    /// <summary>
+    /// Removes the window from its current container as part of a move, without raising
+    /// closed events, and collapses the abandoned part of the tree.
+    /// </summary>
+    private static void Detach(ToolWindow window)
+    {
+        window.IsRelocating = window.IsOpen;
+
+        if (window.Container is { } container)
+        {
+            container.Items.Remove(window);
+            if (container.Items.Count == 0)
+            {
+                RemoveFromParent(container);
+            }
+        }
+    }
+
+    private static void FinishDock(DockSite site, ToolWindow window, bool wasOpen)
+    {
+        var wasRelocating = window.IsRelocating;
+        window.IsRelocating = false;
+        window.DockSite = site;
+        site.RegisterWindow(window);
+
+        if (wasRelocating || wasOpen)
+        {
+            site.NotifyLayoutChanged(LayoutChangeKind.WindowDocked);
+        }
+        else
+        {
+            site.NotifyWindowOpened(window);
+        }
+
+        window.Activate();
+    }
+
     /// <summary>Removes a window from its container and collapses the tree if needed.</summary>
     internal static void RemoveWindow(DockingWindow window)
     {

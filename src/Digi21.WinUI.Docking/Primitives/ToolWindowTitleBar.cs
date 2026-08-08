@@ -64,6 +64,11 @@ public partial class ToolWindowTitleBar : Control
     {
         base.OnPointerPressed(e);
         Window?.Activate();
+
+        if (Window is ToolWindow tool && tool.DockSite?.DragController is { } controller)
+        {
+            controller.BeginPotentialDrag(tool, this, e);
+        }
     }
 
     private void OnWindowChanged()

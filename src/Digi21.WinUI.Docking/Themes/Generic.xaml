@@ -11,6 +11,8 @@
     <Style BasedOn="{StaticResource DefaultToolWindowContainerStyle}" TargetType="docking:ToolWindowContainer" />
     <Style BasedOn="{StaticResource DefaultToolWindowTitleBarStyle}" TargetType="primitives:ToolWindowTitleBar" />
     <Style BasedOn="{StaticResource DefaultToolWindowTabItemStyle}" TargetType="primitives:ToolWindowTabItem" />
+    <Style BasedOn="{StaticResource DefaultDockGuideStyle}" TargetType="primitives:DockGuide" />
+    <Style BasedOn="{StaticResource DefaultDockGuidePanelStyle}" TargetType="primitives:DockGuidePanel" />
 
     <Style x:Key="DefaultDockSiteStyle" TargetType="docking:DockSite">
         <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
@@ -28,7 +30,44 @@
                             HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                             Content="{TemplateBinding Child}" />
-                        <Canvas x:Name="PART_Overlay" IsHitTestVisible="False" />
+                        <Canvas x:Name="PART_Overlay" IsHitTestVisible="False">
+                            <Rectangle
+                                x:Name="PART_DockPreview"
+                                Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                Opacity="0.3"
+                                RadiusX="4"
+                                RadiusY="4"
+                                Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                                StrokeThickness="1"
+                                Visibility="Collapsed" />
+                            <primitives:DockGuidePanel x:Name="PART_CenterGuides" Visibility="Collapsed" />
+                            <primitives:DockGuide
+                                x:Name="PART_EdgeGuideLeft"
+                                Side="Left"
+                                Visibility="Collapsed" />
+                            <primitives:DockGuide
+                                x:Name="PART_EdgeGuideTop"
+                                Side="Top"
+                                Visibility="Collapsed" />
+                            <primitives:DockGuide
+                                x:Name="PART_EdgeGuideRight"
+                                Side="Right"
+                                Visibility="Collapsed" />
+                            <primitives:DockGuide
+                                x:Name="PART_EdgeGuideBottom"
+                                Side="Bottom"
+                                Visibility="Collapsed" />
+                            <Border
+                                x:Name="PART_DragGhost"
+                                Padding="12,6"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Visibility="Collapsed">
+                                <TextBlock x:Name="PART_DragGhostText" Style="{ThemeResource CaptionTextBlockStyle}" />
+                            </Border>
+                        </Canvas>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
@@ -203,6 +242,80 @@
                             RadiusX="1"
                             RadiusY="1"
                             Visibility="Collapsed" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultDockGuideStyle" TargetType="primitives:DockGuide">
+        <Setter Property="Width" Value="40" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:DockGuide">
+                    <Grid
+                        x:Name="Root"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="HotStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="Hot">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                                        <Setter Target="PART_Icon.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <FontIcon
+                            x:Name="PART_Icon"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="14" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultDockGuidePanelStyle" TargetType="primitives:DockGuidePanel">
+        <Setter Property="Width" Value="128" />
+        <Setter Property="Height" Value="128" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:DockGuidePanel">
+                    <Grid>
+                        <primitives:DockGuide
+                            x:Name="PART_LeftGuide"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Side="Left" />
+                        <primitives:DockGuide
+                            x:Name="PART_TopGuide"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Top"
+                            Side="Top" />
+                        <primitives:DockGuide
+                            x:Name="PART_CenterGuide"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            IsCenter="True" />
+                        <primitives:DockGuide
+                            x:Name="PART_RightGuide"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Side="Right" />
+                        <primitives:DockGuide
+                            x:Name="PART_BottomGuide"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom"
+                            Side="Bottom" />
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>

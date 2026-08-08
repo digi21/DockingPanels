@@ -125,6 +125,12 @@ public abstract partial class DockingWindow : ContentControl
     /// <summary>Gets the dock site this window belongs to, resolved when the window is first loaded.</summary>
     internal DockSite? DockSite { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the window is being moved to a new docking
+    /// position. While set, attach/detach notifications do not raise opened/closed events.
+    /// </summary>
+    internal bool IsRelocating { get; set; }
+
     /// <summary>Selects the window in its container and makes it the active window of its dock site.</summary>
     public void Activate()
     {
@@ -163,6 +169,11 @@ public abstract partial class DockingWindow : ContentControl
         IsOpen = true;
         State = DockingWindowState.Docked;
 
+        if (IsRelocating)
+        {
+            return;
+        }
+
         if (DockSite is { } site)
         {
             site.NotifyWindowOpened(this);
@@ -178,6 +189,11 @@ public abstract partial class DockingWindow : ContentControl
     /// <summary>Called by the container when this window is removed from it.</summary>
     internal void NotifyDetached()
     {
+        if (IsRelocating)
+        {
+            return;
+        }
+
         IsOpen = false;
         IsSelected = false;
         pendingOpenedNotification = false;

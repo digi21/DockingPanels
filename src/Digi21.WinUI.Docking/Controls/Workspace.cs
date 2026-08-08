@@ -8,10 +8,23 @@ namespace Digi21.WinUI.Docking;
 /// </summary>
 public partial class Workspace : ContentControl
 {
+    private DockSite? registeredSite;
+
     /// <summary>Initializes a new instance of the <see cref="Workspace"/> class.</summary>
     public Workspace()
     {
         DefaultStyleKey = typeof(Workspace);
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
+
+        Loaded += (_, _) =>
+        {
+            registeredSite = this.FindAncestor<DockSite>();
+            registeredSite?.RegisterDropTarget(this);
+        };
+        Unloaded += (_, _) =>
+        {
+            registeredSite?.UnregisterDropTarget(this);
+            registeredSite = null;
+        };
     }
 }
