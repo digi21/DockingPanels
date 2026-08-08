@@ -33,7 +33,7 @@ public sealed partial class MainWindow : Window
                 switch (step)
                 {
                     case 1:
-                        SolutionExplorer.AutoHide();
+                        Output.AutoHide();
                         break;
                     case 2:
                         ClassView.Activate();

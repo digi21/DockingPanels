@@ -238,29 +238,28 @@ internal static class LayoutManager
         group.Windows.FirstOrDefault()?.Activate();
     }
 
-    /// <summary>Finds the dock site edge geometrically nearest to the given element.</summary>
+    /// <summary>
+    /// Picks the auto-hide edge for an element from its position in the layout tree, like
+    /// Visual Studio: the orientation of the parent split decides the axis, and the pane's
+    /// position within it decides the side. Geometry alone is ambiguous, since a pane can
+    /// touch two dock site edges at once (e.g. a full-width bottom pane also touches the right edge).
+    /// </summary>
     private static DockSide NearestEdge(DockSite site, FrameworkElement element)
     {
-        try
-        {
-            var bounds = element
-                .TransformToVisual(site)
-                .TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight));
+        _ = site;
 
-            var distances = new (DockSide Side, double Distance)[]
-            {
-                (DockSide.Left, bounds.Left),
-                (DockSide.Top, bounds.Top),
-                (DockSide.Right, site.ActualWidth - bounds.Right),
-                (DockSide.Bottom, site.ActualHeight - bounds.Bottom),
-            };
-
-            return distances.MinBy(d => d.Distance).Side;
-        }
-        catch (ArgumentException)
+        if (VisualTreeHelper.GetParent(element) is SplitContainer parent)
         {
-            return DockSide.Left;
+            var panes = parent.GetPanes();
+            var index = panes.IndexOf(element);
+            var leading = index < panes.Count - index - 1;
+
+            return parent.Orientation == Orientation.Vertical
+                ? (leading ? DockSide.Top : DockSide.Bottom)
+                : (leading ? DockSide.Left : DockSide.Right);
         }
+
+        return DockSide.Left;
     }
 
     /// <summary>Removes a window from its container and collapses the tree if needed.</summary>
