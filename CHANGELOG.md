@@ -78,6 +78,10 @@ is published, the entries below describe what that first release will contain; p
 - A named brush and metric for every part of the docking chrome (`DockingPaneBackgroundBrush`,
   `DockingTitleBarActiveBackgroundBrush`, `DockingGuideSize`, …), so an application recolors or
   resizes it by redefining those keys instead of retemplating. See [docs/theming.md](docs/theming.md).
+- The same for the icon glyphs and font (`DockingCloseGlyph`, `DockingPinGlyph`, the four guide
+  arrows, `DockingIconFontFamily`), the text styles (`DockingTitleTextStyle`, `DockingTabTextStyle`),
+  the pane corner radius (`DockingPaneCornerRadius`) and the splitter metrics
+  (`DockingSplitterThickness`, `DockingSplitterGripThickness`).
 
 ### Requirements
 

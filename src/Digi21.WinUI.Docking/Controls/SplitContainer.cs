@@ -12,8 +12,18 @@ namespace Digi21.WinUI.Docking;
 /// </summary>
 public partial class SplitContainer : Panel
 {
-    internal const double SplitterThickness = 6.0;
     internal const double MinPaneSize = 48.0;
+
+    private static double? splitterThickness;
+
+    /// <summary>
+    /// How much room a splitter takes between two panes. A splitter is sized by the panel that
+    /// arranges it rather than by a template of its own, so the value is read from the resources
+    /// (<c>DockingSplitterThickness</c>) instead of being fixed here. It is resolved once, on the
+    /// first layout pass, which is long after the application's resources are in place.
+    /// </summary>
+    internal static double SplitterThickness =>
+        splitterThickness ??= DockingThemeResources.Value("DockingSplitterThickness", 6.0);
 
     /// <summary>Identifies the <see cref="Orientation"/> dependency property.</summary>
     public static readonly DependencyProperty OrientationProperty = DependencyProperty.Register(

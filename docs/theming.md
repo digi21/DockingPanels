@@ -152,7 +152,10 @@ These are the same in every theme, so declare them directly in `Application.Reso
 | `DockingGuideSize` | `x:Double` | `40` |
 | `DockingGuideClusterSize` | `x:Double` | `128` |
 | `DockingDropPreviewOpacity` | `x:Double` | `0.3` |
+| `DockingSplitterThickness` | `x:Double` | `6` |
+| `DockingSplitterGripThickness` | `x:Double` | `1` |
 | `DockingPaneBorderThickness` | `Thickness` | `1` |
+| `DockingPaneCornerRadius` | `CornerRadius` | `0` |
 | `DockingDocumentTabCornerRadius` | `CornerRadius` | `4,4,0,0` |
 | `DockingGuideCornerRadius` | `CornerRadius` | `4` |
 | `DockingFlyoutCornerRadius` | `CornerRadius` | `4` |
@@ -160,6 +163,58 @@ These are the same in every theme, so declare them directly in `Application.Reso
 `DockingGuideSize` and `DockingGuideClusterSize` are safe to change: the drag code measures the
 guides it actually drew instead of assuming a size, so the clickable areas follow whatever the
 guides end up being.
+
+`DockingSplitterThickness` is how much room a splitter takes between two panes — its whole
+draggable band — and `DockingSplitterGripThickness` is the line drawn inside it. Both are read
+from the resources by the layout code, because a splitter is sized by the panel that arranges it
+rather than by a template of its own. That also means they are resolved once, on the first layout
+pass, and are not re-read afterwards.
+
+`DockingPaneCornerRadius` is the one to use for rounded panes. Setting `CornerRadius` on a
+container in XAML works too, but only for the containers you declared: the panes the user creates
+by dragging a window out and splitting are built in code and take the default.
+
+## Icons
+
+The close and pin buttons, and the arrows inside the dock guides, are glyphs of the icon font.
+Replacing the font means replacing the glyphs with the code points of the new one:
+
+```xml
+<FontFamily x:Key="DockingIconFontFamily">My Icon Font</FontFamily>
+<x:String x:Key="DockingCloseGlyph">&#xE711;</x:String>
+```
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `DockingIconFontFamily` | `FontFamily` | `SymbolThemeFontFamily` |
+| `DockingIconFontSize` | `x:Double` | `10` |
+| `DockingGuideIconFontSize` | `x:Double` | `14` |
+| `DockingCloseGlyph` | `x:String` | `&#xE8BB;` |
+| `DockingPinGlyph` | `x:String` | `&#xE718;` |
+| `DockingGuideCenterGlyph` | `x:String` | `&#xE8A9;` |
+| `DockingGuideLeftGlyph` | `x:String` | `&#xE76B;` |
+| `DockingGuideTopGlyph` | `x:String` | `&#xE70E;` |
+| `DockingGuideRightGlyph` | `x:String` | `&#xE76C;` |
+| `DockingGuideBottomGlyph` | `x:String` | `&#xE70D;` |
+
+The guide glyphs are chosen in code, since which one is drawn depends on the side the guide stands
+for, so they are read from the resources the same way the splitter metrics are. Anything richer
+than a glyph — a `PathIcon`, an image — needs a retemplate.
+
+## Text
+
+Two styles cover every piece of text the chrome draws. Both default to WinUI's
+`CaptionTextBlockStyle`; overriding *that* would restyle the whole application, which is why they
+exist:
+
+| Key | Type | Applies to |
+| --- | --- | --- |
+| `DockingTitleTextStyle` | `Style` (`TextBlock`) | Tool window title bars, floating window captions, the drag ghost |
+| `DockingTabTextStyle` | `Style` (`TextBlock`) | Document, tool window and auto-hide tabs |
+
+```xml
+<Style x:Key="DockingTabTextStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}" />
+```
 
 ## Retemplating
 
@@ -204,3 +259,9 @@ dictionary collection, so everything the application declares wins over them. Th
 *not* declared next to the templates in `Themes/Generic.xaml`: a key found in the same dictionary
 as the template that uses it takes precedence over the application's resources, which would make
 these keys impossible to override.
+
+Most of them are read by the templates. The few the code reads instead — the splitter metrics and
+the guide glyphs — are values no template can supply, because they depend on how a control is
+arranged or on which side it stands for. Those are looked up in `Application.Resources`, so unlike
+the rest they cannot be overridden on an element; and being theme-independent, they live in the
+root of the dictionary rather than in its theme dictionaries.

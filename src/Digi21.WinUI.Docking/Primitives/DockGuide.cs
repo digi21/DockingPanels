@@ -68,18 +68,24 @@ public partial class DockGuide : Control
 
     private void UpdateIcon()
     {
-        if (GetTemplateChild("PART_Icon") is FontIcon icon)
+        if (GetTemplateChild("PART_Icon") is not FontIcon icon)
         {
-            icon.Glyph = IsCenter
-                ? ""
-                : Side switch
-                {
-                    DockSide.Left => "",
-                    DockSide.Top => "",
-                    DockSide.Right => "",
-                    _ => "",
-                };
+            return;
         }
+
+        // The glyph follows the side this guide stands for, so it is chosen here rather than in
+        // the template; the resource key is what lets an application replace the icon set.
+        var (key, glyph) = IsCenter
+            ? ("DockingGuideCenterGlyph", "")
+            : Side switch
+            {
+                DockSide.Left => ("DockingGuideLeftGlyph", ""),
+                DockSide.Top => ("DockingGuideTopGlyph", ""),
+                DockSide.Right => ("DockingGuideRightGlyph", ""),
+                _ => ("DockingGuideBottomGlyph", ""),
+            };
+
+        icon.Glyph = DockingThemeResources.Value(key, glyph);
     }
 
     private void UpdateState()

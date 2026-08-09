@@ -42,4 +42,24 @@ internal static class DockingThemeResources
         merged = true;
         application.Resources.MergedDictionaries.Insert(0, new ResourceDictionary { Source = new Uri(Source) });
     }
+
+    /// <summary>
+    /// Reads one of the library's keys from the application's resources, falling back to the
+    /// built-in value when it is not defined (or when there is no application, as in a test).
+    /// </summary>
+    /// <remarks>
+    /// Only for the handful of values the layout and drag code impose from code rather than
+    /// through a template — a splitter's thickness, a guide's glyph. They are the same in every
+    /// theme, so they live in the root of the dictionary and not in its theme dictionaries.
+    /// </remarks>
+    internal static T Value<T>(string key, T fallback)
+    {
+        Ensure();
+
+        return Application.Current?.Resources is { } resources
+            && resources.TryGetValue(key, out var value)
+            && value is T typed
+                ? typed
+                : fallback;
+    }
 }
