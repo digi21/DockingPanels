@@ -205,6 +205,11 @@ dotnet build
 dotnet run --project samples/DockingGallery
 ```
 
+## Contributing
+
+Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). What changes between
+versions is recorded in [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 [MIT](LICENSE)
