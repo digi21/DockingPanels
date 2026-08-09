@@ -24,6 +24,11 @@ public sealed partial class MainWindow : Window
                 e.Document = CreateDocument(e.Id, $"{e.Id}.txt");
             }
         };
+
+        // Attached from here, not from a Loaded handler: the trace has to be listening before the
+        // dock site raises its own Loaded, which is where the ordering the panel exists to show
+        // actually happens.
+        Trace.Attach(this, DockSite, EventTrace);
     }
 
     private void OnNewDocument(object sender, RoutedEventArgs e)

@@ -297,6 +297,21 @@ dotnet build
 dotnet run --project samples/DockingGallery
 ```
 
+Its **Event Trace** panel records `Loaded`, `Unloaded`, `Relocated`, `LayoutChanged` and the
+open/close notifications as they happen, which is the order that matters when hosting content with
+a life cycle of its own. The buttons along its top replay the situations that have gone wrong
+before — restoring a layout, reloading an unchanged one, floating a window, collapsing panes to an
+edge — and each one also runs unattended, tracing to a file and closing by itself:
+
+```
+set DOCKPROBE=L1
+set DOCKPROBE_LOG=%TEMP%\trace.log
+dotnet run --project samples/DockingGallery
+```
+
+Scenarios marked as such in their tooltip run from the dock site's `Loaded`, which a button press
+cannot reproduce; those are worth running through `DOCKPROBE`.
+
 ## Contributing
 
 Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). What changes between
