@@ -15,8 +15,18 @@ namespace Digi21.WinUI.Docking;
 /// target itself, so the last closed document can be brought back.
 /// </remarks>
 [ContentProperty(Name = nameof(Child))]
-public partial class DocumentHost : Control, ILayoutHost
+public partial class DocumentHost : Control, ILayoutHost, IRelocatable
 {
+    /// <summary>
+    /// Raised after a docking operation has moved this document area to a different place in the
+    /// XAML tree, once the tree has settled. Content with a life cycle of its own — a
+    /// <c>SwapChainPanel</c>, a <c>WebView2</c>, a render loop — should hang off this event
+    /// instead of off <see cref="FrameworkElement.Loaded"/> and
+    /// <see cref="FrameworkElement.Unloaded"/>, which WinUI raises in that order for an element
+    /// that never left the tree.
+    /// </summary>
+    public event EventHandler? Relocated;
+
     /// <summary>Identifies the <see cref="Child"/> dependency property.</summary>
     public static readonly DependencyProperty ChildProperty = DependencyProperty.Register(
         nameof(Child),
@@ -83,4 +93,6 @@ public partial class DocumentHost : Control, ILayoutHost
         get => Child;
         set => Child = value;
     }
+
+    void IRelocatable.RaiseRelocated() => Relocated?.Invoke(this, EventArgs.Empty);
 }

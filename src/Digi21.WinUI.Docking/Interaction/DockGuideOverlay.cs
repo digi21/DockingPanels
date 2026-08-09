@@ -6,15 +6,12 @@ using Windows.Foundation;
 
 namespace Digi21.WinUI.Docking;
 
-/// <summary>
-/// The dock guides, drop preview and drag ghost of a single <see cref="IDockSurface"/>. It turns
-/// a point over the surface into a <see cref="DockTarget"/> and shows what dropping there would do.
-/// </summary>
-/// <remarks>
-/// Every surface owns one: the dock site draws its guides in its own window, and each floating
-/// window draws them in its own, which is what a drag crossing windows needs, since neither
-/// coordinates nor visuals can cross a XAML island.
-/// </remarks>
+// The dock guides, drop preview and drag ghost of a single IDockSurface. It turns a point over the
+// surface into a DockTarget and shows what dropping there would do.
+//
+// Every surface owns one: the dock site draws its guides in its own window, and each floating
+// window draws them in its own, which is what a drag crossing windows needs, since neither
+// coordinates nor visuals can cross a XAML island.
 internal sealed class DockGuideOverlay
 {
     private const double EdgeGuideMargin = 16.0;
@@ -53,10 +50,13 @@ internal sealed class DockGuideOverlay
         this.edgeGuides = edgeGuides;
     }
 
-    /// <summary>Shows the edge guides, and the drag ghost when the drag has no visual of its own.</summary>
-    /// <param name="withGhost">Whether to show the drag ghost following the cursor.</param>
-    /// <param name="title">The title shown in the ghost.</param>
-    /// <param name="documents">Whether the drag carries documents rather than tool windows.</param>
+    // Shows the edge guides, and the drag ghost when the drag has no visual of its own.
+    //
+    // withGhost: Whether to show the drag ghost following the cursor.
+    //
+    // title: The title shown in the ghost.
+    //
+    // documents: Whether the drag carries documents rather than tool windows.
     internal void Begin(bool withGhost, string title, bool documents)
     {
         documentDrag = documents;
@@ -81,8 +81,9 @@ internal sealed class DockGuideOverlay
         PositionEdgeGuides();
     }
 
-    /// <summary>Updates the guides for a drag position and resolves what a drop there would do.</summary>
-    /// <param name="point">The pointer position in the surface root's coordinates.</param>
+    // Updates the guides for a drag position and resolves what a drop there would do.
+    //
+    // point: The pointer position in the surface root's coordinates.
     internal DockTarget Update(Point point)
     {
         if (ghost is { Visibility: Visibility.Visible })
@@ -103,7 +104,7 @@ internal sealed class DockGuideOverlay
         return resolved;
     }
 
-    /// <summary>Hides every guide, the preview and the ghost.</summary>
+    // Hides every guide, the preview and the ghost.
     internal void Reset()
     {
         hoveredTarget = null;
@@ -126,7 +127,7 @@ internal sealed class DockGuideOverlay
         }
     }
 
-    /// <summary>Tells whether a point in the surface root's coordinates is over the surface.</summary>
+    // Tells whether a point in the surface root's coordinates is over the surface.
     internal bool Contains(Point point)
     {
         return point.X >= 0
@@ -135,11 +136,10 @@ internal sealed class DockGuideOverlay
             && point.Y <= surface.Root.ActualHeight;
     }
 
-    /// <summary>Centers each edge guide on its edge and records where it landed.</summary>
-    /// <remarks>
-    /// The guides are shown and laid out before being placed, because their size comes from
-    /// whatever style is in effect, and a collapsed element has no size to center by.
-    /// </remarks>
+    // Centers each edge guide on its edge and records where it landed.
+    //
+    // The guides are shown and laid out before being placed, because their size comes from whatever
+    // style is in effect, and a collapsed element has no size to center by.
     private void PositionEdgeGuides()
     {
         foreach (var guide in edgeGuides.Values)
@@ -222,13 +222,11 @@ internal sealed class DockGuideOverlay
         return null;
     }
 
-    /// <summary>Enumerates what a drop can land on, from the surface's current layout tree.</summary>
+    // Enumerates what a drop can land on, from the surface's current layout tree.
     private IEnumerable<FrameworkElement> Targets() => LayoutTree.DropTargets(surface.LayoutChild);
 
-    /// <summary>
-    /// Tells whether a drop target takes what is being dragged: documents only go into the
-    /// document area, and tool windows only into the panes around it.
-    /// </summary>
+    // Tells whether a drop target takes what is being dragged: documents only go into the document
+    // area, and tool windows only into the panes around it.
     private bool Accepts(FrameworkElement target)
     {
         return documentDrag
@@ -359,7 +357,7 @@ internal sealed class DockGuideOverlay
         };
     }
 
-    /// <summary>Turns a guide's offset within the cluster into a rectangle in surface coordinates.</summary>
+    // Turns a guide's offset within the cluster into a rectangle in surface coordinates.
     private static Rect ClusterGuideRect(Point clusterOrigin, Rect offset)
     {
         return offset.IsEmpty
@@ -367,14 +365,14 @@ internal sealed class DockGuideOverlay
             : new Rect(clusterOrigin.X + offset.X, clusterOrigin.Y + offset.Y, offset.Width, offset.Height);
     }
 
-    /// <summary>Converts a point in the surface's coordinates into an element's own coordinates.</summary>
+    // Converts a point in the surface's coordinates into an element's own coordinates.
     private Point ToLocal(FrameworkElement element, Point point)
     {
         var bounds = BoundsIn(element);
         return new Point(point.X - bounds.X, point.Y - bounds.Y);
     }
 
-    /// <summary>Converts a rectangle in an element's coordinates into the surface's coordinates.</summary>
+    // Converts a rectangle in an element's coordinates into the surface's coordinates.
     private Rect ToSurface(FrameworkElement element, Rect rect)
     {
         if (rect.IsEmpty)

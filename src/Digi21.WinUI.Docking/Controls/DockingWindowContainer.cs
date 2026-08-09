@@ -55,7 +55,7 @@ public abstract partial class DockingWindowContainer : Control
         items.CollectionChanged += OnItemsChanged;
     }
 
-    /// <summary>Raised after windows have been added to or removed from <see cref="Items"/>.</summary>
+    // Raised after windows have been added to or removed from Items.
     internal event EventHandler? ItemsChanged;
 
     /// <summary>Gets the windows hosted by this container, in tab order.</summary>
@@ -75,7 +75,7 @@ public abstract partial class DockingWindowContainer : Control
         set => SetValue(SelectedItemProperty, value);
     }
 
-    /// <summary>Makes the given window the selected tab of this container.</summary>
+    // Makes the given window the selected tab of this container.
     internal void Select(DockingWindow window)
     {
         if (items.Contains(window))
@@ -92,11 +92,9 @@ public abstract partial class DockingWindowContainer : Control
     /// <param name="count">The number of windows currently hosted.</param>
     protected abstract bool ShowTabs(int count);
 
-    /// <summary>
-    /// Gets a value indicating whether this container's own title bar can act as the caption of
-    /// a floating window holding nothing but it. A floating window whose only pane has no
-    /// caption of its own gets one, or it could not be moved.
-    /// </summary>
+    // Gets a value indicating whether this container's own title bar can act as the caption of a
+    // floating window holding nothing but it. A floating window whose only pane has no caption of
+    // its own gets one, or it could not be moved.
     internal virtual bool ProvidesWindowCaption => false;
 
     /// <inheritdoc />
@@ -123,10 +121,8 @@ public abstract partial class DockingWindowContainer : Control
         Rebuild();
     }
 
-    /// <summary>
-    /// Gets the bounds of the tab strip in this container's coordinates, or an empty rectangle
-    /// when no strip is shown.
-    /// </summary>
+    // Gets the bounds of the tab strip in this container's coordinates, or an empty rectangle when
+    // no strip is shown.
     internal Rect TabStripBounds
     {
         get
@@ -142,11 +138,10 @@ public abstract partial class DockingWindowContainer : Control
         }
     }
 
-    /// <summary>
-    /// Gets the tab position a window dropped at the given point would take, so dragging a tab
-    /// along the strip reorders it instead of re-docking the pane.
-    /// </summary>
-    /// <param name="point">A point in this container's coordinates.</param>
+    // Gets the tab position a window dropped at the given point would take, so dragging a tab along
+    // the strip reorders it instead of re-docking the pane.
+    //
+    // point: A point in this container's coordinates.
     internal int InsertionIndexAt(Point point)
     {
         var tabs = TabBounds();
@@ -161,11 +156,10 @@ public abstract partial class DockingWindowContainer : Control
         return tabs.Count;
     }
 
-    /// <summary>
-    /// Gets the caret drawn between tabs to show where a dragged tab would land, in this
-    /// container's coordinates.
-    /// </summary>
-    /// <param name="index">The insertion position, between 0 and the number of hosted windows.</param>
+    // Gets the caret drawn between tabs to show where a dragged tab would land, in this container's
+    // coordinates.
+    //
+    // index: The insertion position, between 0 and the number of hosted windows.
     internal Rect InsertionMarker(int index)
     {
         const double thickness = 2.0;
@@ -188,7 +182,7 @@ public abstract partial class DockingWindowContainer : Control
         return new Rect(x - (thickness / 2), strip.Y, thickness, strip.Height);
     }
 
-    /// <summary>Gets the bounds of the tabs, in this container's coordinates and in tab order.</summary>
+    // Gets the bounds of the tabs, in this container's coordinates and in tab order.
     private List<Rect> TabBounds()
     {
         var bounds = new List<Rect>(items.Count);
@@ -315,7 +309,7 @@ public abstract partial class DockingWindowContainer : Control
         ApplySelection();
     }
 
-    /// <summary>Synchronizes the visual parts (content host, tab strip, title bar) with <see cref="Items"/>.</summary>
+    // Synchronizes the visual parts (content host, tab strip, title bar) with Items.
     private void Rebuild()
     {
         for (var i = windowsHost.Children.Count - 1; i >= 0; i--)

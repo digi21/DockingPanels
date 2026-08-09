@@ -7,8 +7,18 @@ namespace Digi21.WinUI.Docking;
 /// Base class for windows that participate in a docking layout, such as <see cref="ToolWindow"/>.
 /// The window's <see cref="ContentControl.Content"/> travels with it when it is re-docked.
 /// </summary>
-public abstract partial class DockingWindow : ContentControl
+public abstract partial class DockingWindow : ContentControl, IRelocatable
 {
+    /// <summary>
+    /// Raised after a docking operation has moved this window to a different place in the XAML
+    /// tree — docked elsewhere, tabbed into another pane, floated, auto-hidden or restored by a
+    /// layout load — once the tree has settled. Content with a life cycle of its own (a
+    /// <c>SwapChainPanel</c>, a <c>WebView2</c>, a render loop) should hang off this event instead
+    /// of off <see cref="FrameworkElement.Loaded"/> and <see cref="FrameworkElement.Unloaded"/>,
+    /// which WinUI raises in that order for an element that never left the tree.
+    /// </summary>
+    public event EventHandler? Relocated;
+
     /// <summary>Identifies the <see cref="Title"/> dependency property.</summary>
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(
         nameof(Title), typeof(string), typeof(DockingWindow), new PropertyMetadata(string.Empty));
@@ -54,6 +64,8 @@ public abstract partial class DockingWindow : ContentControl
         nameof(State), typeof(DockingWindowState), typeof(DockingWindow), new PropertyMetadata(DockingWindowState.Docked));
 
     private bool pendingOpenedNotification;
+    private DockSite? dockSite;
+    private Action? pendingOperations;
 
     /// <summary>Initializes a new instance of the <see cref="DockingWindow"/> class.</summary>
     protected DockingWindow()
@@ -144,13 +156,19 @@ public abstract partial class DockingWindow : ContentControl
     /// <summary>Gets the container that currently hosts this window, or <see langword="null"/> when closed.</summary>
     public DockingWindowContainer? Container { get; internal set; }
 
-    /// <summary>Gets the dock site this window belongs to, resolved when the window is first loaded.</summary>
-    internal DockSite? DockSite { get; set; }
+    // Gets the dock site this window belongs to, or null while it is not part of one.
+    //
+    // Resolved from the tree on demand rather than only in FrameworkElement.Loaded: a dock site's
+    // own Loaded is raised before that of the windows it contains, so an application setting up its
+    // layout from there would otherwise find no site here and see its calls do nothing.
+    internal DockSite? DockSite
+    {
+        get => dockSite ??= this.FindSurface()?.Site;
+        set => dockSite = value;
+    }
 
-    /// <summary>
-    /// Gets or sets a value indicating whether the window is being moved to a new docking
-    /// position. While set, attach/detach notifications do not raise opened/closed events.
-    /// </summary>
+    // Gets or sets a value indicating whether the window is being moved to a new docking position.
+    // While set, attach/detach notifications do not raise opened/closed events.
     internal bool IsRelocating { get; set; }
 
     /// <summary>
@@ -181,10 +199,13 @@ public abstract partial class DockingWindow : ContentControl
     /// </summary>
     public void Float()
     {
-        if (CanFloat && State is DockingWindowState.Docked && DockSite is { } site)
+        WhenPartOfADockSite(() =>
         {
-            site.FloatWindow(this);
-        }
+            if (CanFloat && State is DockingWindowState.Docked && DockSite is { } site)
+            {
+                site.FloatWindow(this);
+            }
+        });
     }
 
     /// <summary>
@@ -193,10 +214,13 @@ public abstract partial class DockingWindow : ContentControl
     /// </summary>
     public void AutoHide()
     {
-        if (CanAutoHide && State == DockingWindowState.Docked && Container is { } container && DockSite is { } site)
+        WhenPartOfADockSite(() =>
         {
-            LayoutManager.AutoHideContainer(site, container);
-        }
+            if (CanAutoHide && State == DockingWindowState.Docked && Container is { } container && DockSite is { } site)
+            {
+                LayoutManager.AutoHideContainer(site, container);
+            }
+        });
     }
 
     /// <summary>
@@ -206,19 +230,39 @@ public abstract partial class DockingWindow : ContentControl
     /// </summary>
     public void Dock()
     {
-        if (DockSite is not { } site)
+        WhenPartOfADockSite(() =>
         {
+            if (DockSite is not { } site)
+            {
+                return;
+            }
+
+            if (State == DockingWindowState.AutoHide && site.FindAutoHideGroup(this) is { } group)
+            {
+                LayoutManager.DockAutoHideGroup(site, group);
+            }
+            else if (State == DockingWindowState.Floating && site.FindFloatingHost(this) is { } host)
+            {
+                LayoutManager.DockFloatingHost(site, host, DockTarget.Home);
+            }
+        });
+    }
+
+    // Runs a layout operation now, or as soon as this window becomes part of a dock site.
+    //
+    // Applications set up their initial layout from the point they have one, which is typically the
+    // dock site's Loaded. A window declared in XAML is not yet attached to its site at that moment,
+    // and dropping the call there would leave the panel where it was with nothing to show for it;
+    // deferring means the operation still happens, one moment later.
+    private void WhenPartOfADockSite(Action operation)
+    {
+        if (DockSite is not null)
+        {
+            operation();
             return;
         }
 
-        if (State == DockingWindowState.AutoHide && site.FindAutoHideGroup(this) is { } group)
-        {
-            LayoutManager.DockAutoHideGroup(site, group);
-        }
-        else if (State == DockingWindowState.Floating && site.FindFloatingHost(this) is { } host)
-        {
-            LayoutManager.DockFloatingHost(site, host, DockTarget.Home);
-        }
+        pendingOperations += operation;
     }
 
     /// <summary>
@@ -242,7 +286,7 @@ public abstract partial class DockingWindow : ContentControl
         site?.NotifyWindowClosed(this);
     }
 
-    /// <summary>Called by the container when this window is added to it.</summary>
+    // Called by the container when this window is added to it.
     internal void NotifyAttached()
     {
         IsOpen = true;
@@ -265,7 +309,7 @@ public abstract partial class DockingWindow : ContentControl
         }
     }
 
-    /// <summary>Called by the container when this window is removed from it.</summary>
+    // Called by the container when this window is removed from it.
     internal void NotifyDetached()
     {
         if (IsRelocating)
@@ -292,6 +336,12 @@ public abstract partial class DockingWindow : ContentControl
                 pendingOpenedNotification = false;
                 site.NotifyWindowOpened(this);
             }
+
+            var pending = pendingOperations;
+            pendingOperations = null;
+            pending?.Invoke();
         }
     }
+
+    void IRelocatable.RaiseRelocated() => Relocated?.Invoke(this, EventArgs.Empty);
 }

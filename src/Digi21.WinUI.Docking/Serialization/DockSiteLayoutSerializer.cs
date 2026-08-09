@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text;
+using Digi21.WinUI.Docking.Primitives;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Windows.Graphics;
 
 namespace Digi21.WinUI.Docking.Serialization;
@@ -213,9 +215,20 @@ public class DockSiteLayoutSerializer
         }
     }
 
+    // Tells whether a window the loaded layout does not mention stays in the layout instead of
+    // being closed.
+    //
+    // A window the user cannot close is not one a layout file gets to close either: there would be
+    // no way to bring it back from the interface, and saving the layout on the way out would make
+    // that permanent.
+    internal static bool KeepsUnresolvedWindowOpen(UnresolvedWindowBehavior behavior, bool canClose)
+    {
+        return behavior == UnresolvedWindowBehavior.DockLeft || !canClose;
+    }
+
     private void Apply(DockSite site, LayoutDocument layout)
     {
-        var reusable = new ReusableElements(site.Child);
+        var rebuild = new Rebuild(site);
 
         var index = new WindowIndex();
         foreach (var window in site.ToolWindows)
@@ -244,17 +257,25 @@ public class DockSiteLayoutSerializer
         site.ClearAutoHideGroups();
         site.CloseFloatingWindows();
 
-        // Detach the old tree and dismantle its split containers and document areas so every
-        // reusable element (the workspace and the document hosts in particular) is fully
-        // released before the rebuild. Once the tree is disconnected the visual parent links
-        // are no longer discoverable, so this must happen eagerly rather than lazily during
-        // the rebuild.
-        var oldRoot = site.Child;
-        site.Child = null;
-        Dismantle(oldRoot);
-
+        // The tree is rebuilt in place, out of the elements it is already made of: the parts the
+        // application declared (workspaces and document areas) are kept, and so are the split
+        // containers and panes, which are interchangeable. Reloading a layout that has not changed
+        // then moves nothing at all, which is what keeps content with a life cycle of its own from
+        // being torn down for no reason.
         var used = new HashSet<DockingWindow>();
-        site.Child = layout.Root is null ? null : Build(layout.Root, index, reusable, used);
+        var root = layout.Root is null ? null : Build(layout.Root, index, rebuild, used);
+
+        root = rebuild.KeepUnmentionedElements(root);
+        if (!ReferenceEquals(site.Child, root))
+        {
+            rebuild.Detach(root);
+            site.Child = root;
+
+            // Everything the new tree carries has just been moved, however little of it changed
+            // place within the tree: this is where a workspace whose split became the root, with
+            // nothing else about it altered, finds out that it was reparented.
+            site.NotifyRelocated(root);
+        }
 
         foreach (var groupNode in layout.AutoHideGroups)
         {
@@ -297,16 +318,19 @@ public class DockSiteLayoutSerializer
         foreach (var floatingNode in layout.FloatingWindows)
         {
             if (floatingNode.Root is null
-                || Build(floatingNode.Root, index, reusable, used) is not { } floatingContent)
+                || Build(floatingNode.Root, index, rebuild, used) is not { } floatingContent)
             {
                 continue;
             }
+
+            rebuild.Detach(floatingContent);
 
             // The hosted windows are marked as floating by the host itself, which also does it
             // for the ones docked inside it.
             var bounds = FloatingWindowHost.ClampToDisplay(
                 new RectInt32(floatingNode.X, floatingNode.Y, floatingNode.Width, floatingNode.Height));
             var host = new FloatingWindowHost(site, floatingContent, bounds);
+            site.NotifyRelocated(floatingContent);
 
             var restoreContainer = ResolveSiblingReference(site, floatingNode.RestoreContainer, index) as DockingWindowContainer;
             var restoreSibling = ResolveSiblingReference(site, floatingNode.RestoreSibling, index);
@@ -336,7 +360,7 @@ public class DockSiteLayoutSerializer
                 window.Container?.Items.Remove(window);
                 window.IsRelocating = false;
 
-                if (UnresolvedWindowBehavior == UnresolvedWindowBehavior.DockLeft)
+                if (KeepsUnresolvedWindowOpen(UnresolvedWindowBehavior, window.CanClose))
                 {
                     KeepOpen(site, window);
                 }
@@ -355,7 +379,7 @@ public class DockSiteLayoutSerializer
         site.NotifyLayoutChanged(LayoutChangeKind.LayoutLoaded);
     }
 
-    /// <summary>Enumerates every window the dock site knows about, open or closed.</summary>
+    // Enumerates every window the dock site knows about, open or closed.
     private static List<DockingWindow> KnownWindows(DockSite site)
     {
         var windows = new List<DockingWindow>(site.ToolWindows.Count + site.Documents.Count);
@@ -364,11 +388,9 @@ public class DockSiteLayoutSerializer
         return windows;
     }
 
-    /// <summary>
-    /// Puts a window the loaded layout does not mention back into the layout, for
-    /// <see cref="UnresolvedWindowBehavior.DockLeft"/>: documents reopen in the document area,
-    /// tool windows dock to the left edge.
-    /// </summary>
+    // Puts a window the loaded layout does not mention back into the layout, for
+    // UnresolvedWindowBehavior.DockLeft: documents reopen in the document area, tool windows dock
+    // to the left edge.
     private static void KeepOpen(DockSite site, DockingWindow window)
     {
         if (window is DocumentWindow document && site.DocumentHost is { } host)
@@ -383,7 +405,7 @@ public class DockSiteLayoutSerializer
     private UIElement? Build(
         LayoutNode node,
         WindowIndex index,
-        ReusableElements reusable,
+        Rebuild rebuild,
         HashSet<DockingWindow> used)
     {
         switch (node)
@@ -392,7 +414,7 @@ public class DockSiteLayoutSerializer
                 var children = new List<UIElement>();
                 foreach (var childNode in splitNode.Children)
                 {
-                    if (Build(childNode, index, reusable, used) is { } child)
+                    if (Build(childNode, index, rebuild, used) is { } child)
                     {
                         children.Add(child);
                     }
@@ -410,47 +432,41 @@ public class DockSiteLayoutSerializer
                     return children[0];
                 }
 
-                var split = new SplitContainer { Orientation = splitNode.Orientation };
+                var split = rebuild.TakeSplit(children);
+                split.Orientation = splitNode.Orientation;
                 DockSite.SetRelativeSize(split, splitNode.RelativeSize);
-                foreach (var child in children)
-                {
-                    split.Children.Add(child);
-                }
-
+                rebuild.SetPanes(split, children);
                 return split;
 
             case ContainerLayoutNode containerNode:
-                var container = new ToolWindowContainer();
-                DockSite.SetRelativeSize(container, containerNode.RelativeSize);
-                FillContainer(container, containerNode.Windows, containerNode.SelectedId, id => ResolveToolWindow(id, index), used);
-                return container.Items.Count == 0 ? null : container;
+                return BuildContainer<ToolWindowContainer>(
+                    containerNode.Windows, containerNode.SelectedId, containerNode.RelativeSize,
+                    id => ResolveToolWindow(id, index), rebuild, used);
 
             case DocumentContainerLayoutNode groupNode:
-                var group = new DocumentContainer();
-                DockSite.SetRelativeSize(group, groupNode.RelativeSize);
-                FillContainer(group, groupNode.Windows, groupNode.SelectedId, id => ResolveDocument(id, index), used);
-                return group.Items.Count == 0 ? null : group;
+                return BuildContainer<DocumentContainer>(
+                    groupNode.Windows, groupNode.SelectedId, groupNode.RelativeSize,
+                    id => ResolveDocument(id, index), rebuild, used);
 
             case DocumentHostLayoutNode hostNode:
-                if (reusable.DocumentHosts.Count == 0)
+                // Document areas are reused by position, like workspaces: they are declared by
+                // the application and carry whatever it put around the documents.
+                if (rebuild.TakeDocumentHost() is not { } host)
                 {
                     return null;
                 }
 
-                // Document areas are reused by position, like workspaces: they are declared by
-                // the application and carry whatever it put around the documents.
-                var host = reusable.DocumentHosts.Dequeue();
                 DockSite.SetRelativeSize(host, hostNode.RelativeSize);
-                host.Child = hostNode.Root is null ? null : Build(hostNode.Root, index, reusable, used);
+                var hostRoot = hostNode.Root is null ? null : Build(hostNode.Root, index, rebuild, used);
+                rebuild.SetHostChild(host, hostRoot);
                 return host;
 
             case WorkspaceLayoutNode workspaceNode:
-                if (reusable.Workspaces.Count == 0)
+                if (rebuild.TakeWorkspace() is not { } workspace)
                 {
                     return null;
                 }
 
-                var workspace = reusable.Workspaces.Dequeue();
                 DockSite.SetRelativeSize(workspace, workspaceNode.RelativeSize);
                 return workspace;
 
@@ -459,27 +475,40 @@ public class DockSiteLayoutSerializer
         }
     }
 
-    private static void FillContainer(
-        DockingWindowContainer container,
+    private static UIElement? BuildContainer<T>(
         List<LayoutWindowEntry> entries,
         string? selectedId,
+        double relativeSize,
         Func<string, DockingWindow?> resolve,
+        Rebuild rebuild,
         HashSet<DockingWindow> used)
+        where T : DockingWindowContainer, new()
     {
+        var windows = new List<DockingWindow>(entries.Count);
         foreach (var entry in entries)
         {
-            if (resolve(entry.Id) is { } window)
+            if (resolve(entry.Id) is { } window && used.Add(window))
             {
-                container.Items.Add(window);
-                used.Add(window);
+                windows.Add(window);
             }
         }
+
+        if (windows.Count == 0)
+        {
+            return null;
+        }
+
+        var container = rebuild.TakeContainer<T>(windows);
+        DockSite.SetRelativeSize(container, relativeSize);
+        rebuild.SetItems(container, windows);
 
         if (selectedId is not null
             && container.Items.FirstOrDefault(w => w.SerializationId == selectedId) is { } selected)
         {
             container.SelectedItem = selected;
         }
+
+        return container;
     }
 
     private ToolWindow? ResolveToolWindow(string id, WindowIndex index)
@@ -522,39 +551,11 @@ public class DockSiteLayoutSerializer
         return null;
     }
 
-    /// <summary>
-    /// Recursively empties the containers of a discarded layout tree so reusable elements
-    /// (workspaces and document areas) are no longer associated with their old parents.
-    /// </summary>
-    private static void Dismantle(UIElement? element)
-    {
-        switch (element)
-        {
-            case SplitContainer split:
-                var panes = split.GetPanes();
-                split.Children.Clear();
-                foreach (var pane in panes)
-                {
-                    Dismantle(pane);
-                }
-
-                break;
-
-            case DocumentHost host:
-                var child = host.Child;
-                host.Child = null;
-                Dismantle(child);
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Converts a live restore-sibling element into a stable reference for the XML:
-    /// "Workspace:n" and "DocumentHost:n" for the n-th of those in document order, "Window:id"
-    /// for a tool window container and "Document:id" for a document group. Split containers (and
-    /// elements no longer in this site) yield no reference, so pinning back falls to the group's
-    /// edge, same as when the sibling disappears at runtime.
-    /// </summary>
+    // Converts a live restore-sibling element into a stable reference for the XML: "Workspace:n"
+    // and "DocumentHost:n" for the n-th of those in document order, "Window:id" for a tool window
+    // container and "Document:id" for a document group. Split containers (and elements no longer in
+    // this site) yield no reference, so pinning back falls to the group's edge, same as when the
+    // sibling disappears at runtime.
     private static string? CaptureSiblingReference(DockSite site, FrameworkElement? sibling)
     {
         if (sibling is null || !ReferenceEquals(sibling.FindAncestor<DockSite>(), site))
@@ -602,7 +603,7 @@ public class DockSiteLayoutSerializer
         return -1;
     }
 
-    /// <summary>Resolves a serialized restore-sibling reference against the rebuilt layout tree.</summary>
+    // Resolves a serialized restore-sibling reference against the rebuilt layout tree.
     private static FrameworkElement? ResolveSiblingReference(DockSite site, string? reference, WindowIndex index)
     {
         if (reference is null)
@@ -646,7 +647,317 @@ public class DockSiteLayoutSerializer
         }
     }
 
-    /// <summary>The tool windows and documents a load can match serialized ids against.</summary>
+    // Rebuilds a dock site's layout tree out of the elements it is already made of, instead of from
+    // scratch.
+    //
+    // Split containers and panes are interchangeable, so they are handed out by position and by the
+    // windows they hold rather than recreated; workspaces and document areas are declared by the
+    // application and must be kept. An element is only ever taken out of its old parent when it is
+    // going somewhere else, which is what makes reloading an unchanged layout move nothing at all.
+    //
+    // Where things currently are is tracked here rather than read back from the XAML tree: an
+    // element that has just been moved has no visual parent until the next layout pass, and the
+    // rebuild does all its work inside one.
+    private sealed class Rebuild
+    {
+        private readonly DockSite site;
+        private readonly Dictionary<UIElement, object> parents = [];
+        private readonly Queue<Workspace> workspaces = [];
+        private readonly Queue<DocumentHost> documentHosts = [];
+        private readonly Queue<SplitContainer> splits = [];
+        private readonly HashSet<DockingWindowContainer> usedContainers = [];
+
+        internal Rebuild(DockSite site)
+        {
+            this.site = site;
+            Collect(site, site.Child);
+        }
+
+        // Takes the next reusable workspace, or nothing when they are all spoken for.
+        internal Workspace? TakeWorkspace() => workspaces.Count > 0 ? workspaces.Dequeue() : null;
+
+        // Takes the next reusable document area, or nothing when they are all spoken for.
+        internal DocumentHost? TakeDocumentHost() => documentHosts.Count > 0 ? documentHosts.Dequeue() : null;
+
+        // Takes a split container to hold the given panes: one of the existing ones, unless it sits
+        // inside a pane it would have to hold, which would make it its own ancestor.
+        internal SplitContainer TakeSplit(List<UIElement> children)
+        {
+            while (splits.Count > 0)
+            {
+                var candidate = splits.Dequeue();
+                if (!children.Any(child => IsUnder(candidate, child)))
+                {
+                    return candidate;
+                }
+            }
+
+            return new SplitContainer();
+        }
+
+        // Takes the pane that holds the given windows, so windows that stay together keep the pane
+        // they are in, or a new one when they come from panes already in use.
+        internal DockingWindowContainer TakeContainer<T>(List<DockingWindow> windows)
+            where T : DockingWindowContainer, new()
+        {
+            foreach (var window in windows)
+            {
+                if (window.Container is T candidate && usedContainers.Add(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            var created = new T();
+            usedContainers.Add(created);
+            return created;
+        }
+
+        // Makes the tabs of a pane match the given windows, moving only what has to move.
+        internal void SetItems(DockingWindowContainer container, List<DockingWindow> windows)
+        {
+            if (container.Items.SequenceEqual(windows))
+            {
+                return;
+            }
+
+            for (var i = container.Items.Count - 1; i >= 0; i--)
+            {
+                if (!windows.Contains(container.Items[i]))
+                {
+                    container.Items.RemoveAt(i);
+                }
+            }
+
+            for (var i = 0; i < windows.Count; i++)
+            {
+                var at = container.Items.IndexOf(windows[i]);
+                if (at == i)
+                {
+                    continue;
+                }
+
+                // Reordering tabs within a pane leaves the windows where they are in the XAML
+                // tree; joining another pane is what moves them.
+                var moved = !ReferenceEquals(windows[i].Container, container);
+
+                if (at >= 0)
+                {
+                    container.Items.RemoveAt(at);
+                }
+
+                // Adding a window to a pane takes it out of the one it was in.
+                container.Items.Insert(i, windows[i]);
+
+                if (moved)
+                {
+                    site.NotifyRelocated(windows[i]);
+                }
+            }
+        }
+
+        // Makes the panes of a split container match the given children, in order.
+        internal void SetPanes(SplitContainer split, List<UIElement> children)
+        {
+            var panes = split.GetPanes();
+            if (panes.SequenceEqual(children))
+            {
+                foreach (var child in children)
+                {
+                    parents[child] = split;
+                }
+
+                return;
+            }
+
+            foreach (var pane in panes.Where(pane => !children.Contains(pane)))
+            {
+                split.Children.Remove(pane);
+                parents.Remove(pane);
+            }
+
+            for (var i = 0; i < children.Count; i++)
+            {
+                var child = children[i];
+                var at = split.GetPanes().IndexOf(child);
+                if (at != i)
+                {
+                    if (at >= 0)
+                    {
+                        split.Children.Remove(child);
+                    }
+                    else
+                    {
+                        Detach(child);
+                    }
+
+                    split.Children.Insert(PanePosition(split, i), child);
+                    site.NotifyRelocated(child);
+                }
+
+                parents[child] = split;
+            }
+        }
+
+        // Makes a document area hold the given tree.
+        internal void SetHostChild(DocumentHost host, UIElement? child)
+        {
+            if (!ReferenceEquals(host.Child, child))
+            {
+                Detach(child);
+                host.Child = child;
+                site.NotifyRelocated(child);
+            }
+
+            if (child is not null)
+            {
+                parents[child] = host;
+            }
+        }
+
+        // Takes an element out of wherever it currently is.
+        internal void Detach(UIElement? node)
+        {
+            if (node is null || !parents.Remove(node, out var parent))
+            {
+                return;
+            }
+
+            switch (parent)
+            {
+                case SplitContainer split:
+                    split.Children.Remove(node);
+                    break;
+
+                case DocumentHost host when ReferenceEquals(host.Child, node):
+                    host.Child = null;
+                    break;
+
+                case DockSite dockSite when ReferenceEquals(dockSite.Child, node):
+                    dockSite.Child = null;
+                    break;
+            }
+        }
+
+        // Puts back the workspaces and document areas the loaded layout says nothing about.
+        //
+        // They are declared by the application, not by the layout, and they carry its main content.
+        // Dropping them would empty the window with no way of getting them back, and saving the
+        // layout on the way out would make that permanent.
+        internal UIElement? KeepUnmentionedElements(UIElement? root)
+        {
+            foreach (var element in Unmentioned())
+            {
+                Detach(element);
+                DockSite.SetRelativeSize(element, 1.0);
+
+                if (root is null)
+                {
+                    root = element;
+                    continue;
+                }
+
+                Detach(root);
+                DockSite.SetRelativeSize(root, 3.0);
+
+                var split = new SplitContainer { Orientation = Orientation.Horizontal };
+                split.Children.Add(root);
+                split.Children.Add(element);
+                site.NotifyRelocated(split);
+                root = split;
+            }
+
+            return root;
+        }
+
+        private IEnumerable<FrameworkElement> Unmentioned()
+        {
+            while (workspaces.Count > 0)
+            {
+                yield return workspaces.Dequeue();
+            }
+
+            while (documentHosts.Count > 0)
+            {
+                yield return documentHosts.Dequeue();
+            }
+        }
+
+        // Maps a pane position to a position in a split container's children, which also hold its
+        // splitters.
+        private static int PanePosition(SplitContainer split, int paneIndex)
+        {
+            var panes = 0;
+            for (var i = 0; i < split.Children.Count; i++)
+            {
+                if (split.Children[i] is DockSplitter)
+                {
+                    return i;
+                }
+
+                if (panes == paneIndex)
+                {
+                    return i;
+                }
+
+                panes++;
+            }
+
+            return split.Children.Count;
+        }
+
+        private bool IsUnder(UIElement node, UIElement ancestor)
+        {
+            var current = (object)node;
+            while (current is UIElement element && parents.TryGetValue(element, out var parent))
+            {
+                if (ReferenceEquals(parent, ancestor))
+                {
+                    return true;
+                }
+
+                current = parent;
+            }
+
+            return false;
+        }
+
+        private void Collect(object parent, UIElement? element)
+        {
+            if (element is null)
+            {
+                return;
+            }
+
+            parents[element] = parent;
+
+            switch (element)
+            {
+                case Workspace workspace:
+                    workspaces.Enqueue(workspace);
+                    break;
+
+                case DocumentHost host:
+                    documentHosts.Enqueue(host);
+                    Collect(host, host.Child);
+                    break;
+
+                // Enqueued after its panes: the rebuild works bottom up, asking for the split of
+                // the innermost node first, and the two orders have to agree for an unchanged
+                // layout to get its own split containers back.
+                case SplitContainer split:
+                    foreach (var pane in split.GetPanes())
+                    {
+                        Collect(split, pane);
+                    }
+
+                    splits.Enqueue(split);
+                    break;
+            }
+        }
+    }
+
+    // The tool windows and documents a load can match serialized ids against.
     private sealed class WindowIndex
     {
         internal Dictionary<string, ToolWindow> ToolWindows { get; } = [];
@@ -654,10 +965,8 @@ public class DockSiteLayoutSerializer
         internal Dictionary<string, DocumentWindow> Documents { get; } = [];
     }
 
-    /// <summary>
-    /// The elements of a layout that are declared by the application and reused across a load
-    /// instead of being rebuilt: they are matched by their position in document order.
-    /// </summary>
+    // The elements of a layout that are declared by the application and reused across a load
+    // instead of being rebuilt: they are matched by their position in document order.
     private sealed class ReusableElements
     {
         internal ReusableElements(UIElement? root)

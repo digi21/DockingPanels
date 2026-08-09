@@ -8,24 +8,20 @@ using Windows.Graphics;
 
 namespace Digi21.WinUI.Docking;
 
-/// <summary>
-/// Runs the interactive re-docking gesture for a <see cref="DockSite"/>: pointer-capture based
-/// dragging of tool windows, dock guide display, drop target hit-testing, and the final layout
-/// mutation on drop. The XAML drag-and-drop API is deliberately not used: it is a data transfer
-/// API with system-drawn visuals and little mid-drag control.
-/// </summary>
-/// <remarks>
-/// A drag can cross windows, so the gesture is tracked in screen coordinates and the guides are
-/// shown on the <see cref="IDockSurface"/> under the cursor: the dock site, or any of its floating
-/// windows. That is what lets a window be dropped inside a floating window instead of only onto
-/// it. Dragging the caption of a floating window is a second mode: the gesture starts in another
-/// top-level window and the window itself follows the cursor.
-///
-/// A window that can float is torn off as soon as the drag leaves its tab strip: it floats out
-/// there and then, and the rest of the gesture moves that real window, so what follows the cursor
-/// is the window with its live content instead of a placeholder. Dragging within the tab strip
-/// stays a reorder, and windows that cannot float keep dragging a small ghost.
-/// </remarks>
+// Runs the interactive re-docking gesture for a DockSite: pointer-capture based dragging of tool
+// windows, dock guide display, drop target hit-testing, and the final layout mutation on drop. The
+// XAML drag-and-drop API is deliberately not used: it is a data transfer API with system-drawn
+// visuals and little mid-drag control.
+//
+// A drag can cross windows, so the gesture is tracked in screen coordinates and the guides are
+// shown on the IDockSurface under the cursor: the dock site, or any of its floating windows. That
+// is what lets a window be dropped inside a floating window instead of only onto it. Dragging the
+// caption of a floating window is a second mode: the gesture starts in another top-level window and
+// the window itself follows the cursor. A window that can float is torn off as soon as the drag
+// leaves its tab strip: it floats out there and then, and the rest of the gesture moves that real
+// window, so what follows the cursor is the window with its live content instead of a placeholder.
+// Dragging within the tab strip stays a reorder, and windows that cannot float keep dragging a
+// small ghost.
 internal sealed partial class DragDockController
 {
     private const double DragThreshold = 4.0;
@@ -56,10 +52,8 @@ internal sealed partial class DragDockController
         this.site = site;
     }
 
-    /// <summary>
-    /// Starts tracking a pointer press on a tab or title bar. The drag only becomes visible
-    /// once the pointer moves past a small threshold, so plain clicks are unaffected.
-    /// </summary>
+    // Starts tracking a pointer press on a tab or title bar. The drag only becomes visible once the
+    // pointer moves past a small threshold, so plain clicks are unaffected.
     internal void BeginPotentialDrag(DockingWindow window, UIElement sourceElement, PointerRoutedEventArgs e)
     {
         if (draggedWindow is not null || !window.CanDragWindow || !window.IsOpen)
@@ -100,7 +94,7 @@ internal sealed partial class DragDockController
         sourceElement.PointerCaptureLost += OnPointerCaptureLost;
     }
 
-    /// <summary>Starts dragging a whole floating window by its caption.</summary>
+    // Starts dragging a whole floating window by its caption.
     internal void BeginHostDrag(FloatingWindowHost host, UIElement sourceElement, PointerRoutedEventArgs e)
     {
         if (draggedWindow is not null || host.Windows.FirstOrDefault() is not { } window)
@@ -164,7 +158,7 @@ internal sealed partial class DragDockController
         EndDrag();
     }
 
-    /// <summary>Starts showing the drag feedback, on whichever surface the cursor is over.</summary>
+    // Starts showing the drag feedback, on whichever surface the cursor is over.
     private void StartDrag(bool withGhost)
     {
         dragActive = true;
@@ -172,10 +166,8 @@ internal sealed partial class DragDockController
         activeSurface = null;
     }
 
-    /// <summary>
-    /// Follows the cursor: moves the guides to the surface under it and resolves what dropping
-    /// there would do.
-    /// </summary>
+    // Follows the cursor: moves the guides to the surface under it and resolves what dropping there
+    // would do.
     private void UpdateDrag()
     {
         var cursor = ScreenInterop.CursorPosition;
@@ -205,7 +197,7 @@ internal sealed partial class DragDockController
         currentTarget = DockTarget.None;
     }
 
-    /// <summary>Finds the docking surface the cursor is over, if any.</summary>
+    // Finds the docking surface the cursor is over, if any.
     private IDockSurface? SurfaceAt(PointInt32 cursor)
     {
         if (movesHost)
@@ -252,7 +244,7 @@ internal sealed partial class DragDockController
         showGhost = false;
     }
 
-    /// <summary>Ends the pointer part of the gesture, leaving the drag state untouched.</summary>
+    // Ends the pointer part of the gesture, leaving the drag state untouched.
     private void DetachPointer()
     {
         if (source is not null)
@@ -271,10 +263,8 @@ internal sealed partial class DragDockController
         pointer = null;
     }
 
-    /// <summary>
-    /// Tells whether the cursor is still over the tab strip the drag started in, where the
-    /// gesture means "move this tab to another position" rather than "take this window out".
-    /// </summary>
+    // Tells whether the cursor is still over the tab strip the drag started in, where the gesture
+    // means "move this tab to another position" rather than "take this window out".
     private bool IsOverOriginTabStrip()
     {
         if (originContainer is not { } container)
@@ -288,12 +278,10 @@ internal sealed partial class DragDockController
             && strip.Contains(local);
     }
 
-    /// <summary>
-    /// Takes the dragged window out of the layout into a floating window placed under the cursor,
-    /// and carries on dragging that window. The pane moves to another top-level window, so the
-    /// pointer gesture that started in it cannot continue: the rest of the drag is polled in
-    /// screen coordinates, exactly like dragging a floating window that was already there.
-    /// </summary>
+    // Takes the dragged window out of the layout into a floating window placed under the cursor,
+    // and carries on dragging that window. The pane moves to another top-level window, so the
+    // pointer gesture that started in it cannot continue: the rest of the drag is polled in screen
+    // coordinates, exactly like dragging a floating window that was already there.
     private void TearOff()
     {
         if (draggedWindow is not { } window)
@@ -335,7 +323,7 @@ internal sealed partial class DragDockController
         StartPolling();
     }
 
-    /// <summary>Applies the drop of a single dragged window.</summary>
+    // Applies the drop of a single dragged window.
     private void Drop(IDockSurface? surface, DockTarget target, DockingWindow window, PointInt32 cursor)
     {
         if (surface is not null && target.Kind != DockTargetKind.None)
@@ -349,7 +337,7 @@ internal sealed partial class DragDockController
         FloatAtCursor(window, cursor);
     }
 
-    /// <summary>Floats a dragged window under the cursor, keeping the size it had while docked.</summary>
+    // Floats a dragged window under the cursor, keeping the size it had while docked.
     private void FloatAtCursor(DockingWindow window, PointInt32 cursor)
     {
         if (!window.CanFloat)
@@ -367,12 +355,10 @@ internal sealed partial class DragDockController
         site.FloatWindow(window, new RectInt32(origin.X, origin.Y, size.Width, size.Height));
     }
 
-    /// <summary>
-    /// Starts dragging a floating window (by its caption or by the title bar that acts as one),
-    /// or one of the windows inside it. The gesture lives in another top-level window, so it is
-    /// tracked in screen coordinates: while the window follows the cursor its pointer never
-    /// changes position inside the window, and XAML would stop reporting moves.
-    /// </summary>
+    // Starts dragging a floating window (by its caption or by the title bar that acts as one), or
+    // one of the windows inside it. The gesture lives in another top-level window, so it is tracked
+    // in screen coordinates: while the window follows the cursor its pointer never changes position
+    // inside the window, and XAML would stop reporting moves.
     private void BeginExternalDrag(
         DockingWindow window,
         UIElement sourceElement,
@@ -407,7 +393,7 @@ internal sealed partial class DragDockController
         StartPolling();
     }
 
-    /// <summary>Starts following the cursor in screen coordinates until the button comes up.</summary>
+    // Starts following the cursor in screen coordinates until the button comes up.
     private void StartPolling()
     {
         externalTimer = site.DispatcherQueue.CreateTimer();

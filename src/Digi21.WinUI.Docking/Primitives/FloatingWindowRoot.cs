@@ -27,9 +27,11 @@ public partial class FloatingWindowRoot : Control, IDockSurface
     private string captionTitle = string.Empty;
     private bool captionVisible;
 
-    /// <summary>Initializes a new instance of the <see cref="FloatingWindowRoot"/> class.</summary>
-    /// <param name="site">The dock site the floating window belongs to.</param>
-    /// <param name="host">The floating window hosting this root.</param>
+    // Initializes a new instance of the FloatingWindowRoot class.
+    //
+    // site: The dock site the floating window belongs to.
+    //
+    // host: The floating window hosting this root.
     internal FloatingWindowRoot(DockSite site, FloatingWindowHost host)
     {
         this.site = site;
@@ -45,13 +47,13 @@ public partial class FloatingWindowRoot : Control, IDockSurface
         set => SetValue(ChildProperty, value);
     }
 
-    /// <summary>Gets the floating window this root belongs to.</summary>
+    // Gets the floating window this root belongs to.
     internal FloatingWindowHost Host { get; }
 
-    /// <summary>Gets the guide overlay, or <see langword="null"/> until the template is applied.</summary>
+    // Gets the guide overlay, or null until the template is applied.
     internal DockGuideOverlay? Overlay { get; private set; }
 
-    /// <summary>Shows or hides the caption, and sets its text.</summary>
+    // Shows or hides the caption, and sets its text.
     internal void SetCaption(string title, bool visible)
     {
         captionTitle = title;

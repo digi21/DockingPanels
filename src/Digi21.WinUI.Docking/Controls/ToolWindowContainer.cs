@@ -31,6 +31,6 @@ public partial class ToolWindowContainer : DockingWindowContainer
     /// <param name="count">The number of windows currently hosted.</param>
     protected override bool ShowTabs(int count) => count > 1;
 
-    /// <summary>The title bar shown above the tabs is what a floating window uses as its caption.</summary>
+    // The title bar shown above the tabs is what a floating window uses as its caption.
     internal override bool ProvidesWindowCaption => true;
 }

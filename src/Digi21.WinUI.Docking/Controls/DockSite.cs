@@ -79,6 +79,8 @@ public partial class DockSite : Control, IDockSurface
     private readonly List<AutoHideGroup> autoHideGroups = [];
     private readonly List<FloatingWindowHost> floatingHosts = [];
     private readonly Dictionary<DockSide, AutoHideTabStrip> autoHideStrips = [];
+    private readonly HashSet<IRelocatable> pendingRelocations = [];
+    private bool relocationFlushScheduled;
     private AutoHideFlyout? autoHideFlyout;
     private ContentPresenter? layoutRootPresenter;
     private AppWindow? ownerWindow;
@@ -96,14 +98,13 @@ public partial class DockSite : Control, IDockSurface
 
         GotFocus += OnAnyDescendantGotFocus;
         Loaded += (_, _) => HookOwnerWindow();
-        Unloaded += (_, _) => CloseFloatingWindows();
+        Unloaded += (_, _) => ReleaseOwnerWindow();
     }
 
-    /// <summary>
-    /// Closes the floating windows while the window hosting this dock site is still alive.
-    /// They are owned windows, so leaving them to be destroyed together with their owner tears
-    /// down their XAML islands during the owner's own teardown, which crashes the process.
-    /// </summary>
+    // Watches the window hosting this dock site so its floating windows are closed while it is
+    // still alive. They are owned windows, so leaving them to be destroyed together with their
+    // owner tears down their XAML islands during the owner's own teardown, which crashes the
+    // process. Nothing for the application to call: the dock site hooks itself when it loads.
     private void HookOwnerWindow()
     {
         if (ownerWindow is not null || XamlRoot?.ContentIslandEnvironment is not { } environment)
@@ -115,6 +116,19 @@ public partial class DockSite : Control, IDockSurface
         if (ownerWindow is not null)
         {
             ownerWindow.Closing += OnOwnerWindowClosing;
+        }
+    }
+
+    // Closes the floating windows and lets go of the owner, so that a dock site taken out of the
+    // tree leaves nothing of itself behind on a window that outlives it.
+    private void ReleaseOwnerWindow()
+    {
+        CloseFloatingWindows();
+
+        if (ownerWindow is not null)
+        {
+            ownerWindow.Closing -= OnOwnerWindowClosing;
+            ownerWindow = null;
         }
     }
 
@@ -170,22 +184,38 @@ public partial class DockSite : Control, IDockSurface
     /// <summary>
     /// Gets all tool windows known to this dock site, including closed ones that can be reopened.
     /// </summary>
-    public IReadOnlyList<ToolWindow> ToolWindows => toolWindows;
+    public IReadOnlyList<ToolWindow> ToolWindows
+    {
+        get
+        {
+            EnsureWindowsRegistered();
+            return toolWindows;
+        }
+    }
 
     /// <summary>
     /// Gets all documents known to this dock site, including closed ones that can be reopened.
     /// </summary>
-    public IReadOnlyList<DocumentWindow> Documents => documents;
+    public IReadOnlyList<DocumentWindow> Documents
+    {
+        get
+        {
+            EnsureWindowsRegistered();
+            return documents;
+        }
+    }
 
     /// <summary>
     /// Gets the document area of the layout, or <see langword="null"/> when the layout has none.
     /// </summary>
     public DocumentHost? DocumentHost => LayoutTree.DocumentHosts(Child).FirstOrDefault();
 
-    /// <summary>Gets the controller that runs interactive drag-and-drop re-docking, once the template is applied.</summary>
+    // Gets the controller that runs interactive drag-and-drop re-docking, once the template is
+    // applied.
     internal DragDockController? DragController { get; private set; }
 
-    /// <summary>Gets the presenter that hosts the docked layout, used as the coordinate reference for the edge strips.</summary>
+    // Gets the presenter that hosts the docked layout, used as the coordinate reference for the
+    // edge strips.
     internal ContentPresenter? LayoutRoot => layoutRootPresenter;
 
     /// <inheritdoc />
@@ -209,7 +239,19 @@ public partial class DockSite : Control, IDockSurface
         }
 
         autoHideFlyout = GetTemplateChild("PART_AutoHideFlyout") as AutoHideFlyout;
+
+        if (layoutRootPresenter is not null)
+        {
+            layoutRootPresenter.SizeChanged -= OnLayoutRootSizeChanged;
+        }
+
         layoutRootPresenter = GetTemplateChild("PART_LayoutRoot") as ContentPresenter;
+
+        if (layoutRootPresenter is not null)
+        {
+            layoutRootPresenter.SizeChanged += OnLayoutRootSizeChanged;
+        }
+
         RefreshAutoHideStrips();
         AddHandler(PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnDismissPointerPressed), true);
 
@@ -324,7 +366,7 @@ public partial class DockSite : Control, IDockSurface
             throw new InvalidOperationException("The layout of this dock site has no DocumentHost to open documents in.");
         }
 
-        host.OpenDocument(document);
+        LayoutManager.OpenDocument(this, host, document);
     }
 
     /// <summary>
@@ -355,26 +397,26 @@ public partial class DockSite : Control, IDockSurface
         LayoutManager.FloatWindow(this, window, FloatingWindowHost.ClampToDisplay(bounds));
     }
 
-    /// <summary>Gets the floating windows opened by this dock site.</summary>
+    // Gets the floating windows opened by this dock site.
     internal IReadOnlyList<FloatingWindowHost> FloatingHosts => floatingHosts;
 
     internal void AddFloatingHost(FloatingWindowHost host) => floatingHosts.Add(host);
 
     internal void RemoveFloatingHost(FloatingWindowHost host) => floatingHosts.Remove(host);
 
-    /// <summary>Finds the floating window hosting the given window, if any.</summary>
+    // Finds the floating window hosting the given window, if any.
     internal FloatingWindowHost? FindFloatingHost(DockingWindow window)
     {
         return floatingHosts.FirstOrDefault(h => h.Windows.Contains(window));
     }
 
-    /// <summary>Finds the floating window with the given window handle, if it belongs to this site.</summary>
+    // Finds the floating window with the given window handle, if it belongs to this site.
     internal FloatingWindowHost? FindFloatingHost(IntPtr handle)
     {
         return handle == IntPtr.Zero ? null : floatingHosts.FirstOrDefault(h => h.Handle == handle);
     }
 
-    /// <summary>Closes every floating window, releasing the tool windows they host.</summary>
+    // Closes every floating window, releasing the tool windows they host.
     internal void CloseFloatingWindows()
     {
         foreach (var host in floatingHosts.ToList())
@@ -383,7 +425,8 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
-    /// <summary>Picks the initial bounds of a floating window: the size it has while docked, cascaded from the site's corner.</summary>
+    // Picks the initial bounds of a floating window: the size it has while docked, cascaded from
+    // the site's corner.
     private RectInt32 DefaultFloatingBounds(DockingWindow window)
     {
         var (width, height) = FloatingWindowHost.PreferredSize(window.Container);
@@ -395,10 +438,10 @@ public partial class DockSite : Control, IDockSurface
         return new RectInt32(origin.X, origin.Y, size.Width, size.Height);
     }
 
-    /// <summary>Gets the auto-hide groups collapsed to the edges of this dock site.</summary>
+    // Gets the auto-hide groups collapsed to the edges of this dock site.
     internal IReadOnlyList<AutoHideGroup> AutoHideGroups => autoHideGroups;
 
-    /// <summary>Finds the auto-hide group containing the given window, if any.</summary>
+    // Finds the auto-hide group containing the given window, if any.
     internal AutoHideGroup? FindAutoHideGroup(DockingWindow window)
     {
         return window is ToolWindow tool ? autoHideGroups.FirstOrDefault(g => g.Windows.Contains(tool)) : null;
@@ -428,7 +471,7 @@ public partial class DockSite : Control, IDockSurface
         RefreshAutoHideStrips();
     }
 
-    /// <summary>Synchronizes the edge tab strips with the current auto-hide groups.</summary>
+    // Synchronizes the edge tab strips with the current auto-hide groups.
     internal void RefreshAutoHideStrips()
     {
         foreach (var (side, strip) in autoHideStrips)
@@ -439,7 +482,7 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
-    /// <summary>Shows the auto-hide flyout for the given window.</summary>
+    // Shows the auto-hide flyout for the given window.
     internal void ShowAutoHideFlyout(ToolWindow window)
     {
         if (autoHideFlyout is null || layoutRootPresenter is null
@@ -448,27 +491,54 @@ public partial class DockSite : Control, IDockSurface
             return;
         }
 
+        // Showing the flyout takes the window out of the auto-hide group and into the flyout's own
+        // content host, which is a move like any other as far as its content is concerned.
+        autoHideFlyout.Show(window);
+        NotifyRelocated(window);
+
+        PositionAutoHideFlyout(group);
+        autoHideFlyout.Visibility = Visibility.Visible;
+
+        SetActiveWindow(window);
+    }
+
+    // Sizes the flyout to the area the layout occupies and pins it to its group's edge. The flyout
+    // is laid out on a canvas over the whole dock site, so unlike the rest of the chrome it does
+    // not follow that area on its own: this is called again whenever the area changes size, or
+    // maximizing the window would leave the flyout hanging where it was.
+    private void PositionAutoHideFlyout(AutoHideGroup group)
+    {
+        if (autoHideFlyout is null || layoutRootPresenter is null)
+        {
+            return;
+        }
+
         var cellWidth = layoutRootPresenter.ActualWidth;
         var cellHeight = layoutRootPresenter.ActualHeight;
-        var size = Math.Min(group.Size, (group.Edge is DockSide.Left or DockSide.Right ? cellWidth : cellHeight) * 0.8);
+        var horizontal = group.Edge is DockSide.Left or DockSide.Right;
+        var size = Math.Min(group.Size, (horizontal ? cellWidth : cellHeight) * 0.8);
 
-        var (width, height) = group.Edge is DockSide.Left or DockSide.Right
-            ? (size, cellHeight)
-            : (cellWidth, size);
+        var (width, height) = horizontal ? (size, cellHeight) : (cellWidth, size);
 
-        autoHideFlyout.Show(window, width, height);
+        autoHideFlyout.Width = width;
+        autoHideFlyout.Height = height;
 
         var origin = layoutRootPresenter
             .TransformToVisual(this)
             .TransformPoint(new Windows.Foundation.Point(0, 0));
         Canvas.SetLeft(autoHideFlyout, origin.X + (group.Edge == DockSide.Right ? cellWidth - width : 0));
         Canvas.SetTop(autoHideFlyout, origin.Y + (group.Edge == DockSide.Bottom ? cellHeight - height : 0));
-        autoHideFlyout.Visibility = Visibility.Visible;
-
-        SetActiveWindow(window);
     }
 
-    /// <summary>Hides the auto-hide flyout if it is open.</summary>
+    private void OnLayoutRootSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (autoHideFlyout?.Window is { } shown && FindAutoHideGroup(shown) is { } group)
+        {
+            PositionAutoHideFlyout(group);
+        }
+    }
+
+    // Hides the auto-hide flyout if it is open.
     internal void HideAutoHideFlyout()
     {
         if (autoHideFlyout?.Window is { } shown)
@@ -535,7 +605,45 @@ public partial class DockSite : Control, IDockSurface
         window.Close();
     }
 
-    /// <summary>Adds a window to the registry of known windows.</summary>
+    // Takes into the registry every window this dock site already holds: in its layout, inside its
+    // floating windows, and collapsed to its edges.
+    //
+    // A window declared in XAML registers itself when it loads, and a dock site's own Loaded is
+    // raised before that of the windows it contains. An application restoring its layout from
+    // there — which is where an application has a dock site to restore into — would otherwise find
+    // an empty registry, so no serialized id would match anything and the load would empty the
+    // window instead of filling it.
+    private void EnsureWindowsRegistered()
+    {
+        foreach (var window in LayoutTree.Windows(Child))
+        {
+            Adopt(window);
+        }
+
+        foreach (var host in floatingHosts)
+        {
+            foreach (var window in host.Windows)
+            {
+                Adopt(window);
+            }
+        }
+
+        foreach (var group in autoHideGroups)
+        {
+            foreach (var window in group.Windows)
+            {
+                Adopt(window);
+            }
+        }
+
+        void Adopt(DockingWindow window)
+        {
+            window.DockSite = this;
+            RegisterWindow(window);
+        }
+    }
+
+    // Adds a window to the registry of known windows.
     internal void RegisterWindow(DockingWindow window)
     {
         switch (window)
@@ -549,7 +657,7 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
-    /// <summary>Makes the given window the active one, deactivating the previous active window.</summary>
+    // Makes the given window the active one, deactivating the previous active window.
     internal void SetActiveWindow(DockingWindow? window)
     {
         var previous = ActiveWindow;
@@ -584,7 +692,7 @@ public partial class DockSite : Control, IDockSurface
         LayoutChanged?.Invoke(this, new LayoutChangedEventArgs(LayoutChangeKind.WindowOpened));
     }
 
-    /// <summary>Raises <see cref="WindowClosing"/> and returns whether the close may proceed.</summary>
+    // Raises WindowClosing and returns whether the close may proceed.
     internal bool RaiseWindowClosing(DockingWindow window)
     {
         var args = new DockingWindowClosingEventArgs(window);
@@ -611,6 +719,60 @@ public partial class DockSite : Control, IDockSurface
     internal void NotifyLayoutChanged(LayoutChangeKind kind)
     {
         LayoutChanged?.Invoke(this, new LayoutChangedEventArgs(kind));
+    }
+
+    // Notes that a node of the layout has been moved, so that everything it carries is told about
+    // it once the tree has settled.
+    internal void NotifyRelocated(UIElement? node)
+    {
+        foreach (var relocatable in LayoutTree.Relocatables(node))
+        {
+            pendingRelocations.Add(relocatable);
+        }
+
+        if (relocationFlushScheduled || pendingRelocations.Count == 0)
+        {
+            return;
+        }
+
+        relocationFlushScheduled = true;
+        LayoutUpdated += OnLayoutUpdatedAfterRelocation;
+    }
+
+    // Waits for the layout pass that puts the moved elements back in place before announcing the
+    // move.
+    //
+    // WinUI raises the FrameworkElement.Loaded and FrameworkElement.Unloaded events of the moved
+    // elements around this pass, and in that order, so a work item queued at low priority from here
+    // is what makes Relocated the last word rather than one more event in the middle of the batch.
+    private void OnLayoutUpdatedAfterRelocation(object? sender, object e)
+    {
+        LayoutUpdated -= OnLayoutUpdatedAfterRelocation;
+
+        if (!DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, FlushRelocations))
+        {
+            FlushRelocations();
+        }
+    }
+
+    private void FlushRelocations()
+    {
+        relocationFlushScheduled = false;
+
+        var relocated = pendingRelocations.ToList();
+        pendingRelocations.Clear();
+
+        foreach (var element in relocated)
+        {
+            // An element that is no longer in a tree was not relocated but removed, and its
+            // Unloaded says exactly that.
+            if (element is FrameworkElement { IsLoaded: false })
+            {
+                continue;
+            }
+
+            element.RaiseRelocated();
+        }
     }
 
     private void OnAnyDescendantGotFocus(object sender, RoutedEventArgs e)

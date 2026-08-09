@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Digi21.WinUI.Docking;
@@ -7,8 +8,18 @@ namespace Digi21.WinUI.Docking;
 /// documents. Tool windows dock around it, but the workspace itself always remains part of the
 /// layout. Applications with documents use a <see cref="DocumentHost"/> instead, or as well.
 /// </summary>
-public partial class Workspace : ContentControl
+public partial class Workspace : ContentControl, IRelocatable
 {
+    /// <summary>
+    /// Raised after a docking operation has moved this workspace to a different place in the XAML
+    /// tree, once the tree has settled. Content with a life cycle of its own — a
+    /// <c>SwapChainPanel</c>, a <c>WebView2</c>, a render loop — should hang off this event
+    /// instead of off <see cref="FrameworkElement.Loaded"/> and
+    /// <see cref="FrameworkElement.Unloaded"/>, which WinUI raises in that order for an element
+    /// that never left the tree.
+    /// </summary>
+    public event EventHandler? Relocated;
+
     /// <summary>Initializes a new instance of the <see cref="Workspace"/> class.</summary>
     public Workspace()
     {
@@ -19,4 +30,6 @@ public partial class Workspace : ContentControl
         // puts them within reach of the application's resources.
         DockingThemeResources.Ensure();
     }
+
+    void IRelocatable.RaiseRelocated() => Relocated?.Invoke(this, EventArgs.Empty);
 }

@@ -34,7 +34,7 @@ public partial class AutoHideTabStrip : Control
         set => SetValue(EdgeProperty, value);
     }
 
-    /// <summary>Replaces the auto-hide groups shown by this strip.</summary>
+    // Replaces the auto-hide groups shown by this strip.
     internal void SetGroups(IEnumerable<AutoHideGroup> newGroups)
     {
         groups.Clear();

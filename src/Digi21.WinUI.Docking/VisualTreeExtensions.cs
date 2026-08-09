@@ -5,7 +5,7 @@ namespace Digi21.WinUI.Docking;
 
 internal static class VisualTreeExtensions
 {
-    /// <summary>Walks up the visual tree looking for the nearest ancestor of type <typeparamref name="T"/>.</summary>
+    // Walks up the visual tree looking for the nearest ancestor of type T.
     internal static T? FindAncestor<T>(this DependencyObject start)
         where T : DependencyObject
     {
@@ -23,10 +23,8 @@ internal static class VisualTreeExtensions
         return null;
     }
 
-    /// <summary>
-    /// Walks up the visual tree looking for the docking surface the element lives in: the dock
-    /// site, or the floating window hosting it.
-    /// </summary>
+    // Walks up the visual tree looking for the docking surface the element lives in: the dock site,
+    // or the floating window hosting it.
     internal static IDockSurface? FindSurface(this DependencyObject start)
     {
         var current = VisualTreeHelper.GetParent(start);
@@ -43,10 +41,8 @@ internal static class VisualTreeExtensions
         return null;
     }
 
-    /// <summary>
-    /// Walks up the visual tree looking for the element that owns the layout tree the given
-    /// element belongs to: the nearest document host, or the surface it lives in.
-    /// </summary>
+    // Walks up the visual tree looking for the element that owns the layout tree the given element
+    // belongs to: the nearest document host, or the surface it lives in.
     internal static ILayoutHost? FindLayoutHost(this DependencyObject start)
     {
         var current = VisualTreeHelper.GetParent(start);
