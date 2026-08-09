@@ -142,7 +142,7 @@ public abstract partial class DockingWindow : ContentControl
     }
 
     /// <summary>Gets the container that currently hosts this window, or <see langword="null"/> when closed.</summary>
-    public ToolWindowContainer? Container { get; internal set; }
+    public DockingWindowContainer? Container { get; internal set; }
 
     /// <summary>Gets the dock site this window belongs to, resolved when the window is first loaded.</summary>
     internal DockSite? DockSite { get; set; }
@@ -159,20 +159,17 @@ public abstract partial class DockingWindow : ContentControl
     /// </summary>
     public void Activate()
     {
-        if (this is ToolWindow tool)
+        if (this is ToolWindow tool && State == DockingWindowState.AutoHide)
         {
-            if (State == DockingWindowState.AutoHide)
-            {
-                DockSite?.ShowAutoHideFlyout(tool);
-                return;
-            }
+            DockSite?.ShowAutoHideFlyout(tool);
+            return;
+        }
 
-            Container?.Select(tool);
+        Container?.Select(this);
 
-            if (State == DockingWindowState.Floating)
-            {
-                DockSite?.FindFloatingHost(tool)?.Activate();
-            }
+        if (State == DockingWindowState.Floating)
+        {
+            DockSite?.FindFloatingHost(this)?.Activate();
         }
 
         DockSite?.SetActiveWindow(this);
@@ -184,9 +181,9 @@ public abstract partial class DockingWindow : ContentControl
     /// </summary>
     public void Float()
     {
-        if (CanFloat && State is DockingWindowState.Docked && this is ToolWindow tool && DockSite is { } site)
+        if (CanFloat && State is DockingWindowState.Docked && DockSite is { } site)
         {
-            site.FloatToolWindow(tool);
+            site.FloatWindow(this);
         }
     }
 
@@ -288,10 +285,7 @@ public abstract partial class DockingWindow : ContentControl
         if (this.FindSurface()?.Site is { } site)
         {
             DockSite = site;
-            if (this is ToolWindow tool)
-            {
-                site.RegisterWindow(tool);
-            }
+            site.RegisterWindow(this);
 
             if (pendingOpenedNotification)
             {

@@ -22,7 +22,7 @@ internal sealed partial class FloatingWindowHost
 {
     private readonly Window window;
     private readonly FloatingWindowRoot root;
-    private readonly Dictionary<ToolWindowContainer, long> trackedContainers = [];
+    private readonly Dictionary<DockingWindowContainer, long> trackedContainers = [];
     private bool closingSelf;
 
     internal FloatingWindowHost(DockSite site, UIElement content, RectInt32 bounds)
@@ -120,10 +120,10 @@ internal sealed partial class FloatingWindowHost
     /// Gets the container of a window hosting a single pane, or <see langword="null"/> when
     /// windows have been docked inside it and it holds a tree of panes.
     /// </summary>
-    internal ToolWindowContainer? SinglePane => root.Child as ToolWindowContainer;
+    internal DockingWindowContainer? SinglePane => root.Child as DockingWindowContainer;
 
-    /// <summary>Gets the tool windows hosted by this window, across all its panes.</summary>
-    internal IEnumerable<ToolWindow> Windows => LayoutTree.Windows(root.Child);
+    /// <summary>Gets the windows hosted by this window, across all its panes.</summary>
+    internal IEnumerable<DockingWindow> Windows => LayoutTree.Windows(root.Child);
 
     /// <summary>Gets the window handle, used to tell what a drop landed on.</summary>
     internal IntPtr Handle { get; }
@@ -215,17 +215,19 @@ internal sealed partial class FloatingWindowHost
         var title = PrimaryWindow(containers)?.Title ?? string.Empty;
         window.Title = title;
 
-        // With a single pane its title bar is the window's caption; several panes need one of
-        // their own, since no pane title bar stands for the whole window any more.
-        root.SetCaption(title, containers.Count > 1);
+        // With a single tool pane its title bar is the window's caption; several panes, or a
+        // pane without a title bar of its own such as a document group, need a caption, since
+        // otherwise nothing stands for the whole window and it could not even be moved.
+        var singleCaptionedPane = containers.Count == 1 && SinglePane?.ProvidesWindowCaption == true;
+        root.SetCaption(title, !singleCaptionedPane);
     }
 
-    private void TrackContainers(List<ToolWindowContainer> containers)
+    private void TrackContainers(List<DockingWindowContainer> containers)
     {
         foreach (var tracked in trackedContainers.Keys.Where(c => !containers.Contains(c)).ToList())
         {
             tracked.ItemsChanged -= OnContainerItemsChanged;
-            tracked.UnregisterPropertyChangedCallback(ToolWindowContainer.SelectedItemProperty, trackedContainers[tracked]);
+            tracked.UnregisterPropertyChangedCallback(DockingWindowContainer.SelectedItemProperty, trackedContainers[tracked]);
             trackedContainers.Remove(tracked);
         }
 
@@ -233,15 +235,15 @@ internal sealed partial class FloatingWindowHost
         {
             container.ItemsChanged += OnContainerItemsChanged;
             trackedContainers[container] = container.RegisterPropertyChangedCallback(
-                ToolWindowContainer.SelectedItemProperty,
+                DockingWindowContainer.SelectedItemProperty,
                 (_, _) => SyncWithLayout());
         }
     }
 
     /// <summary>Picks the window whose title names the whole floating window.</summary>
-    private ToolWindow? PrimaryWindow(List<ToolWindowContainer> containers)
+    private DockingWindow? PrimaryWindow(List<DockingWindowContainer> containers)
     {
-        if (Site.ActiveWindow is ToolWindow active && containers.Any(c => c.Items.Contains(active)))
+        if (Site.ActiveWindow is { } active && containers.Any(c => c.Items.Contains(active)))
         {
             return active;
         }

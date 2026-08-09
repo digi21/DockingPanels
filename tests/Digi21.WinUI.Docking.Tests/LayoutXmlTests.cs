@@ -306,6 +306,80 @@ public class LayoutXmlTests
         Assert.Equal("Floating", Assert.Single(pane.Windows).State);
     }
 
+    [Fact]
+    public void RoundTrip_DocumentArea_PreservesTabGroups()
+    {
+        var left = new DocumentContainerLayoutNode { RelativeSize = 0.6, SelectedId = "readme" };
+        left.Windows.Add(new LayoutWindowEntry("readme", "Docked"));
+        left.Windows.Add(new LayoutWindowEntry("program", "Docked"));
+        var right = new DocumentContainerLayoutNode { RelativeSize = 0.4 };
+        right.Windows.Add(new LayoutWindowEntry("notes", "Docked"));
+        var groups = new SplitLayoutNode { Orientation = Orientation.Horizontal };
+        groups.Children.Add(left);
+        groups.Children.Add(right);
+
+        var restored = RoundTrip(new DocumentHostLayoutNode { RelativeSize = 0.7, Root = groups });
+
+        var host = Assert.IsType<DocumentHostLayoutNode>(restored);
+        Assert.Equal(0.7, host.RelativeSize);
+
+        var split = Assert.IsType<SplitLayoutNode>(host.Root);
+        var restoredLeft = Assert.IsType<DocumentContainerLayoutNode>(split.Children[0]);
+        Assert.Equal(0.6, restoredLeft.RelativeSize);
+        Assert.Equal("readme", restoredLeft.SelectedId);
+        Assert.Equal(["readme", "program"], restoredLeft.Windows.Select(w => w.Id));
+        Assert.Equal(
+            ["notes"],
+            Assert.IsType<DocumentContainerLayoutNode>(split.Children[1]).Windows.Select(w => w.Id));
+    }
+
+    [Fact]
+    public void RoundTrip_EmptyDocumentArea_HasNoTree()
+    {
+        var host = Assert.IsType<DocumentHostLayoutNode>(RoundTrip(new DocumentHostLayoutNode()));
+
+        Assert.Null(host.Root);
+    }
+
+    [Fact]
+    public void RoundTrip_FloatingDocument_IsPreserved()
+    {
+        var pane = new DocumentContainerLayoutNode { SelectedId = "notes" };
+        pane.Windows.Add(new LayoutWindowEntry("notes", "Floating"));
+
+        var layout = new LayoutDocument();
+        layout.FloatingWindows.Add(new FloatingWindowNode { X = 30, Y = 40, Width = 500, Height = 400, Root = pane });
+
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, layout);
+        stream.Position = 0;
+        var restored = LayoutXml.Read(stream);
+
+        var restoredPane = Assert.IsType<DocumentContainerLayoutNode>(Assert.Single(restored.FloatingWindows).Root);
+        Assert.Equal("notes", restoredPane.SelectedId);
+        Assert.Equal("Floating", Assert.Single(restoredPane.Windows).State);
+    }
+
+    [Fact]
+    public void Read_DocumentWithoutId_Throws()
+    {
+        var xml = """
+            <DockSiteLayout Version="3">
+              <DocumentHost><DocumentContainer><Document /></DocumentContainer></DocumentHost>
+            </DockSiteLayout>
+            """;
+        Assert.Throws<InvalidDataException>(() => Read(xml));
+    }
+
+    [Fact]
+    public void Write_UsesTheCurrentFormatVersion()
+    {
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, new LayoutDocument());
+
+        Assert.Contains("Version=\"3\"", Encoding.UTF8.GetString(stream.ToArray()));
+    }
+
     private static LayoutNode? RoundTrip(LayoutNode? node)
     {
         using var stream = new MemoryStream();

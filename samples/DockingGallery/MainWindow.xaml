@@ -15,6 +15,7 @@
             Padding="8,4"
             Orientation="Horizontal"
             Spacing="8">
+            <Button Click="OnNewDocument" Content="New Document" />
             <Button Click="OnReopenSolutionExplorer" Content="Reopen Solution Explorer" />
             <Button Click="OnReopenOutput" Content="Reopen Output" />
             <Button Click="OnFloatOutput" Content="Float Output" />
@@ -74,13 +75,31 @@
                     docking:DockSite.RelativeSize="0.75"
                     Orientation="Vertical">
 
-                    <docking:Workspace x:Name="MainWorkspace" docking:DockSite.RelativeSize="0.7">
-                        <TextBox
-                            AcceptsReturn="True"
-                            BorderThickness="0"
-                            PlaceholderText="Workspace — type here"
-                            TextWrapping="Wrap" />
-                    </docking:Workspace>
+                    <docking:DocumentHost x:Name="Documents" docking:DockSite.RelativeSize="0.7">
+                        <docking:DocumentContainer>
+                            <docking:DocumentWindow
+                                x:Name="ReadmeDocument"
+                                Title="README.md"
+                                SerializationId="readme">
+                                <TextBox
+                                    AcceptsReturn="True"
+                                    BorderThickness="0"
+                                    Text="# Digi21.WinUI.Docking&#x0a;&#x0a;Drag this tab to another position, split the area, or pull it out."
+                                    TextWrapping="Wrap" />
+                            </docking:DocumentWindow>
+                            <docking:DocumentWindow
+                                x:Name="ProgramDocument"
+                                Title="Program.cs"
+                                SerializationId="program">
+                                <TextBox
+                                    AcceptsReturn="True"
+                                    BorderThickness="0"
+                                    FontFamily="Consolas"
+                                    Text="var app = new App();&#x0a;app.Run();"
+                                    TextWrapping="Wrap" />
+                            </docking:DocumentWindow>
+                        </docking:DocumentContainer>
+                    </docking:DocumentHost>
 
                     <docking:ToolWindowContainer x:Name="BottomContainer" docking:DockSite.RelativeSize="0.3">
                         <docking:ToolWindow

@@ -28,12 +28,13 @@ internal sealed partial class DragDockController
 
     private readonly DockSite site;
 
-    private ToolWindow? draggedWindow;
+    private DockingWindow? draggedWindow;
     private UIElement? source;
     private Pointer? pointer;
     private Point startPoint;
     private bool dragActive;
     private bool showGhost;
+    private bool draggingDocuments;
     private IDockSurface? activeSurface;
     private DockTarget currentTarget;
 
@@ -53,7 +54,7 @@ internal sealed partial class DragDockController
     /// Starts tracking a pointer press on a tab or title bar. The drag only becomes visible
     /// once the pointer moves past a small threshold, so plain clicks are unaffected.
     /// </summary>
-    internal void BeginPotentialDrag(ToolWindow window, UIElement sourceElement, PointerRoutedEventArgs e)
+    internal void BeginPotentialDrag(DockingWindow window, UIElement sourceElement, PointerRoutedEventArgs e)
     {
         if (draggedWindow is not null || !window.CanDragWindow || !window.IsOpen)
         {
@@ -80,6 +81,7 @@ internal sealed partial class DragDockController
         }
 
         draggedWindow = window;
+        draggingDocuments = window is DocumentWindow;
         source = sourceElement;
         pointer = e.Pointer;
         startPoint = e.GetCurrentPoint(site).Position;
@@ -175,7 +177,7 @@ internal sealed partial class DragDockController
         {
             LeaveSurface();
             activeSurface = surface;
-            overlay.Begin(showGhost, draggedWindow?.Title ?? string.Empty);
+            overlay.Begin(showGhost, draggedWindow?.Title ?? string.Empty, draggingDocuments);
         }
 
         currentTarget = overlay.Update(local);
@@ -248,7 +250,7 @@ internal sealed partial class DragDockController
     }
 
     /// <summary>Applies the drop of a single dragged window.</summary>
-    private void Drop(IDockSurface? surface, DockTarget target, ToolWindow window, PointInt32 cursor)
+    private void Drop(IDockSurface? surface, DockTarget target, DockingWindow window, PointInt32 cursor)
     {
         if (surface is not null && target.Kind != DockTargetKind.None)
         {
@@ -262,7 +264,7 @@ internal sealed partial class DragDockController
     }
 
     /// <summary>Floats a dragged window under the cursor, keeping the size it had while docked.</summary>
-    private void FloatAtCursor(ToolWindow window, PointInt32 cursor)
+    private void FloatAtCursor(DockingWindow window, PointInt32 cursor)
     {
         if (!window.CanFloat)
         {
@@ -276,7 +278,7 @@ internal sealed partial class DragDockController
         var scale = site.XamlRoot?.RasterizationScale ?? 1.0;
         var origin = new PointInt32(cursor.X - (int)Math.Round(24 * scale), cursor.Y - (int)Math.Round(12 * scale));
 
-        site.FloatToolWindow(window, new RectInt32(origin.X, origin.Y, size.Width, size.Height));
+        site.FloatWindow(window, new RectInt32(origin.X, origin.Y, size.Width, size.Height));
     }
 
     /// <summary>
@@ -286,7 +288,7 @@ internal sealed partial class DragDockController
     /// changes position inside the window, and XAML would stop reporting moves.
     /// </summary>
     private void BeginExternalDrag(
-        ToolWindow window,
+        DockingWindow window,
         UIElement sourceElement,
         PointerRoutedEventArgs e,
         FloatingWindowHost host,
@@ -297,6 +299,12 @@ internal sealed partial class DragDockController
         draggedWindow = window;
         draggedHost = host;
         movesHost = movesTheHost;
+
+        // A whole floating window is dragged as documents only when that is all it holds; a
+        // single window pulled out of it is judged on its own.
+        draggingDocuments = movesTheHost
+            ? host.Windows.All(hosted => hosted is DocumentWindow)
+            : window is DocumentWindow;
         source = sourceElement;
         pointer = e.Pointer;
         dragActive = false;

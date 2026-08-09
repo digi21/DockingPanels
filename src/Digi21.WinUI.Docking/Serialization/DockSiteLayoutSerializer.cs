@@ -8,16 +8,22 @@ namespace Digi21.WinUI.Docking.Serialization;
 /// <summary>
 /// Saves and restores the docking layout of a <see cref="DockSite"/> as versioned XML.
 /// Only the structure is persisted (containers, splits, proportions, tab order and selection);
-/// tool window instances and their content are matched by <see cref="DockingWindow.SerializationId"/>
+/// window instances and their content are matched by <see cref="DockingWindow.SerializationId"/>
 /// and reused, so control state survives a layout reload.
 /// </summary>
 public class DockSiteLayoutSerializer
 {
     /// <summary>
-    /// Raised while loading when a serialized window id does not match any registered window,
-    /// giving the application a chance to create it on demand.
+    /// Raised while loading when a serialized window id does not match any registered tool
+    /// window, giving the application a chance to create it on demand.
     /// </summary>
     public event EventHandler<ToolWindowResolvingEventArgs>? ToolWindowResolving;
+
+    /// <summary>
+    /// Raised while loading when a serialized document id does not match any registered
+    /// document, giving the application a chance to reopen it on demand.
+    /// </summary>
+    public event EventHandler<DocumentResolvingEventArgs>? DocumentResolving;
 
     /// <summary>
     /// Gets or sets what happens to windows that are open but absent from the loaded layout.
@@ -101,14 +107,11 @@ public class DockSiteLayoutSerializer
 
         LayoutXml.Write(stream, layout);
 
-        static void CaptureWindows(IEnumerable<ToolWindow> windows, List<LayoutWindowEntry> entries)
+        static void CaptureWindows(IEnumerable<DockingWindow> windows, List<LayoutWindowEntry> entries)
         {
             foreach (var window in windows)
             {
-                var id = window.SerializationId
-                    ?? throw new InvalidOperationException(
-                        $"The tool window '{window.Title}' has no SerializationId. Every open tool window needs a stable id to save the layout.");
-                entries.Add(new LayoutWindowEntry(id, window.State.ToString()));
+                entries.Add(new LayoutWindowEntry(RequireId(window), window.State.ToString()));
             }
         }
     }
@@ -144,6 +147,13 @@ public class DockSiteLayoutSerializer
         Apply(dockSite, layout);
     }
 
+    private static string RequireId(DockingWindow window)
+    {
+        return window.SerializationId
+            ?? throw new InvalidOperationException(
+                $"The window '{window.Title}' has no SerializationId. Every open window needs a stable id to save the layout.");
+    }
+
     private static LayoutNode Capture(UIElement element)
     {
         switch (element)
@@ -169,38 +179,62 @@ public class DockSiteLayoutSerializer
                 };
                 foreach (var window in container.Items)
                 {
-                    var id = window.SerializationId
-                        ?? throw new InvalidOperationException(
-                            $"The tool window '{window.Title}' has no SerializationId. Every open tool window needs a stable id to save the layout.");
-                    containerNode.Windows.Add(new LayoutWindowEntry(id, window.State.ToString()));
+                    containerNode.Windows.Add(new LayoutWindowEntry(RequireId(window), window.State.ToString()));
                 }
 
                 return containerNode;
+
+            case DocumentContainer group:
+                var groupNode = new DocumentContainerLayoutNode
+                {
+                    RelativeSize = DockSite.GetRelativeSize(group),
+                    SelectedId = group.SelectedItem?.SerializationId,
+                };
+                foreach (var document in group.Items)
+                {
+                    groupNode.Windows.Add(new LayoutWindowEntry(RequireId(document), document.State.ToString()));
+                }
+
+                return groupNode;
+
+            case DocumentHost host:
+                return new DocumentHostLayoutNode
+                {
+                    RelativeSize = DockSite.GetRelativeSize(host),
+                    Root = host.Child is null ? null : Capture(host.Child),
+                };
 
             case Workspace workspace:
                 return new WorkspaceLayoutNode { RelativeSize = DockSite.GetRelativeSize(workspace) };
 
             default:
                 throw new NotSupportedException(
-                    $"The layout contains an element of type '{element.GetType().Name}'. Only SplitContainer, ToolWindowContainer and Workspace can be serialized.");
+                    $"The layout contains an element of type '{element.GetType().Name}'. Only SplitContainer, ToolWindowContainer, DocumentHost, DocumentContainer and Workspace can be serialized.");
         }
     }
 
     private void Apply(DockSite site, LayoutDocument layout)
     {
-        var workspaces = new Queue<Workspace>();
-        CollectWorkspaces(site.Child, workspaces);
+        var reusable = new ReusableElements(site.Child);
 
-        var index = new Dictionary<string, ToolWindow>();
+        var index = new WindowIndex();
         foreach (var window in site.ToolWindows)
         {
             if (window.SerializationId is { } id)
             {
-                index[id] = window;
+                index.ToolWindows[id] = window;
             }
         }
 
-        foreach (var window in site.ToolWindows)
+        foreach (var document in site.Documents)
+        {
+            if (document.SerializationId is { } id)
+            {
+                index.Documents[id] = document;
+            }
+        }
+
+        foreach (var window in KnownWindows(site))
         {
             window.IsRelocating = window.IsOpen;
         }
@@ -210,23 +244,24 @@ public class DockSiteLayoutSerializer
         site.ClearAutoHideGroups();
         site.CloseFloatingWindows();
 
-        // Detach the old tree and dismantle its split containers so every reusable element
-        // (the workspace in particular) is fully released before the rebuild. Once the tree
-        // is disconnected the visual parent links are no longer discoverable, so this must
-        // happen eagerly rather than lazily during the rebuild.
+        // Detach the old tree and dismantle its split containers and document areas so every
+        // reusable element (the workspace and the document hosts in particular) is fully
+        // released before the rebuild. Once the tree is disconnected the visual parent links
+        // are no longer discoverable, so this must happen eagerly rather than lazily during
+        // the rebuild.
         var oldRoot = site.Child;
         site.Child = null;
-        DismantleSplits(oldRoot);
+        Dismantle(oldRoot);
 
-        var used = new HashSet<ToolWindow>();
-        site.Child = layout.Root is null ? null : Build(layout.Root, index, workspaces, used);
+        var used = new HashSet<DockingWindow>();
+        site.Child = layout.Root is null ? null : Build(layout.Root, index, reusable, used);
 
         foreach (var groupNode in layout.AutoHideGroups)
         {
             var groupWindows = new List<ToolWindow>();
             foreach (var entry in groupNode.Windows)
             {
-                if (Resolve(entry.Id, index) is { } window && !used.Contains(window))
+                if (ResolveToolWindow(entry.Id, index) is { } window && !used.Contains(window))
                 {
                     used.Add(window);
                     window.IsRelocating = true;
@@ -262,7 +297,7 @@ public class DockSiteLayoutSerializer
         foreach (var floatingNode in layout.FloatingWindows)
         {
             if (floatingNode.Root is null
-                || Build(floatingNode.Root, index, workspaces, used) is not { } floatingContent)
+                || Build(floatingNode.Root, index, reusable, used) is not { } floatingContent)
             {
                 continue;
             }
@@ -273,7 +308,7 @@ public class DockSiteLayoutSerializer
                 new RectInt32(floatingNode.X, floatingNode.Y, floatingNode.Width, floatingNode.Height));
             var host = new FloatingWindowHost(site, floatingContent, bounds);
 
-            var restoreContainer = ResolveSiblingReference(site, floatingNode.RestoreContainer, index) as ToolWindowContainer;
+            var restoreContainer = ResolveSiblingReference(site, floatingNode.RestoreContainer, index) as DockingWindowContainer;
             var restoreSibling = ResolveSiblingReference(site, floatingNode.RestoreSibling, index);
             if (restoreContainer is not null || restoreSibling is not null)
             {
@@ -287,7 +322,7 @@ public class DockSiteLayoutSerializer
             site.AddFloatingHost(host);
         }
 
-        foreach (var window in site.ToolWindows.ToList())
+        foreach (var window in KnownWindows(site))
         {
             if (used.Contains(window))
             {
@@ -303,7 +338,7 @@ public class DockSiteLayoutSerializer
 
                 if (UnresolvedWindowBehavior == UnresolvedWindowBehavior.DockLeft)
                 {
-                    LayoutManager.DockToSide(site, window, DockSide.Left);
+                    KeepOpen(site, window);
                 }
                 else
                 {
@@ -320,11 +355,36 @@ public class DockSiteLayoutSerializer
         site.NotifyLayoutChanged(LayoutChangeKind.LayoutLoaded);
     }
 
+    /// <summary>Enumerates every window the dock site knows about, open or closed.</summary>
+    private static List<DockingWindow> KnownWindows(DockSite site)
+    {
+        var windows = new List<DockingWindow>(site.ToolWindows.Count + site.Documents.Count);
+        windows.AddRange(site.ToolWindows);
+        windows.AddRange(site.Documents);
+        return windows;
+    }
+
+    /// <summary>
+    /// Puts a window the loaded layout does not mention back into the layout, for
+    /// <see cref="UnresolvedWindowBehavior.DockLeft"/>: documents reopen in the document area,
+    /// tool windows dock to the left edge.
+    /// </summary>
+    private static void KeepOpen(DockSite site, DockingWindow window)
+    {
+        if (window is DocumentWindow document && site.DocumentHost is { } host)
+        {
+            host.OpenDocument(document);
+            return;
+        }
+
+        LayoutManager.DockToSide(site, window, DockSide.Left);
+    }
+
     private UIElement? Build(
         LayoutNode node,
-        Dictionary<string, ToolWindow> index,
-        Queue<Workspace> workspaces,
-        HashSet<ToolWindow> used)
+        WindowIndex index,
+        ReusableElements reusable,
+        HashSet<DockingWindow> used)
     {
         switch (node)
         {
@@ -332,7 +392,7 @@ public class DockSiteLayoutSerializer
                 var children = new List<UIElement>();
                 foreach (var childNode in splitNode.Children)
                 {
-                    if (Build(childNode, index, workspaces, used) is { } child)
+                    if (Build(childNode, index, reusable, used) is { } child)
                     {
                         children.Add(child);
                     }
@@ -362,36 +422,35 @@ public class DockSiteLayoutSerializer
             case ContainerLayoutNode containerNode:
                 var container = new ToolWindowContainer();
                 DockSite.SetRelativeSize(container, containerNode.RelativeSize);
+                FillContainer(container, containerNode.Windows, containerNode.SelectedId, id => ResolveToolWindow(id, index), used);
+                return container.Items.Count == 0 ? null : container;
 
-                foreach (var entry in containerNode.Windows)
-                {
-                    if (Resolve(entry.Id, index) is { } window)
-                    {
-                        container.Items.Add(window);
-                        used.Add(window);
-                    }
-                }
+            case DocumentContainerLayoutNode groupNode:
+                var group = new DocumentContainer();
+                DockSite.SetRelativeSize(group, groupNode.RelativeSize);
+                FillContainer(group, groupNode.Windows, groupNode.SelectedId, id => ResolveDocument(id, index), used);
+                return group.Items.Count == 0 ? null : group;
 
-                if (container.Items.Count == 0)
+            case DocumentHostLayoutNode hostNode:
+                if (reusable.DocumentHosts.Count == 0)
                 {
                     return null;
                 }
 
-                if (containerNode.SelectedId is { } selectedId
-                    && container.Items.FirstOrDefault(w => w.SerializationId == selectedId) is { } selected)
-                {
-                    container.SelectedItem = selected;
-                }
-
-                return container;
+                // Document areas are reused by position, like workspaces: they are declared by
+                // the application and carry whatever it put around the documents.
+                var host = reusable.DocumentHosts.Dequeue();
+                DockSite.SetRelativeSize(host, hostNode.RelativeSize);
+                host.Child = hostNode.Root is null ? null : Build(hostNode.Root, index, reusable, used);
+                return host;
 
             case WorkspaceLayoutNode workspaceNode:
-                if (workspaces.Count == 0)
+                if (reusable.Workspaces.Count == 0)
                 {
                     return null;
                 }
 
-                var workspace = workspaces.Dequeue();
+                var workspace = reusable.Workspaces.Dequeue();
                 DockSite.SetRelativeSize(workspace, workspaceNode.RelativeSize);
                 return workspace;
 
@@ -400,9 +459,32 @@ public class DockSiteLayoutSerializer
         }
     }
 
-    private ToolWindow? Resolve(string id, Dictionary<string, ToolWindow> index)
+    private static void FillContainer(
+        DockingWindowContainer container,
+        List<LayoutWindowEntry> entries,
+        string? selectedId,
+        Func<string, DockingWindow?> resolve,
+        HashSet<DockingWindow> used)
     {
-        if (index.TryGetValue(id, out var window))
+        foreach (var entry in entries)
+        {
+            if (resolve(entry.Id) is { } window)
+            {
+                container.Items.Add(window);
+                used.Add(window);
+            }
+        }
+
+        if (selectedId is not null
+            && container.Items.FirstOrDefault(w => w.SerializationId == selectedId) is { } selected)
+        {
+            container.SelectedItem = selected;
+        }
+    }
+
+    private ToolWindow? ResolveToolWindow(string id, WindowIndex index)
+    {
+        if (index.ToolWindows.TryGetValue(id, out var window))
         {
             return window;
         }
@@ -413,7 +495,27 @@ public class DockSiteLayoutSerializer
         if (args.ToolWindow is { } resolved)
         {
             resolved.SerializationId ??= id;
-            index[id] = resolved;
+            index.ToolWindows[id] = resolved;
+            return resolved;
+        }
+
+        return null;
+    }
+
+    private DocumentWindow? ResolveDocument(string id, WindowIndex index)
+    {
+        if (index.Documents.TryGetValue(id, out var document))
+        {
+            return document;
+        }
+
+        var args = new DocumentResolvingEventArgs(id);
+        DocumentResolving?.Invoke(this, args);
+
+        if (args.Document is { } resolved)
+        {
+            resolved.SerializationId ??= id;
+            index.Documents[id] = resolved;
             return resolved;
         }
 
@@ -421,29 +523,37 @@ public class DockSiteLayoutSerializer
     }
 
     /// <summary>
-    /// Recursively empties the split containers of a discarded layout tree so reusable
-    /// elements (workspaces) are no longer associated with their old parents.
+    /// Recursively empties the containers of a discarded layout tree so reusable elements
+    /// (workspaces and document areas) are no longer associated with their old parents.
     /// </summary>
-    private static void DismantleSplits(UIElement? element)
+    private static void Dismantle(UIElement? element)
     {
-        if (element is not SplitContainer split)
+        switch (element)
         {
-            return;
-        }
+            case SplitContainer split:
+                var panes = split.GetPanes();
+                split.Children.Clear();
+                foreach (var pane in panes)
+                {
+                    Dismantle(pane);
+                }
 
-        var panes = split.GetPanes();
-        split.Children.Clear();
-        foreach (var pane in panes)
-        {
-            DismantleSplits(pane);
+                break;
+
+            case DocumentHost host:
+                var child = host.Child;
+                host.Child = null;
+                Dismantle(child);
+                break;
         }
     }
 
     /// <summary>
     /// Converts a live restore-sibling element into a stable reference for the XML:
-    /// "Workspace:n" for the n-th workspace in document order, "Window:id" for a tool window
-    /// container. Split containers (and elements no longer in this site) yield no reference,
-    /// so pinning back falls to the group's edge, same as when the sibling disappears at runtime.
+    /// "Workspace:n" and "DocumentHost:n" for the n-th of those in document order, "Window:id"
+    /// for a tool window container and "Document:id" for a document group. Split containers (and
+    /// elements no longer in this site) yield no reference, so pinning back falls to the group's
+    /// edge, same as when the sibling disappears at runtime.
     /// </summary>
     private static string? CaptureSiblingReference(DockSite site, FrameworkElement? sibling)
     {
@@ -455,22 +565,18 @@ public class DockSiteLayoutSerializer
         switch (sibling)
         {
             case Workspace workspace:
-                var workspaces = new Queue<Workspace>();
-                CollectWorkspaces(site.Child, workspaces);
-                var position = 0;
-                foreach (var candidate in workspaces)
-                {
-                    if (ReferenceEquals(candidate, workspace))
-                    {
-                        return $"Workspace:{position}";
-                    }
+                var workspacePosition = PositionOf(new ReusableElements(site.Child).Workspaces, workspace);
+                return workspacePosition < 0 ? null : $"Workspace:{workspacePosition}";
 
-                    position++;
-                }
+            case DocumentHost host:
+                var hostPosition = PositionOf(new ReusableElements(site.Child).DocumentHosts, host);
+                return hostPosition < 0 ? null : $"DocumentHost:{hostPosition}";
 
-                return null;
+            case DocumentContainer group:
+                var documentId = group.Items.FirstOrDefault(w => w.SerializationId is not null)?.SerializationId;
+                return documentId is null ? null : $"Document:{documentId}";
 
-            case ToolWindowContainer container:
+            case DockingWindowContainer container:
                 var id = container.Items.FirstOrDefault(w => w.SerializationId is not null)?.SerializationId;
                 return id is null ? null : $"Window:{id}";
 
@@ -479,51 +585,110 @@ public class DockSiteLayoutSerializer
         }
     }
 
-    /// <summary>Resolves a serialized restore-sibling reference against the rebuilt layout tree.</summary>
-    private static FrameworkElement? ResolveSiblingReference(
-        DockSite site,
-        string? reference,
-        Dictionary<string, ToolWindow> index)
+    private static int PositionOf<T>(Queue<T> candidates, T element)
+        where T : class
     {
-        const string workspacePrefix = "Workspace:";
-        const string windowPrefix = "Window:";
+        var position = 0;
+        foreach (var candidate in candidates)
+        {
+            if (ReferenceEquals(candidate, element))
+            {
+                return position;
+            }
 
+            position++;
+        }
+
+        return -1;
+    }
+
+    /// <summary>Resolves a serialized restore-sibling reference against the rebuilt layout tree.</summary>
+    private static FrameworkElement? ResolveSiblingReference(DockSite site, string? reference, WindowIndex index)
+    {
         if (reference is null)
         {
             return null;
         }
 
-        if (reference.StartsWith(workspacePrefix, StringComparison.Ordinal)
-            && int.TryParse(reference[workspacePrefix.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var position))
+        var separator = reference.IndexOf(':', StringComparison.Ordinal);
+        if (separator < 0)
         {
-            var workspaces = new Queue<Workspace>();
-            CollectWorkspaces(site.Child, workspaces);
-            return workspaces.Skip(position).FirstOrDefault();
+            return null;
         }
 
-        if (reference.StartsWith(windowPrefix, StringComparison.Ordinal)
-            && index.TryGetValue(reference[windowPrefix.Length..], out var window))
+        var kind = reference[..separator];
+        var value = reference[(separator + 1)..];
+
+        switch (kind)
         {
-            return window.Container;
+            case "Workspace":
+                return At(new ReusableElements(site.Child).Workspaces, value);
+
+            case "DocumentHost":
+                return At(new ReusableElements(site.Child).DocumentHosts, value);
+
+            case "Window":
+                return index.ToolWindows.TryGetValue(value, out var window) ? window.Container : null;
+
+            case "Document":
+                return index.Documents.TryGetValue(value, out var document) ? document.Container : null;
+
+            default:
+                return null;
         }
 
-        return null;
+        static FrameworkElement? At<T>(Queue<T> candidates, string position)
+            where T : FrameworkElement
+        {
+            return int.TryParse(position, NumberStyles.None, CultureInfo.InvariantCulture, out var value)
+                ? candidates.Skip(value).FirstOrDefault()
+                : null;
+        }
     }
 
-    private static void CollectWorkspaces(UIElement? element, Queue<Workspace> workspaces)
+    /// <summary>The tool windows and documents a load can match serialized ids against.</summary>
+    private sealed class WindowIndex
     {
-        switch (element)
-        {
-            case Workspace workspace:
-                workspaces.Enqueue(workspace);
-                break;
-            case SplitContainer split:
-                foreach (var pane in split.GetPanes())
-                {
-                    CollectWorkspaces(pane, workspaces);
-                }
+        internal Dictionary<string, ToolWindow> ToolWindows { get; } = [];
 
-                break;
+        internal Dictionary<string, DocumentWindow> Documents { get; } = [];
+    }
+
+    /// <summary>
+    /// The elements of a layout that are declared by the application and reused across a load
+    /// instead of being rebuilt: they are matched by their position in document order.
+    /// </summary>
+    private sealed class ReusableElements
+    {
+        internal ReusableElements(UIElement? root)
+        {
+            Collect(root);
+        }
+
+        internal Queue<Workspace> Workspaces { get; } = [];
+
+        internal Queue<DocumentHost> DocumentHosts { get; } = [];
+
+        private void Collect(UIElement? element)
+        {
+            switch (element)
+            {
+                case Workspace workspace:
+                    Workspaces.Enqueue(workspace);
+                    break;
+
+                case DocumentHost host:
+                    DocumentHosts.Enqueue(host);
+                    break;
+
+                case SplitContainer split:
+                    foreach (var pane in split.GetPanes())
+                    {
+                        Collect(pane);
+                    }
+
+                    break;
+            }
         }
     }
 }

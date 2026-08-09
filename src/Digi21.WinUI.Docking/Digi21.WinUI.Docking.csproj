@@ -10,11 +10,11 @@
 
   <PropertyGroup Label="Packaging">
     <PackageId>Digi21.WinUI.Docking</PackageId>
-    <Description>Docking panels for WinUI 3: dockable tool windows with splitters and tabs, Visual Studio-style drag-and-drop dock guides, and layout serialization.</Description>
+    <Description>Docking panels for WinUI 3: dockable tool windows with splitters and tabs, a tabbed MDI document area, Visual Studio-style drag-and-drop dock guides, floating windows, auto-hide, and layout serialization.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageTags>winui;winui3;docking;dock;toolwindow;layout;panels;windows-app-sdk;windowsappsdk</PackageTags>
+    <PackageTags>winui;winui3;docking;dock;toolwindow;mdi;documents;layout;panels;windows-app-sdk;windowsappsdk</PackageTags>
     <PackageProjectUrl>https://github.com/Digi21/DockingPanels</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Digi21/DockingPanels</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

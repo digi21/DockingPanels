@@ -67,8 +67,15 @@ public partial class DockSite : Control, IDockSurface
         typeof(DockSite),
         new PropertyMetadata(null));
 
+    /// <summary>Identifies the <see cref="ActiveDocument"/> dependency property.</summary>
+    public static readonly DependencyProperty ActiveDocumentProperty = DependencyProperty.Register(
+        nameof(ActiveDocument),
+        typeof(DocumentWindow),
+        typeof(DockSite),
+        new PropertyMetadata(null));
+
     private readonly List<ToolWindow> toolWindows = [];
-    private readonly HashSet<FrameworkElement> dropTargets = [];
+    private readonly List<DocumentWindow> documents = [];
     private readonly List<AutoHideGroup> autoHideGroups = [];
     private readonly List<FloatingWindowHost> floatingHosts = [];
     private readonly Dictionary<DockSide, AutoHideTabStrip> autoHideStrips = [];
@@ -146,18 +153,35 @@ public partial class DockSite : Control, IDockSurface
     }
 
     /// <summary>
+    /// Gets the active document, which stays the last activated one while a tool window has the
+    /// focus, or <see langword="null"/> when no document has been activated yet.
+    /// </summary>
+    public DocumentWindow? ActiveDocument
+    {
+        get => (DocumentWindow?)GetValue(ActiveDocumentProperty);
+        private set => SetValue(ActiveDocumentProperty, value);
+    }
+
+    /// <summary>
     /// Gets all tool windows known to this dock site, including closed ones that can be reopened.
     /// </summary>
     public IReadOnlyList<ToolWindow> ToolWindows => toolWindows;
+
+    /// <summary>
+    /// Gets all documents known to this dock site, including closed ones that can be reopened.
+    /// </summary>
+    public IReadOnlyList<DocumentWindow> Documents => documents;
+
+    /// <summary>
+    /// Gets the document area of the layout, or <see langword="null"/> when the layout has none.
+    /// </summary>
+    public DocumentHost? DocumentHost => LayoutTree.DocumentHosts(Child).FirstOrDefault();
 
     /// <summary>Gets the controller that runs interactive drag-and-drop re-docking, once the template is applied.</summary>
     internal DragDockController? DragController { get; private set; }
 
     /// <summary>Gets the presenter that hosts the docked layout, used as the coordinate reference for the edge strips.</summary>
     internal ContentPresenter? LayoutRoot => layoutRootPresenter;
-
-    /// <summary>Gets the elements (containers and workspaces) that can receive dropped windows.</summary>
-    internal IReadOnlyCollection<FrameworkElement> DropTargets => dropTargets;
 
     /// <inheritdoc />
     protected override void OnApplyTemplate()
@@ -220,19 +244,13 @@ public partial class DockSite : Control, IDockSurface
 
     bool IDockSurface.IsFloating => false;
 
-    UIElement? IDockSurface.LayoutChild
+    UIElement? ILayoutHost.LayoutChild
     {
         get => Child;
         set => Child = value;
     }
 
     DockGuideOverlay? IDockSurface.Overlay => overlay;
-
-    IReadOnlyCollection<FrameworkElement> IDockSurface.DropTargets => dropTargets;
-
-    void IDockSurface.RegisterDropTarget(FrameworkElement element) => RegisterDropTarget(element);
-
-    void IDockSurface.UnregisterDropTarget(FrameworkElement element) => UnregisterDropTarget(element);
 
     void IDockSurface.OnLayoutMutated()
     {
@@ -287,22 +305,40 @@ public partial class DockSite : Control, IDockSurface
     }
 
     /// <summary>
-    /// Floats a tool window out of the layout into its own top-level window, placed near the
-    /// dock site. Floating windows can be moved across monitors and dragged back into the layout.
+    /// Opens a document in the document area, as a new tab of its active group. Also reopens
+    /// closed documents.
     /// </summary>
-    /// <param name="window">The window to float.</param>
-    public void FloatToolWindow(ToolWindow window)
+    /// <param name="document">The document to open.</param>
+    /// <exception cref="InvalidOperationException">The layout has no <see cref="DocumentHost"/>.</exception>
+    public void OpenDocument(DocumentWindow document)
     {
-        ArgumentNullException.ThrowIfNull(window);
-        FloatToolWindow(window, DefaultFloatingBounds(window));
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (DocumentHost is not { } host)
+        {
+            throw new InvalidOperationException("The layout of this dock site has no DocumentHost to open documents in.");
+        }
+
+        host.OpenDocument(document);
     }
 
     /// <summary>
-    /// Floats a tool window out of the layout into its own top-level window with explicit bounds.
+    /// Floats a window out of the layout into its own top-level window, placed near the dock
+    /// site. Floating windows can be moved across monitors and dragged back into the layout.
+    /// </summary>
+    /// <param name="window">The window to float.</param>
+    public void FloatWindow(DockingWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        FloatWindow(window, DefaultFloatingBounds(window));
+    }
+
+    /// <summary>
+    /// Floats a window out of the layout into its own top-level window with explicit bounds.
     /// </summary>
     /// <param name="window">The window to float.</param>
     /// <param name="bounds">The bounds of the floating window, in screen pixels.</param>
-    public void FloatToolWindow(ToolWindow window, RectInt32 bounds)
+    public void FloatWindow(DockingWindow window, RectInt32 bounds)
     {
         ArgumentNullException.ThrowIfNull(window);
 
@@ -321,12 +357,10 @@ public partial class DockSite : Control, IDockSurface
 
     internal void RemoveFloatingHost(FloatingWindowHost host) => floatingHosts.Remove(host);
 
-    /// <summary>Finds the floating window hosting the given tool window, if any.</summary>
+    /// <summary>Finds the floating window hosting the given window, if any.</summary>
     internal FloatingWindowHost? FindFloatingHost(DockingWindow window)
     {
-        return window is ToolWindow tool
-            ? floatingHosts.FirstOrDefault(h => h.Windows.Contains(tool))
-            : null;
+        return floatingHosts.FirstOrDefault(h => h.Windows.Contains(window));
     }
 
     /// <summary>Finds the floating window with the given window handle, if it belongs to this site.</summary>
@@ -345,7 +379,7 @@ public partial class DockSite : Control, IDockSurface
     }
 
     /// <summary>Picks the initial bounds of a floating window: the size it has while docked, cascaded from the site's corner.</summary>
-    private RectInt32 DefaultFloatingBounds(ToolWindow window)
+    private RectInt32 DefaultFloatingBounds(DockingWindow window)
     {
         var (width, height) = FloatingWindowHost.PreferredSize(window.Container);
         var size = ScreenInterop.ToScreenSize(this, width, height);
@@ -480,12 +514,6 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
-    /// <summary>Adds an element to the set of drop targets considered during drag operations.</summary>
-    internal void RegisterDropTarget(FrameworkElement element) => dropTargets.Add(element);
-
-    /// <summary>Removes an element from the set of drop targets.</summary>
-    internal void UnregisterDropTarget(FrameworkElement element) => dropTargets.Remove(element);
-
     /// <summary>Selects and activates the given window. Equivalent to <see cref="DockingWindow.Activate"/>.</summary>
     /// <param name="window">The window to activate.</param>
     public void ActivateWindow(DockingWindow window)
@@ -503,11 +531,16 @@ public partial class DockSite : Control, IDockSurface
     }
 
     /// <summary>Adds a window to the registry of known windows.</summary>
-    internal void RegisterWindow(ToolWindow window)
+    internal void RegisterWindow(DockingWindow window)
     {
-        if (!toolWindows.Contains(window))
+        switch (window)
         {
-            toolWindows.Add(window);
+            case ToolWindow tool when !toolWindows.Contains(tool):
+                toolWindows.Add(tool);
+                break;
+            case DocumentWindow document when !documents.Contains(document):
+                documents.Add(document);
+                break;
         }
     }
 
@@ -521,6 +554,11 @@ public partial class DockSite : Control, IDockSurface
         }
 
         ActiveWindow = window;
+
+        if (window is DocumentWindow document)
+        {
+            ActiveDocument = document;
+        }
 
         if (previous is not null)
         {
@@ -554,6 +592,11 @@ public partial class DockSite : Control, IDockSurface
         if (ReferenceEquals(ActiveWindow, window))
         {
             SetActiveWindow(null);
+        }
+
+        if (ReferenceEquals(ActiveDocument, window))
+        {
+            ActiveDocument = null;
         }
 
         WindowClosed?.Invoke(this, new DockingWindowEventArgs(window));

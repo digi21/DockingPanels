@@ -41,6 +41,26 @@ internal sealed class WorkspaceLayoutNode : LayoutNode
 {
 }
 
+/// <summary>The document area, with the tree of tab groups it holds.</summary>
+internal sealed class DocumentHostLayoutNode : LayoutNode
+{
+    /// <summary>
+    /// Gets or sets the root of the tree inside the document area: a single tab group, a split
+    /// of several, or <see langword="null"/> when no document is open.
+    /// </summary>
+    internal LayoutNode? Root { get; set; }
+}
+
+/// <summary>A document tab group with its tabs.</summary>
+internal sealed class DocumentContainerLayoutNode : LayoutNode
+{
+    /// <summary>Gets the documents hosted by the group, in tab order.</summary>
+    internal List<LayoutWindowEntry> Windows { get; } = [];
+
+    /// <summary>Gets or sets the id of the selected document, if any.</summary>
+    internal string? SelectedId { get; set; }
+}
+
 /// <summary>A serialized auto-hide group collapsed to a dock site edge.</summary>
 internal sealed class AutoHideGroupNode
 {

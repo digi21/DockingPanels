@@ -29,6 +29,9 @@ public enum UnresolvedWindowBehavior
     /// <summary>Close the window. It stays registered and can be reopened later.</summary>
     Close,
 
-    /// <summary>Keep the window open by docking it to the left edge of the dock site.</summary>
+    /// <summary>
+    /// Keep the window open: tool windows dock to the left edge of the dock site, documents
+    /// reopen in the document area.
+    /// </summary>
     DockLeft,
 }

@@ -16,11 +16,13 @@ internal static class LayoutXml
     internal const string RootElementName = "DockSiteLayout";
 
     /// <summary>
-    /// The format version written by this library. Version 2 replaced the flat window list of a
-    /// floating window with a layout tree, so windows docked inside it are preserved; version 1
-    /// documents are still read, their window list becoming a single container.
+    /// The format version written by this library. Version 3 added the document area
+    /// (<c>DocumentHost</c> and <c>DocumentContainer</c> nodes); version 2 replaced the flat
+    /// window list of a floating window with a layout tree, so windows docked inside it are
+    /// preserved; version 1 documents are still read, their window list becoming a single
+    /// container. Older versions are read unchanged, they simply have no document area.
     /// </summary>
-    internal const int CurrentVersion = 2;
+    internal const int CurrentVersion = 3;
 
     internal static void Write(Stream stream, LayoutDocument layout)
     {
@@ -205,7 +207,8 @@ internal static class LayoutXml
     {
         foreach (var child in element.Elements())
         {
-            if (child.Name.LocalName is "SplitContainer" or "ToolWindowContainer" or "Workspace")
+            if (child.Name.LocalName is "SplitContainer" or "ToolWindowContainer" or "Workspace"
+                or "DocumentContainer" or "DocumentHost")
             {
                 return ReadNode(child);
             }
@@ -273,6 +276,36 @@ internal static class LayoutXml
                 writer.WriteEndElement();
                 break;
 
+            case DocumentHostLayoutNode host:
+                writer.WriteStartElement("DocumentHost");
+                WriteRelativeSize(writer, host);
+                if (host.Root is not null)
+                {
+                    WriteNode(writer, host.Root);
+                }
+
+                writer.WriteEndElement();
+                break;
+
+            case DocumentContainerLayoutNode group:
+                writer.WriteStartElement("DocumentContainer");
+                WriteRelativeSize(writer, group);
+                if (group.SelectedId is not null)
+                {
+                    writer.WriteAttributeString("SelectedId", group.SelectedId);
+                }
+
+                foreach (var document in group.Windows)
+                {
+                    writer.WriteStartElement("Document");
+                    writer.WriteAttributeString("Id", document.Id);
+                    writer.WriteAttributeString("State", document.State);
+                    writer.WriteEndElement();
+                }
+
+                writer.WriteEndElement();
+                break;
+
             default:
                 throw new NotSupportedException($"Unknown layout node type '{node.GetType().Name}'.");
         }
@@ -314,6 +347,33 @@ internal static class LayoutXml
 
             case "Workspace":
                 return new WorkspaceLayoutNode { RelativeSize = ReadRelativeSize(element) };
+
+            case "DocumentHost":
+                var host = new DocumentHostLayoutNode { RelativeSize = ReadRelativeSize(element) };
+                foreach (var child in element.Elements())
+                {
+                    host.Root = ReadNode(child);
+                    break;
+                }
+
+                return host;
+
+            case "DocumentContainer":
+                var group = new DocumentContainerLayoutNode
+                {
+                    RelativeSize = ReadRelativeSize(element),
+                    SelectedId = (string?)element.Attribute("SelectedId"),
+                };
+                foreach (var child in element.Elements("Document"))
+                {
+                    var documentId = (string?)child.Attribute("Id")
+                        ?? throw new InvalidDataException("A Document element is missing its Id attribute.");
+                    group.Windows.Add(new LayoutWindowEntry(
+                        documentId,
+                        (string?)child.Attribute("State") ?? nameof(DockingWindowState.Docked)));
+                }
+
+                return group;
 
             default:
                 throw new InvalidDataException($"Unknown layout element '{element.Name.LocalName}'.");

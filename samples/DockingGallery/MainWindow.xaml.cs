@@ -1,6 +1,7 @@
 using Digi21.WinUI.Docking;
 using Digi21.WinUI.Docking.Serialization;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 
 namespace DockingGallery;
 
@@ -8,10 +9,44 @@ public sealed partial class MainWindow : Window
 {
     private readonly DockSiteLayoutSerializer serializer = new();
     private string? savedLayout;
+    private int newDocumentCount;
 
     public MainWindow()
     {
         InitializeComponent();
+
+        // Documents created at runtime are gone after a restart unless the application can
+        // recreate them: the serializer asks for the ones it cannot match by id.
+        serializer.DocumentResolving += (_, e) =>
+        {
+            if (e.Id.StartsWith("untitled", StringComparison.Ordinal))
+            {
+                e.Document = CreateDocument(e.Id, $"{e.Id}.txt");
+            }
+        };
+    }
+
+    private void OnNewDocument(object sender, RoutedEventArgs e)
+    {
+        var id = $"untitled{++newDocumentCount}";
+        Documents.OpenDocument(CreateDocument(id, $"Untitled {newDocumentCount}"));
+        EventLog.Text = $"Opened {id}";
+    }
+
+    private static DocumentWindow CreateDocument(string id, string title)
+    {
+        return new DocumentWindow
+        {
+            Title = title,
+            SerializationId = id,
+            Content = new TextBox
+            {
+                AcceptsReturn = true,
+                BorderThickness = new Thickness(0),
+                PlaceholderText = "Type here",
+                TextWrapping = TextWrapping.Wrap,
+            },
+        };
     }
 
     private void OnSaveLayout(object sender, RoutedEventArgs e)

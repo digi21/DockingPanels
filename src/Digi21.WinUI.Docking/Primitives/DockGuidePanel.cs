@@ -22,6 +22,13 @@ public partial class DockGuidePanel : Control
         typeof(DockGuidePanel),
         new PropertyMetadata(true, (d, _) => ((DockGuidePanel)d).UpdateCenterVisibility()));
 
+    /// <summary>Identifies the <see cref="ShowSides"/> dependency property.</summary>
+    public static readonly DependencyProperty ShowSidesProperty = DependencyProperty.Register(
+        nameof(ShowSides),
+        typeof(bool),
+        typeof(DockGuidePanel),
+        new PropertyMetadata(true, (d, _) => ((DockGuidePanel)d).UpdateSideVisibility()));
+
     /// <summary>Initializes a new instance of the <see cref="DockGuidePanel"/> class.</summary>
     public DockGuidePanel()
     {
@@ -37,6 +44,16 @@ public partial class DockGuidePanel : Control
     {
         get => (bool)GetValue(ShowCenterProperty);
         set => SetValue(ShowCenterProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the four side guides are shown. They are hidden
+    /// when the target can only be dropped into as a whole, such as an empty document area.
+    /// </summary>
+    public bool ShowSides
+    {
+        get => (bool)GetValue(ShowSidesProperty);
+        set => SetValue(ShowSidesProperty, value);
     }
 
     internal DockGuide? CenterGuide { get; private set; }
@@ -75,6 +92,7 @@ public partial class DockGuidePanel : Control
         BottomGuide = GetTemplateChild("PART_BottomGuide") as DockGuide;
 
         UpdateCenterVisibility();
+        UpdateSideVisibility();
     }
 
     internal void SetHotGuide(DockSide? side, bool isCenterHot)
@@ -110,6 +128,19 @@ public partial class DockGuidePanel : Control
         if (CenterGuide is not null)
         {
             CenterGuide.Visibility = ShowCenter ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void UpdateSideVisibility()
+    {
+        var visibility = ShowSides ? Visibility.Visible : Visibility.Collapsed;
+
+        foreach (var guide in new[] { LeftGuide, TopGuide, RightGuide, BottomGuide })
+        {
+            if (guide is not null)
+            {
+                guide.Visibility = visibility;
+            }
         }
     }
 }
