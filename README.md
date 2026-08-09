@@ -27,6 +27,8 @@ layout serialization.
 - Save and restore the docking layout as XML (`DockSiteLayoutSerializer`), including the document
   area, auto-hidden groups, floating window positions and their inner layout.
 - Cancelable close, activation tracking, and layout-change events on `DockSite`.
+- A `Relocated` event on every element that carries application content, for hosting a
+  `SwapChainPanel`, a `WebView2` or anything else with a life cycle of its own.
 - Light, dark, and high-contrast aware out of the box (built on WinUI theme resources), and
   recolorable through the library's own brush keys.
 
@@ -152,6 +154,49 @@ Unpinned windows become tabs on the dock site edge; clicking a tab slides the wi
 layout until it loses focus. Set `CanAutoHide="False"` (or `CanFloat="False"`) on a tool window
 to hide the affordance and block the operation.
 
+An application that sets up its initial layout from the dock site's `Loaded` can call these
+straight from there, as many times as it likes: a window whose own `Loaded` has not run yet is not
+attached to its dock site at that moment, and the operation waits for it instead of being dropped.
+
+### Content with a life cycle of its own
+
+Every docking operation — docking, auto-hiding, floating, loading a layout — rebuilds part of the
+XAML tree, and the elements that survive it are moved rather than recreated. WinUI announces those
+moves through `Loaded` and `Unloaded`, but it raises them in that order, so the *last* event an
+application sees for an element that never left the tree is `Unloaded`. Content that stops itself
+there — a render loop, a media player, a swap chain — stops for good, with nothing to show for it.
+
+`Workspace`, `DocumentHost`, `ToolWindow` and `DocumentWindow` therefore raise `Relocated` once
+the tree has settled, after the whole batch of `Loaded` and `Unloaded` events, and only for
+elements that are still part of a layout:
+
+```csharp
+viewerWorkspace.Relocated += (_, _) => RestartRenderLoop();
+```
+
+Reloading a layout that has not changed moves nothing, and raises nothing.
+
+#### Hosting a SwapChainPanel
+
+This one is worth spelling out, because the symptom is a frozen last frame that looks like a hang.
+Moving a `SwapChainPanel` in the XAML tree gives it a **new composition visual**, and the swap
+chain stays attached to the old one, so nothing it renders reaches the screen any more. This is
+WinUI's behavior, not the library's, and it applies to any host: the panel has to be told about
+its new visual by calling `ISwapChainPanelNative::SetSwapChain` again.
+
+```csharp
+viewerWorkspace.Relocated += (_, _) =>
+{
+    // The panel has a new composition visual: bind the swap chain to it again.
+    var native = swapChainPanel.As<ISwapChainPanelNative>();
+    native.SetSwapChain(IntPtr.Zero);      // release the binding to the old visual
+    native.SetSwapChain(swapChain);
+};
+```
+
+`WebView2`, `MediaPlayerElement` and Win2D's `CanvasControl` hold comparable resources; hang their
+recovery off the same event.
+
 ### Programmatic docking
 
 ```csharp
@@ -195,6 +240,20 @@ auto-hidden groups, and the screen bounds of floating windows together with the 
 them). Window instances and their content are matched by id and reused, so control state survives
 a reload. Floating windows are restored on a monitor that exists, so a layout saved with two
 monitors still loads on one. Layouts written by earlier versions are still read.
+
+A load rebuilds the layout out of the elements it is already made of, so reloading a layout that
+has not changed moves nothing at all.
+
+What happens to windows that are open but absent from the loaded layout is decided by
+`UnresolvedWindowBehavior`: `Close` (the default) closes them, `DockLeft` keeps them at the left
+edge. Two things are never dropped, whatever the setting says:
+
+- Windows declared with `CanClose="False"`. The user cannot close them from the interface, so a
+  layout file does not get to either — there would be no way back, and saving the layout on the
+  way out would make it permanent.
+- The `Workspace` and `DocumentHost` elements declared in XAML. They belong to the application
+  rather than to the layout, so a layout that does not mention them gets them back at the edge of
+  whatever it does describe.
 
 ### Theming
 

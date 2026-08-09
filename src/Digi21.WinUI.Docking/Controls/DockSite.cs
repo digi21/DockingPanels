@@ -79,6 +79,8 @@ public partial class DockSite : Control, IDockSurface
     private readonly List<AutoHideGroup> autoHideGroups = [];
     private readonly List<FloatingWindowHost> floatingHosts = [];
     private readonly Dictionary<DockSide, AutoHideTabStrip> autoHideStrips = [];
+    private readonly HashSet<IRelocatable> pendingRelocations = [];
+    private bool relocationFlushScheduled;
     private AutoHideFlyout? autoHideFlyout;
     private ContentPresenter? layoutRootPresenter;
     private AppWindow? ownerWindow;
@@ -96,14 +98,13 @@ public partial class DockSite : Control, IDockSurface
 
         GotFocus += OnAnyDescendantGotFocus;
         Loaded += (_, _) => HookOwnerWindow();
-        Unloaded += (_, _) => CloseFloatingWindows();
+        Unloaded += (_, _) => ReleaseOwnerWindow();
     }
 
-    /// <summary>
-    /// Closes the floating windows while the window hosting this dock site is still alive.
-    /// They are owned windows, so leaving them to be destroyed together with their owner tears
-    /// down their XAML islands during the owner's own teardown, which crashes the process.
-    /// </summary>
+    // Watches the window hosting this dock site so its floating windows are closed while it is
+    // still alive. They are owned windows, so leaving them to be destroyed together with their
+    // owner tears down their XAML islands during the owner's own teardown, which crashes the
+    // process. Nothing for the application to call: the dock site hooks itself when it loads.
     private void HookOwnerWindow()
     {
         if (ownerWindow is not null || XamlRoot?.ContentIslandEnvironment is not { } environment)
@@ -115,6 +116,19 @@ public partial class DockSite : Control, IDockSurface
         if (ownerWindow is not null)
         {
             ownerWindow.Closing += OnOwnerWindowClosing;
+        }
+    }
+
+    // Closes the floating windows and lets go of the owner, so that a dock site taken out of the
+    // tree leaves nothing of itself behind on a window that outlives it.
+    private void ReleaseOwnerWindow()
+    {
+        CloseFloatingWindows();
+
+        if (ownerWindow is not null)
+        {
+            ownerWindow.Closing -= OnOwnerWindowClosing;
+            ownerWindow = null;
         }
     }
 
@@ -324,7 +338,7 @@ public partial class DockSite : Control, IDockSurface
             throw new InvalidOperationException("The layout of this dock site has no DocumentHost to open documents in.");
         }
 
-        host.OpenDocument(document);
+        LayoutManager.OpenDocument(this, host, document);
     }
 
     /// <summary>
@@ -456,7 +470,10 @@ public partial class DockSite : Control, IDockSurface
             ? (size, cellHeight)
             : (cellWidth, size);
 
+        // Showing the flyout takes the window out of the auto-hide group and into the flyout's own
+        // content host, which is a move like any other as far as its content is concerned.
         autoHideFlyout.Show(window, width, height);
+        NotifyRelocated(window);
 
         var origin = layoutRootPresenter
             .TransformToVisual(this)
@@ -611,6 +628,66 @@ public partial class DockSite : Control, IDockSurface
     internal void NotifyLayoutChanged(LayoutChangeKind kind)
     {
         LayoutChanged?.Invoke(this, new LayoutChangedEventArgs(kind));
+    }
+
+    /// <summary>
+    /// Notes that a node of the layout has been moved, so that everything it carries is told about
+    /// it once the tree has settled.
+    /// </summary>
+    internal void NotifyRelocated(UIElement? node)
+    {
+        foreach (var relocatable in LayoutTree.Relocatables(node))
+        {
+            pendingRelocations.Add(relocatable);
+        }
+
+        if (relocationFlushScheduled || pendingRelocations.Count == 0)
+        {
+            return;
+        }
+
+        relocationFlushScheduled = true;
+        LayoutUpdated += OnLayoutUpdatedAfterRelocation;
+    }
+
+    /// <summary>
+    /// Waits for the layout pass that puts the moved elements back in place before announcing the
+    /// move.
+    /// </summary>
+    /// <remarks>
+    /// WinUI raises the <see cref="FrameworkElement.Loaded"/> and
+    /// <see cref="FrameworkElement.Unloaded"/> events of the moved elements around this pass, and
+    /// in that order, so a work item queued at low priority from here is what makes
+    /// <c>Relocated</c> the last word rather than one more event in the middle of the batch.
+    /// </remarks>
+    private void OnLayoutUpdatedAfterRelocation(object? sender, object e)
+    {
+        LayoutUpdated -= OnLayoutUpdatedAfterRelocation;
+
+        if (!DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, FlushRelocations))
+        {
+            FlushRelocations();
+        }
+    }
+
+    private void FlushRelocations()
+    {
+        relocationFlushScheduled = false;
+
+        var relocated = pendingRelocations.ToList();
+        pendingRelocations.Clear();
+
+        foreach (var element in relocated)
+        {
+            // An element that is no longer in a tree was not relocated but removed, and its
+            // Unloaded says exactly that.
+            if (element is FrameworkElement { IsLoaded: false })
+            {
+                continue;
+            }
+
+            element.RaiseRelocated();
+        }
     }
 
     private void OnAnyDescendantGotFocus(object sender, RoutedEventArgs e)

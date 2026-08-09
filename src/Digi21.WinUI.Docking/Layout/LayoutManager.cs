@@ -1,6 +1,5 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 
 namespace Digi21.WinUI.Docking;
@@ -12,10 +11,18 @@ namespace Digi21.WinUI.Docking;
 /// parent before being attached elsewhere.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Every operation works against an <see cref="IDockSurface"/> or an <see cref="ILayoutHost"/>
 /// rather than against the dock site, so the very same code docks a window into the site, into a
 /// floating window and into the document area. The host an operation acts on is usually derived
 /// from the element it is given, which keeps callers from having to know where a container lives.
+/// </para>
+/// <para>
+/// Where an element sits is answered by <see cref="LayoutTree.Locate(DockSite, UIElement)"/>,
+/// which walks the layout trees themselves. Walking the visual tree instead only works between
+/// layout passes: a node that has just been moved has no visual parent until the next pass, so
+/// the second of two mutations made in a single pass would navigate a tree it cannot see.
+/// </para>
 /// </remarks>
 internal static class LayoutManager
 {
@@ -28,17 +35,18 @@ internal static class LayoutManager
     /// <summary>Docks a window as a new pane at an edge of a docking surface.</summary>
     internal static void DockToSide(IDockSurface surface, DockingWindow window, DockSide side)
     {
+        var site = surface.Site;
         var wasOpen = window.IsOpen;
-        Detach(window);
+        Detach(site, window);
 
         var newContainer = NewContainerFor(window);
-        DockNodeToSide(surface, newContainer, side);
+        DockNodeToSide(site, surface, newContainer, side);
         newContainer.Items.Add(window);
         FinishDock(surface, window, wasOpen);
     }
 
     /// <summary>Inserts an existing node as a new pane at an edge of a layout host.</summary>
-    private static void DockNodeToSide(ILayoutHost host, FrameworkElement newNode, DockSide side)
+    private static void DockNodeToSide(DockSite site, ILayoutHost host, FrameworkElement newNode, DockSide side)
     {
         var orientation = side is DockSide.Left or DockSide.Right ? Orientation.Horizontal : Orientation.Vertical;
         var prepend = side is DockSide.Left or DockSide.Top;
@@ -46,7 +54,7 @@ internal static class LayoutManager
 
         if (root is null)
         {
-            host.LayoutChild = newNode;
+            SetLayoutChild(site, host, newNode);
         }
         else if (root is SplitContainer rootSplit && rootSplit.Orientation == orientation)
         {
@@ -59,14 +67,7 @@ internal static class LayoutManager
 
             DockSite.SetRelativeSize(newNode, total / 3.0);
 
-            if (prepend)
-            {
-                rootSplit.Children.Insert(0, newNode);
-            }
-            else
-            {
-                rootSplit.Children.Add(newNode);
-            }
+            InsertChild(site, rootSplit, prepend ? 0 : rootSplit.Children.Count, newNode);
         }
         else
         {
@@ -77,16 +78,16 @@ internal static class LayoutManager
 
             if (prepend)
             {
-                newSplit.Children.Add(newNode);
-                newSplit.Children.Add(root);
+                InsertChild(site, newSplit, 0, newNode);
+                InsertChild(site, newSplit, 1, root);
             }
             else
             {
-                newSplit.Children.Add(root);
-                newSplit.Children.Add(newNode);
+                InsertChild(site, newSplit, 0, root);
+                InsertChild(site, newSplit, 1, newNode);
             }
 
-            host.LayoutChild = newSplit;
+            SetLayoutChild(site, host, newSplit);
         }
     }
 
@@ -99,50 +100,51 @@ internal static class LayoutManager
             return;
         }
 
-        var surface = targetNode.FindSurface() ?? site;
+        var surface = LayoutTree.Locate(site, targetNode)?.Surface ?? site;
         var wasOpen = window.IsOpen;
-        Detach(window);
+        Detach(site, window);
 
         var newContainer = NewContainerFor(window);
-        InsertRelativeTo(newContainer, targetNode, side);
+        InsertRelativeTo(site, newContainer, targetNode, side);
         newContainer.Items.Add(window);
         FinishDock(surface, window, wasOpen);
     }
 
     /// <summary>Inserts a node as a new pane beside an existing layout node.</summary>
-    private static void InsertRelativeTo(FrameworkElement newNode, FrameworkElement targetNode, DockSide side)
+    private static void InsertRelativeTo(DockSite site, FrameworkElement newNode, FrameworkElement targetNode, DockSide side)
     {
         var orientation = side is DockSide.Left or DockSide.Right ? Orientation.Horizontal : Orientation.Vertical;
         var before = side is DockSide.Left or DockSide.Top;
         var targetRelative = SplitContainer.GetEffectiveRelativeSize(targetNode);
+        var location = LayoutTree.Locate(site, targetNode);
 
-        if (VisualTreeHelper.GetParent(targetNode) is SplitContainer parentSplit && parentSplit.Orientation == orientation)
+        if (location is { Split: { } parentSplit } && parentSplit.Orientation == orientation)
         {
             // Insert beside the target, splitting the target's share in half.
             DockSite.SetRelativeSize(targetNode, targetRelative / 2.0);
             DockSite.SetRelativeSize(newNode, targetRelative / 2.0);
 
             var index = parentSplit.Children.IndexOf(targetNode);
-            parentSplit.Children.Insert(before ? index : index + 1, newNode);
+            InsertChild(site, parentSplit, before ? index : index + 1, newNode);
         }
         else
         {
             // Wrap the target in a new split that preserves its share of the parent.
             var newSplit = new SplitContainer { Orientation = orientation };
             DockSite.SetRelativeSize(newSplit, targetRelative);
-            ReplaceInParent(targetNode, newSplit);
+            ReplaceInParent(site, targetNode, newSplit);
             DockSite.SetRelativeSize(targetNode, 1.0);
             DockSite.SetRelativeSize(newNode, 1.0);
 
             if (before)
             {
-                newSplit.Children.Add(newNode);
-                newSplit.Children.Add(targetNode);
+                InsertChild(site, newSplit, 0, newNode);
+                InsertChild(site, newSplit, 1, targetNode);
             }
             else
             {
-                newSplit.Children.Add(targetNode);
-                newSplit.Children.Add(newNode);
+                InsertChild(site, newSplit, 0, targetNode);
+                InsertChild(site, newSplit, 1, newNode);
             }
         }
     }
@@ -161,9 +163,9 @@ internal static class LayoutManager
             return;
         }
 
-        var surface = target.FindSurface() ?? site;
+        var surface = LayoutTree.Locate(site, target)?.Surface ?? site;
         var wasOpen = window.IsOpen;
-        Detach(window);
+        Detach(site, window);
         target.Items.Insert(ClampIndex(target, index), window);
         FinishDock(surface, window, wasOpen);
     }
@@ -209,22 +211,30 @@ internal static class LayoutManager
     /// </summary>
     internal static void OpenDocument(DocumentHost host, DocumentWindow document)
     {
-        if (host.FindSurface() is not { } surface)
+        // The document area does not know its dock site: it is found through the tree it hangs
+        // from, or through the document itself when it has been open before.
+        OpenDocument(host.FindSurface()?.Site ?? document.DockSite, host, document);
+    }
+
+    /// <inheritdoc cref="OpenDocument(DocumentHost, DocumentWindow)"/>
+    internal static void OpenDocument(DockSite? site, DocumentHost host, DocumentWindow document)
+    {
+        if (site is null || LayoutTree.Locate(site, host)?.Surface is not { } surface)
         {
             return;
         }
 
         if (host.ActiveGroup is { } group)
         {
-            AttachAsTab(surface.Site, document, group);
+            AttachAsTab(site, document, group);
             return;
         }
 
         var wasOpen = document.IsOpen;
-        Detach(document);
+        Detach(site, document);
 
         var container = new DocumentContainer();
-        DockNodeToSide(host, container, DockSide.Left);
+        DockNodeToSide(site, host, container, DockSide.Left);
         container.Items.Add(document);
         FinishDock(surface, document, wasOpen);
     }
@@ -233,17 +243,17 @@ internal static class LayoutManager
     /// Removes the window from its current container as part of a move, without raising
     /// closed events, and collapses the abandoned part of the tree.
     /// </summary>
-    private static void Detach(DockingWindow window)
+    private static void Detach(DockSite site, DockingWindow window)
     {
         window.IsRelocating = window.IsOpen;
 
         if (window.Container is { } container)
         {
-            var surface = container.FindSurface();
+            var surface = LayoutTree.Locate(site, container)?.Surface;
             container.Items.Remove(window);
             if (container.Items.Count == 0)
             {
-                RemoveFromParent(container);
+                RemoveFromParent(site, container);
             }
 
             surface?.OnLayoutMutated();
@@ -257,6 +267,7 @@ internal static class LayoutManager
         window.IsRelocating = false;
         window.DockSite = site;
         site.RegisterWindow(window);
+        site.NotifyRelocated(window);
         surface.OnLayoutMutated();
 
         if (wasRelocating || wasOpen)
@@ -289,7 +300,7 @@ internal static class LayoutManager
             size = 300;
         }
 
-        var restoreHint = CaptureRestoreHint(container, edge);
+        var restoreHint = CaptureRestoreHint(site, container, edge);
 
         // Position of the container along the edge, so its tabs land under where it was.
         double offset = 0;
@@ -318,7 +329,7 @@ internal static class LayoutManager
             container.Items.RemoveAt(container.Items.Count - 1);
         }
 
-        RemoveFromParent(container);
+        RemoveFromParent(site, container);
 
         foreach (var window in windows)
         {
@@ -355,12 +366,12 @@ internal static class LayoutManager
     /// Captures where a container sits in the layout tree, so it can be put back there after
     /// being auto-hidden or floated out.
     /// </summary>
-    internal static DockRestoreHint CaptureRestoreHint(DockingWindowContainer container, DockSide fallbackSide)
+    internal static DockRestoreHint CaptureRestoreHint(DockSite site, DockingWindowContainer container, DockSide fallbackSide)
     {
         FrameworkElement? sibling = null;
         var side = fallbackSide;
 
-        if (VisualTreeHelper.GetParent(container) is SplitContainer parentSplit)
+        if (LayoutTree.Locate(site, container) is { Split: { } parentSplit })
         {
             var panes = parentSplit.GetPanes();
             var index = panes.IndexOf(container);
@@ -399,15 +410,15 @@ internal static class LayoutManager
             return;
         }
 
-        if (hint?.Container is { } original && IsInSite(original, site))
+        if (hint?.Container is { } original && LayoutTree.Locate(site, original) is { } location)
         {
-            MoveWindows(windows, original);
-            original.FindSurface()?.OnLayoutMutated();
+            MoveWindows(site, windows, original);
+            location.Surface.OnLayoutMutated();
             return;
         }
 
         var container = NewContainerFor(windows[0]);
-        MoveWindows(windows, container);
+        MoveWindows(site, windows, container);
         RestoreNode(site, container, hint, fallbackEdge);
     }
 
@@ -422,17 +433,17 @@ internal static class LayoutManager
         DockRestoreHint? hint,
         DockSide fallbackEdge)
     {
-        if (hint?.Sibling is { } sibling && IsInSite(sibling, site))
+        if (hint?.Sibling is { } sibling && LayoutTree.Locate(site, sibling) is { } location)
         {
             var siblingRelative = SplitContainer.GetEffectiveRelativeSize(sibling);
-            InsertRelativeTo(node, sibling, hint.Side);
+            InsertRelativeTo(site, node, sibling, hint.Side);
             DockSite.SetRelativeSize(sibling, siblingRelative);
             DockSite.SetRelativeSize(node, hint.RelativeSize);
-            sibling.FindSurface()?.OnLayoutMutated();
+            location.Surface.OnLayoutMutated();
         }
         else
         {
-            DockNodeToSide(FallbackHost(site, node), node, fallbackEdge);
+            DockNodeToSide(site, FallbackHost(site, node), node, fallbackEdge);
         }
     }
 
@@ -453,21 +464,15 @@ internal static class LayoutManager
         return site;
     }
 
-    /// <summary>Tells whether an element is still part of a layout belonging to the given dock site.</summary>
-    private static bool IsInSite(FrameworkElement element, DockSite site)
-    {
-        return element.FindSurface() is { } surface && ReferenceEquals(surface.Site, site);
-    }
-
     /// <summary>
     /// Floats a window out of the layout into its own top-level window, remembering where it
     /// was docked so it can be sent back to the same place.
     /// </summary>
     internal static void FloatWindow(DockSite site, DockingWindow window, RectInt32 bounds)
     {
-        var hint = window.Container is { } previous ? CaptureRestoreHint(previous, DockSide.Left) : null;
+        var hint = window.Container is { } previous ? CaptureRestoreHint(site, previous, DockSide.Left) : null;
 
-        Detach(window);
+        Detach(site, window);
 
         var container = NewContainerFor(window);
         container.Items.Add(window);
@@ -479,6 +484,7 @@ internal static class LayoutManager
 
         var host = new FloatingWindowHost(site, container, bounds) { RestoreHint = hint };
         site.AddFloatingHost(host);
+        site.NotifyRelocated(window);
 
         site.NotifyLayoutChanged(LayoutChangeKind.WindowFloated);
         window.Activate();
@@ -527,22 +533,22 @@ internal static class LayoutManager
         {
             case { Kind: DockTargetKind.Tab, Element: DockingWindowContainer tabTarget }:
                 // Tabs are a flat list, so a tree of panes joins the target container flattened.
-                MoveWindows(windows, tabTarget, target.Index);
-                destination = tabTarget.FindSurface() ?? surface;
+                MoveWindows(site, windows, tabTarget, target.Index);
+                destination = LayoutTree.Locate(site, tabTarget)?.Surface ?? surface;
                 break;
 
             case { Kind: DockTargetKind.Tab, Element: DocumentHost emptyArea }:
-                DockNodeToSide(emptyArea, tree, DockSide.Left);
-                destination = emptyArea.FindSurface() ?? surface;
+                DockNodeToSide(site, emptyArea, tree, DockSide.Left);
+                destination = LayoutTree.Locate(site, emptyArea)?.Surface ?? surface;
                 break;
 
             case { Kind: DockTargetKind.Relative, Element: { } node }:
-                InsertRelativeTo(tree, node, target.Side);
-                destination = node.FindSurface() ?? surface;
+                InsertRelativeTo(site, tree, node, target.Side);
+                destination = LayoutTree.Locate(site, node)?.Surface ?? surface;
                 break;
 
             case { Kind: DockTargetKind.Edge }:
-                DockNodeToSide(surface, tree, target.Side);
+                DockNodeToSide(site, surface, tree, target.Side);
                 break;
 
             default:
@@ -597,7 +603,7 @@ internal static class LayoutManager
                 AttachAsTab(surface.Site, window, container, target.Index);
                 break;
             case { Kind: DockTargetKind.Tab, Element: DocumentHost host } when window is DocumentWindow document:
-                OpenDocument(host, document);
+                OpenDocument(surface.Site, host, document);
                 break;
         }
     }
@@ -610,7 +616,11 @@ internal static class LayoutManager
     }
 
     /// <summary>Moves windows into a container as part of a relocation, keeping them open.</summary>
-    private static void MoveWindows(IReadOnlyList<DockingWindow> windows, DockingWindowContainer container, int index = -1)
+    private static void MoveWindows(
+        DockSite site,
+        IReadOnlyList<DockingWindow> windows,
+        DockingWindowContainer container,
+        int index = -1)
     {
         var position = ClampIndex(container, index);
 
@@ -619,6 +629,7 @@ internal static class LayoutManager
             window.IsRelocating = true;
             container.Items.Insert(Math.Clamp(position, 0, container.Items.Count), window);
             window.IsRelocating = false;
+            site.NotifyRelocated(window);
             position++;
         }
     }
@@ -631,42 +642,48 @@ internal static class LayoutManager
     /// </summary>
     private static DockSide NearestEdge(DockSite site, FrameworkElement element)
     {
-        _ = site;
-
-        if (VisualTreeHelper.GetParent(element) is SplitContainer parent)
+        if (LayoutTree.Locate(site, element) is not { Split: { } parent })
         {
-            var panes = parent.GetPanes();
-            var index = panes.IndexOf(element);
-            if (index < 0)
-            {
-                return DockSide.Left;
-            }
-
-            var leading = index < panes.Count - index - 1;
-
-            return parent.Orientation == Orientation.Vertical
-                ? (leading ? DockSide.Top : DockSide.Bottom)
-                : (leading ? DockSide.Left : DockSide.Right);
+            return DockSide.Left;
         }
 
-        return DockSide.Left;
+        var panes = parent.GetPanes();
+        var index = panes.IndexOf(element);
+
+        return index < 0 ? DockSide.Left : EdgeOfPane(parent.Orientation, index, panes.Count);
+    }
+
+    /// <summary>
+    /// Picks the edge a pane collapses to from where it sits among its siblings: the closer half
+    /// of the split it belongs to decides the side.
+    /// </summary>
+    /// <param name="orientation">The orientation of the split holding the pane.</param>
+    /// <param name="index">The position of the pane among the panes of that split.</param>
+    /// <param name="count">How many panes the split holds.</param>
+    internal static DockSide EdgeOfPane(Orientation orientation, int index, int count)
+    {
+        var leading = index < count - index - 1;
+
+        return orientation == Orientation.Vertical
+            ? (leading ? DockSide.Top : DockSide.Bottom)
+            : (leading ? DockSide.Left : DockSide.Right);
     }
 
     /// <summary>Removes a window from its container and collapses the tree if needed.</summary>
     internal static void RemoveWindow(DockingWindow window)
     {
         if (window is ToolWindow tool && tool.State == DockingWindowState.AutoHide
-            && tool.DockSite is { } site && site.FindAutoHideGroup(tool) is { } group)
+            && tool.DockSite is { } autoHideSite && autoHideSite.FindAutoHideGroup(tool) is { } group)
         {
-            site.HideAutoHideFlyout();
+            autoHideSite.HideAutoHideFlyout();
             group.Windows.Remove(tool);
             if (group.Windows.Count == 0)
             {
-                site.RemoveAutoHideGroup(group);
+                autoHideSite.RemoveAutoHideGroup(group);
             }
             else
             {
-                site.RefreshAutoHideStrips();
+                autoHideSite.RefreshAutoHideStrips();
             }
 
             tool.IsOpen = false;
@@ -680,14 +697,15 @@ internal static class LayoutManager
             return;
         }
 
-        var surface = container.FindSurface();
+        var site = window.DockSite;
+        var surface = site is null ? container.FindSurface() : LayoutTree.Locate(site, container)?.Surface;
 
         container.Items.Remove(window);
         window.State = DockingWindowState.Docked;
 
-        if (container.Items.Count == 0)
+        if (container.Items.Count == 0 && site is not null)
         {
-            RemoveFromParent(container);
+            RemoveFromParent(site, container);
         }
 
         // A floating window that has just lost its last window closes with it.
@@ -695,16 +713,21 @@ internal static class LayoutManager
     }
 
     /// <summary>Removes an element from its parent (split container or layout host).</summary>
-    private static void RemoveFromParent(FrameworkElement element)
+    private static void RemoveFromParent(DockSite site, FrameworkElement element)
     {
-        if (VisualTreeHelper.GetParent(element) is SplitContainer split)
+        if (LayoutTree.Locate(site, element) is not { } location)
+        {
+            return;
+        }
+
+        if (location.Split is { } split)
         {
             split.Children.Remove(element);
-            CollapseSplit(split);
+            CollapseSplit(site, split);
         }
-        else if (element.FindLayoutHost() is { } host && ReferenceEquals(host.LayoutChild, element))
+        else if (ReferenceEquals(location.Host.LayoutChild, element))
         {
-            host.LayoutChild = null;
+            location.Host.LayoutChild = null;
         }
     }
 
@@ -712,7 +735,7 @@ internal static class LayoutManager
     /// Collapses a split container that no longer needs to exist: an empty one is removed and
     /// one with a single remaining pane is replaced by that pane, which inherits its share of space.
     /// </summary>
-    private static void CollapseSplit(SplitContainer split)
+    private static void CollapseSplit(DockSite site, SplitContainer split)
     {
         var panes = split.GetPanes();
         if (panes.Count > 1)
@@ -722,28 +745,64 @@ internal static class LayoutManager
 
         if (panes.Count == 0)
         {
-            RemoveFromParent(split);
+            RemoveFromParent(site, split);
             return;
         }
 
         var lone = panes[0];
         DockSite.SetRelativeSize(lone, DockSite.GetRelativeSize(split));
         split.Children.Remove(lone);
-        ReplaceInParent(split, lone);
+        ReplaceInParent(site, split, lone);
     }
 
     /// <summary>Replaces an element with another one in its parent, keeping its position.</summary>
-    private static void ReplaceInParent(FrameworkElement old, UIElement replacement)
+    private static void ReplaceInParent(DockSite site, FrameworkElement old, UIElement replacement)
     {
-        if (VisualTreeHelper.GetParent(old) is SplitContainer parentSplit)
+        if (ReferenceEquals(old, replacement) || LayoutTree.Locate(site, old) is not { } location)
+        {
+            return;
+        }
+
+        if (location.Split is { } parentSplit)
         {
             var index = parentSplit.Children.IndexOf(old);
             parentSplit.Children.RemoveAt(index);
-            parentSplit.Children.Insert(index, replacement);
+            InsertChild(site, parentSplit, index, replacement);
         }
-        else if (old.FindLayoutHost() is { } host && ReferenceEquals(host.LayoutChild, old))
+        else if (ReferenceEquals(location.Host.LayoutChild, old))
         {
-            host.LayoutChild = replacement;
+            SetLayoutChild(site, location.Host, replacement);
+        }
+    }
+
+    /// <summary>
+    /// Inserts a node as a child of a split container, telling the elements it carries that they
+    /// have moved.
+    /// </summary>
+    private static void InsertChild(DockSite site, SplitContainer split, int index, UIElement node)
+    {
+        split.Children.Insert(Math.Clamp(index, 0, split.Children.Count), node);
+        site.NotifyRelocated(node);
+    }
+
+    /// <summary>
+    /// Makes a node the root of a host's layout tree, telling the elements it carries that they
+    /// have moved. Putting back the node that is already there is a no-op: reassigning it would
+    /// take it out of the XAML tree and put it back within the same layout pass, which is exactly
+    /// what the notification exists to compensate for.
+    /// </summary>
+    private static void SetLayoutChild(DockSite site, ILayoutHost host, UIElement? node)
+    {
+        if (ReferenceEquals(host.LayoutChild, node))
+        {
+            return;
+        }
+
+        host.LayoutChild = node;
+
+        if (node is not null)
+        {
+            site.NotifyRelocated(node);
         }
     }
 }

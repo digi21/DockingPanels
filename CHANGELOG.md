@@ -70,6 +70,11 @@ is published, the entries below describe what that first release will contain; p
 
 - `DockSite.WindowOpened`, `WindowClosing` (cancelable), `WindowClosed`, `WindowActivated`,
   `WindowDeactivated` and `LayoutChanged`.
+- `Relocated` on `Workspace`, `DocumentHost`, `ToolWindow` and `DocumentWindow`, raised once the
+  XAML tree has settled after a docking operation has moved the element. It is what content with a
+  life cycle of its own (a `SwapChainPanel`, a `WebView2`, a render loop) should hang off:
+  WinUI raises `Loaded` before `Unloaded` for an element that was moved but never left the tree,
+  so the unload notification arrives last and stops such content for good.
 
 #### Presentation
 
@@ -82,6 +87,24 @@ is published, the entries below describe what that first release will contain; p
   arrows, `DockingIconFontFamily`), the text styles (`DockingTitleTextStyle`, `DockingTabTextStyle`),
   the pane corner radius (`DockingPaneCornerRadius`) and the splitter metrics
   (`DockingSplitterThickness`, `DockingSplitterGripThickness`).
+
+### Fixed
+
+Since `0.1.0-dev.2`:
+
+- An auto-hidden pane could collapse to the wrong edge when more than one layout operation ran
+  before the next layout pass. Layout mutations navigated the tree with `VisualTreeHelper`, and an
+  element that has just been moved has no visual parent until that pass, so the second operation
+  worked on a tree it could not see. The layout tree is now navigated through itself.
+- `AutoHide()`, `Dock()` and `Float()` did nothing, and said nothing, when called from the dock
+  site's `Loaded`: a window resolved its dock site only in its own `Loaded`, which WinUI raises
+  after that of the dock site. The site is now resolved on demand, and an operation on a window
+  that is not part of one yet waits instead of being dropped.
+- Loading a layout closed windows declared with `CanClose="False"`, and dropped the `Workspace`
+  and `DocumentHost` elements it did not mention, with no way of bringing either back.
+- Reloading a layout rebuilt the whole tree even when nothing had changed. It is now rebuilt out
+  of the elements it is already made of, so an unchanged layout moves nothing.
+- A dock site taken out of the tree left a `Closing` handler on the window hosting it.
 
 ### Requirements
 

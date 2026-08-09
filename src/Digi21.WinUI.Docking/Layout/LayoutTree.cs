@@ -9,6 +9,120 @@ namespace Digi21.WinUI.Docking;
 /// </summary>
 internal static class LayoutTree
 {
+    /// <summary>
+    /// Finds where a node sits in the layouts of a dock site: which surface and layout host own
+    /// the branch it belongs to, and which split container holds it, if any.
+    /// </summary>
+    /// <remarks>
+    /// The search walks the layout trees themselves rather than the visual tree. A node that has
+    /// just been moved is detached from its old visual parent and will only be attached to the new
+    /// one on the next layout pass, so <see cref="Microsoft.UI.Xaml.Media.VisualTreeHelper"/>
+    /// reports a null parent for it and for everything below it in between. Two mutations in the
+    /// same layout pass would make the second one navigate a tree it cannot see, which is how an
+    /// auto-hidden pane used to end up at the wrong edge.
+    /// </remarks>
+    internal static LayoutLocation? Locate(DockSite site, UIElement node)
+    {
+        if (Locate(site, site, site.Child, null, node) is { } inSite)
+        {
+            return inSite;
+        }
+
+        foreach (var host in site.FloatingHosts)
+        {
+            if (Locate(host.Surface, host.Surface, host.LayoutChild, null, node) is { } inFloatingWindow)
+            {
+                return inFloatingWindow;
+            }
+        }
+
+        return null;
+    }
+
+    private static LayoutLocation? Locate(
+        IDockSurface surface,
+        ILayoutHost host,
+        UIElement? current,
+        SplitContainer? split,
+        UIElement node)
+    {
+        if (current is null)
+        {
+            return null;
+        }
+
+        if (ReferenceEquals(current, node))
+        {
+            return new LayoutLocation(surface, host, split);
+        }
+
+        switch (current)
+        {
+            case SplitContainer container:
+                foreach (var pane in container.GetPanes())
+                {
+                    if (Locate(surface, host, pane, container, node) is { } found)
+                    {
+                        return found;
+                    }
+                }
+
+                break;
+
+            // A document area owns a layout tree of its own, so it is the host of everything below it.
+            case DocumentHost documentHost:
+                return Locate(surface, documentHost, documentHost.Child, null, node);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Enumerates the elements of a moved subtree whose content the application owns, and which
+    /// therefore need to hear about the move: the windows, the workspaces and the document areas.
+    /// </summary>
+    internal static IEnumerable<IRelocatable> Relocatables(UIElement? node)
+    {
+        switch (node)
+        {
+            case DockingWindow window:
+                yield return window;
+                break;
+
+            case DockingWindowContainer container:
+                foreach (var hosted in container.Items)
+                {
+                    yield return hosted;
+                }
+
+                break;
+
+            case Workspace workspace:
+                yield return workspace;
+                break;
+
+            case DocumentHost host:
+                yield return host;
+                foreach (var relocatable in Relocatables(host.Child))
+                {
+                    yield return relocatable;
+                }
+
+                break;
+
+            case SplitContainer split:
+                foreach (var pane in split.GetPanes())
+                {
+                    foreach (var relocatable in Relocatables(pane))
+                    {
+                        yield return relocatable;
+                    }
+                }
+
+                break;
+        }
+    }
+
     /// <summary>Enumerates the containers of a layout tree, in layout order.</summary>
     internal static IEnumerable<DockingWindowContainer> Containers(UIElement? node)
     {
