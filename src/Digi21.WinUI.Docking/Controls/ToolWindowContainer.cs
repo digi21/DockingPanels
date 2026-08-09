@@ -63,6 +63,9 @@ public partial class ToolWindowContainer : Control
         };
     }
 
+    /// <summary>Raised after windows have been added to or removed from <see cref="Items"/>.</summary>
+    internal event EventHandler? ItemsChanged;
+
     /// <summary>Gets the tool windows hosted by this container, in tab order.</summary>
     public IList<ToolWindow> Items => items;
 
@@ -140,6 +143,7 @@ public partial class ToolWindowContainer : Control
 
         CoerceSelection();
         Rebuild();
+        ItemsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void CoerceSelection()

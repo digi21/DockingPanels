@@ -29,6 +29,10 @@ public abstract partial class DockingWindow : ContentControl
     public static readonly DependencyProperty CanDragWindowProperty = DependencyProperty.Register(
         nameof(CanDragWindow), typeof(bool), typeof(DockingWindow), new PropertyMetadata(true));
 
+    /// <summary>Identifies the <see cref="CanFloat"/> dependency property.</summary>
+    public static readonly DependencyProperty CanFloatProperty = DependencyProperty.Register(
+        nameof(CanFloat), typeof(bool), typeof(DockingWindow), new PropertyMetadata(true));
+
     /// <summary>Identifies the <see cref="CanAutoHide"/> dependency property.</summary>
     public static readonly DependencyProperty CanAutoHideProperty = DependencyProperty.Register(
         nameof(CanAutoHide), typeof(bool), typeof(DockingWindow), new PropertyMetadata(true));
@@ -95,6 +99,13 @@ public abstract partial class DockingWindow : ContentControl
         set => SetValue(CanDragWindowProperty, value);
     }
 
+    /// <summary>Gets or sets a value indicating whether the window can be floated into a top-level window.</summary>
+    public bool CanFloat
+    {
+        get => (bool)GetValue(CanFloatProperty);
+        set => SetValue(CanFloatProperty, value);
+    }
+
     /// <summary>Gets or sets a value indicating whether the window shows a pin button and can auto-hide.</summary>
     public bool CanAutoHide
     {
@@ -157,9 +168,26 @@ public abstract partial class DockingWindow : ContentControl
             }
 
             Container?.Select(tool);
+
+            if (State == DockingWindowState.Floating)
+            {
+                DockSite?.FindFloatingHost(tool)?.Activate();
+            }
         }
 
         DockSite?.SetActiveWindow(this);
+    }
+
+    /// <summary>
+    /// Floats the window out of the layout into its own top-level window. The window remembers
+    /// where it was docked, so <see cref="Dock"/> puts it back in the same place.
+    /// </summary>
+    public void Float()
+    {
+        if (CanFloat && State is DockingWindowState.Docked && this is ToolWindow tool && DockSite is { } site)
+        {
+            site.FloatToolWindow(tool);
+        }
     }
 
     /// <summary>
@@ -175,14 +203,24 @@ public abstract partial class DockingWindow : ContentControl
     }
 
     /// <summary>
-    /// Pins an auto-hidden window back into the layout, re-docking its whole auto-hide group
-    /// to the edge it was collapsed to.
+    /// Docks the window back into the layout: an auto-hidden window pins its whole group back
+    /// to the edge it was collapsed to, and a floating window returns to the position it was
+    /// floated from, together with the other windows of its floating window.
     /// </summary>
     public void Dock()
     {
-        if (State == DockingWindowState.AutoHide && DockSite is { } site && site.FindAutoHideGroup(this) is { } group)
+        if (DockSite is not { } site)
+        {
+            return;
+        }
+
+        if (State == DockingWindowState.AutoHide && site.FindAutoHideGroup(this) is { } group)
         {
             LayoutManager.DockAutoHideGroup(site, group);
+        }
+        else if (State == DockingWindowState.Floating && site.FindFloatingHost(this) is { } host)
+        {
+            LayoutManager.DockFloatingHost(site, host, DockTarget.Home);
         }
     }
 

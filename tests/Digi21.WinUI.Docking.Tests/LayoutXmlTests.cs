@@ -71,7 +71,7 @@ public class LayoutXmlTests
     [Fact]
     public void Read_UnknownElement_Throws()
     {
-        var xml = """<DockSiteLayout Version="1"><FloatingWindow /></DockSiteLayout>""";
+        var xml = """<DockSiteLayout Version="1"><SomethingUnknown /></DockSiteLayout>""";
         Assert.Throws<InvalidDataException>(() => Read(xml));
     }
 
@@ -170,6 +170,87 @@ public class LayoutXmlTests
         Assert.Equal(0, group.Offset);
         Assert.Null(group.RestoreSibling);
         Assert.Equal(1.0, group.RestoreRelativeSize);
+    }
+
+    [Fact]
+    public void RoundTrip_FloatingWindows_ArePreserved()
+    {
+        var layout = new LayoutDocument { Root = new WorkspaceLayoutNode() };
+        var floating = new FloatingWindowNode
+        {
+            X = -1280,
+            Y = 240,
+            Width = 570,
+            Height = 450,
+            SelectedId = "output",
+            RestoreContainer = "Window:errorList",
+            RestoreSibling = "Workspace:0",
+            RestoreSide = DockSide.Bottom,
+            RestoreRelativeSize = 0.3,
+        };
+        floating.Windows.Add(new LayoutWindowEntry("output", "Floating"));
+        floating.Windows.Add(new LayoutWindowEntry("watch", "Floating"));
+        layout.FloatingWindows.Add(floating);
+
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, layout);
+        stream.Position = 0;
+        var restored = LayoutXml.Read(stream);
+
+        Assert.IsType<WorkspaceLayoutNode>(restored.Root);
+        var restoredFloating = Assert.Single(restored.FloatingWindows);
+        Assert.Equal(-1280, restoredFloating.X);
+        Assert.Equal(240, restoredFloating.Y);
+        Assert.Equal(570, restoredFloating.Width);
+        Assert.Equal(450, restoredFloating.Height);
+        Assert.Equal("output", restoredFloating.SelectedId);
+        Assert.Equal("Window:errorList", restoredFloating.RestoreContainer);
+        Assert.Equal("Workspace:0", restoredFloating.RestoreSibling);
+        Assert.Equal(DockSide.Bottom, restoredFloating.RestoreSide);
+        Assert.Equal(0.3, restoredFloating.RestoreRelativeSize);
+        Assert.Equal(["output", "watch"], restoredFloating.Windows.Select(w => w.Id));
+    }
+
+    [Fact]
+    public void RoundTrip_AutoHideGroupsAndFloatingWindows_Coexist()
+    {
+        var layout = new LayoutDocument { Root = new WorkspaceLayoutNode() };
+        var group = new AutoHideGroupNode { Edge = DockSide.Left, Size = 220 };
+        group.Windows.Add(new LayoutWindowEntry("solutionExplorer", "AutoHide"));
+        layout.AutoHideGroups.Add(group);
+        var floating = new FloatingWindowNode { X = 10, Y = 20, Width = 300, Height = 200 };
+        floating.Windows.Add(new LayoutWindowEntry("output", "Floating"));
+        layout.FloatingWindows.Add(floating);
+
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, layout);
+        stream.Position = 0;
+        var restored = LayoutXml.Read(stream);
+
+        Assert.IsType<WorkspaceLayoutNode>(restored.Root);
+        Assert.Single(restored.AutoHideGroups);
+        Assert.Single(restored.FloatingWindows);
+    }
+
+    [Fact]
+    public void Read_FloatingWindowWithoutBounds_UsesDefaults()
+    {
+        var xml = """
+            <DockSiteLayout Version="1">
+              <FloatingWindow>
+                <ToolWindow Id="output" />
+              </FloatingWindow>
+            </DockSiteLayout>
+            """;
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
+        var restored = LayoutXml.Read(stream);
+
+        var floating = Assert.Single(restored.FloatingWindows);
+        Assert.Equal(0, floating.X);
+        Assert.Equal(380, floating.Width);
+        Assert.Equal(300, floating.Height);
+        Assert.Null(floating.RestoreContainer);
+        Assert.Equal("Floating", Assert.Single(floating.Windows).State);
     }
 
     private static LayoutNode? RoundTrip(LayoutNode? node)

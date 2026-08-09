@@ -5,7 +5,7 @@
 [![NuGet downloads](https://img.shields.io/nuget/dt/Digi21.WinUI.Docking.svg)](https://www.nuget.org/packages/Digi21.WinUI.Docking)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Docking panels for WinUI 3 applications: dockable tool windows with splitters and tabs, Visual Studio-style drag-and-drop dock guides, and layout serialization.
+Docking panels for WinUI 3 applications: dockable tool windows with splitters and tabs, Visual Studio-style drag-and-drop dock guides, floating windows, auto-hide, and layout serialization.
 
 > ⚠️ **Under active development.** The first release (`v0.1.0`) has not been published yet. The API may change until then.
 
@@ -16,14 +16,16 @@ Docking panels for WinUI 3 applications: dockable tool windows with splitters an
 - Proportional resizing with splitters (`SplitContainer` + `DockSite.RelativeSize`).
 - Multiple tool windows in one container become tabs; switching tabs preserves control state.
 - Drag & drop re-docking with Visual Studio-style dock guides and drop previews.
-- Save and restore the docking layout as XML (`DockSiteLayoutSerializer`).
+- Floating tool windows in real top-level windows, across monitors.
+- Auto-hide (unpin) tool windows to the dock site edges, with a slide-in flyout.
+- Save and restore the docking layout as XML (`DockSiteLayoutSerializer`), including
+  auto-hidden groups and floating window positions.
 - Cancelable close, activation tracking, and layout-change events on `DockSite`.
 - Light, dark, and high-contrast aware out of the box (built on WinUI theme resources).
 
 ### Roadmap (not yet implemented)
 
-- Floating windows (multi-monitor).
-- Auto-hide tool windows.
+- Docking *inside* a floating window (splitting it into several panes).
 - Tabbed MDI document area.
 
 ## Requirements
@@ -80,6 +82,34 @@ Windows in the same `ToolWindowContainer` become tabs. Users can re-dock any win
 dragging its tab or title bar: dock guides appear over the hovered target (dock to any side,
 or drop on the center guide to attach as a tab) and at the edges of the whole dock site.
 
+### Floating windows
+
+Dragging a tool window out of the layout and dropping it away from every dock guide floats it
+into its own top-level window, which can be moved to any monitor. Floating windows are owned by
+the application window, so they stay above it, stay out of the taskbar, and close with it.
+Dragging their caption back over the dock site shows the same dock guides as any other drag, and
+dropping a docked window onto a floating one turns them into tabs. Double-clicking a title bar
+floats a docked window and docks a floating one back where it came from.
+
+```csharp
+outputWindow.Float();                       // float it near the dock site
+dockSite.FloatToolWindow(outputWindow);     // same, from the dock site
+dockSite.FloatToolWindow(outputWindow, new RectInt32(2200, 300, 480, 640));  // explicit screen bounds
+
+outputWindow.Dock();                        // back to the position it was floated from
+```
+
+### Auto-hide
+
+```csharp
+outputWindow.AutoHide();   // collapse the whole pane to its nearest edge
+outputWindow.Dock();       // pin it back where it was
+```
+
+Unpinned windows become tabs on the dock site edge; clicking a tab slides the window over the
+layout until it loses focus. Set `CanAutoHide="False"` (or `CanFloat="False"`) on a tool window
+to hide the affordance and block the operation.
+
 ### Programmatic docking
 
 ```csharp
@@ -113,8 +143,10 @@ serializer.ToolWindowResolving += (_, e) =>
 serializer.LoadFromString(dockSite, xml);         // or LoadFromFile / LoadFromStream
 ```
 
-Only the structure is saved (splits, proportions, tab order, selection). Window instances and
-their content are matched by id and reused, so control state survives a reload.
+Only the structure is saved (splits, proportions, tab order, selection, auto-hidden groups and
+the screen bounds of floating windows). Window instances and their content are matched by id and
+reused, so control state survives a reload. Floating windows are restored on a monitor that
+exists, so a layout saved with two monitors still loads on one.
 
 ## Sample
 

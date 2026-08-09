@@ -50,18 +50,51 @@ internal static class LayoutXml
                 writer.WriteAttributeString("RestoreRelativeSize", group.RestoreRelativeSize.ToString("R", CultureInfo.InvariantCulture));
             }
 
-            foreach (var window in group.Windows)
+            WriteWindows(writer, group.Windows);
+            writer.WriteEndElement();
+        }
+
+        foreach (var floating in layout.FloatingWindows)
+        {
+            writer.WriteStartElement("FloatingWindow");
+            writer.WriteAttributeString("X", floating.X.ToString(CultureInfo.InvariantCulture));
+            writer.WriteAttributeString("Y", floating.Y.ToString(CultureInfo.InvariantCulture));
+            writer.WriteAttributeString("Width", floating.Width.ToString(CultureInfo.InvariantCulture));
+            writer.WriteAttributeString("Height", floating.Height.ToString(CultureInfo.InvariantCulture));
+
+            if (floating.SelectedId is not null)
             {
-                writer.WriteStartElement("ToolWindow");
-                writer.WriteAttributeString("Id", window.Id);
-                writer.WriteAttributeString("State", window.State);
-                writer.WriteEndElement();
+                writer.WriteAttributeString("SelectedId", floating.SelectedId);
             }
 
+            if (floating.RestoreContainer is not null)
+            {
+                writer.WriteAttributeString("RestoreContainer", floating.RestoreContainer);
+            }
+
+            if (floating.RestoreSibling is not null)
+            {
+                writer.WriteAttributeString("RestoreSibling", floating.RestoreSibling);
+                writer.WriteAttributeString("RestoreSide", floating.RestoreSide.ToString());
+                writer.WriteAttributeString("RestoreRelativeSize", floating.RestoreRelativeSize.ToString("R", CultureInfo.InvariantCulture));
+            }
+
+            WriteWindows(writer, floating.Windows);
             writer.WriteEndElement();
         }
 
         writer.WriteEndElement();
+    }
+
+    private static void WriteWindows(XmlWriter writer, List<LayoutWindowEntry> windows)
+    {
+        foreach (var window in windows)
+        {
+            writer.WriteStartElement("ToolWindow");
+            writer.WriteAttributeString("Id", window.Id);
+            writer.WriteAttributeString("State", window.State);
+            writer.WriteEndElement();
+        }
     }
 
     internal static LayoutDocument Read(Stream stream)
@@ -115,14 +148,36 @@ internal static class LayoutXml
                     group.RestoreRelativeSize = restoreRelative;
                 }
 
-                foreach (var child in element.Elements("ToolWindow"))
+                ReadWindows(element, group.Windows, nameof(DockingWindowState.AutoHide));
+                layout.AutoHideGroups.Add(group);
+            }
+            else if (element.Name.LocalName == "FloatingWindow")
+            {
+                var floating = new FloatingWindowNode
                 {
-                    var id = (string?)child.Attribute("Id")
-                        ?? throw new InvalidDataException("A ToolWindow element is missing its Id attribute.");
-                    group.Windows.Add(new LayoutWindowEntry(id, (string?)child.Attribute("State") ?? nameof(DockingWindowState.AutoHide)));
+                    X = ReadInt(element, "X", 0),
+                    Y = ReadInt(element, "Y", 0),
+                    Width = ReadInt(element, "Width", 380),
+                    Height = ReadInt(element, "Height", 300),
+                    SelectedId = (string?)element.Attribute("SelectedId"),
+                    RestoreContainer = (string?)element.Attribute("RestoreContainer"),
+                    RestoreSibling = (string?)element.Attribute("RestoreSibling"),
+                };
+
+                if (Enum.TryParse<DockSide>((string?)element.Attribute("RestoreSide"), out var floatingSide))
+                {
+                    floating.RestoreSide = floatingSide;
                 }
 
-                layout.AutoHideGroups.Add(group);
+                var floatingRelativeText = (string?)element.Attribute("RestoreRelativeSize");
+                if (double.TryParse(floatingRelativeText, NumberStyles.Float, CultureInfo.InvariantCulture, out var floatingRelative)
+                    && floatingRelative > 0)
+                {
+                    floating.RestoreRelativeSize = floatingRelative;
+                }
+
+                ReadWindows(element, floating.Windows, nameof(DockingWindowState.Floating));
+                layout.FloatingWindows.Add(floating);
             }
             else if (layout.Root is null)
             {
@@ -135,6 +190,22 @@ internal static class LayoutXml
         }
 
         return layout;
+    }
+
+    private static void ReadWindows(XElement element, List<LayoutWindowEntry> windows, string defaultState)
+    {
+        foreach (var child in element.Elements("ToolWindow"))
+        {
+            var id = (string?)child.Attribute("Id")
+                ?? throw new InvalidDataException("A ToolWindow element is missing its Id attribute.");
+            windows.Add(new LayoutWindowEntry(id, (string?)child.Attribute("State") ?? defaultState));
+        }
+    }
+
+    private static int ReadInt(XElement element, string name, int fallback)
+    {
+        var text = (string?)element.Attribute(name);
+        return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : fallback;
     }
 
     private static void WriteNode(XmlWriter writer, LayoutNode node)

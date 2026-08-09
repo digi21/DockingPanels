@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Windows.Graphics;
 
 namespace Digi21.WinUI.Docking;
 
@@ -196,30 +197,7 @@ internal static class LayoutManager
             size = 300;
         }
 
-        // Remember the neighbor pane so pinning back can restore the original position.
-        FrameworkElement? restoreSibling = null;
-        var restoreSide = edge;
-        if (VisualTreeHelper.GetParent(container) is SplitContainer parentSplit)
-        {
-            var panes = parentSplit.GetPanes();
-            var index = panes.IndexOf(container);
-            if (index >= 0 && panes.Count > 1)
-            {
-                var vertical = parentSplit.Orientation == Orientation.Vertical;
-                if (index > 0)
-                {
-                    restoreSibling = panes[index - 1] as FrameworkElement;
-                    restoreSide = vertical ? DockSide.Bottom : DockSide.Right;
-                }
-                else
-                {
-                    restoreSibling = panes[index + 1] as FrameworkElement;
-                    restoreSide = vertical ? DockSide.Top : DockSide.Left;
-                }
-            }
-        }
-
-        var restoreRelative = SplitContainer.GetEffectiveRelativeSize(container);
+        var restoreHint = CaptureRestoreHint(container, edge);
 
         // Position of the container along the edge, so its tabs land under where it was.
         double offset = 0;
@@ -265,9 +243,7 @@ internal static class LayoutManager
 
         site.AddAutoHideGroup(new AutoHideGroup(edge, windows, size)
         {
-            RestoreSibling = restoreSibling,
-            RestoreSide = restoreSide,
-            RestoreRelativeSize = restoreRelative,
+            RestoreHint = restoreHint,
             Offset = offset,
         });
         site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
@@ -278,31 +254,202 @@ internal static class LayoutManager
     {
         site.RemoveAutoHideGroup(group);
 
+        RestoreWindows(site, group.Windows, group.RestoreHint, group.Edge);
+
+        site.NotifyLayoutChanged(LayoutChangeKind.WindowDocked);
+        group.Windows.FirstOrDefault()?.Activate();
+    }
+
+    /// <summary>
+    /// Captures where a container sits in the layout tree, so it can be put back there after
+    /// being auto-hidden or floated out.
+    /// </summary>
+    internal static DockRestoreHint CaptureRestoreHint(ToolWindowContainer container, DockSide fallbackSide)
+    {
+        FrameworkElement? sibling = null;
+        var side = fallbackSide;
+
+        if (VisualTreeHelper.GetParent(container) is SplitContainer parentSplit)
+        {
+            var panes = parentSplit.GetPanes();
+            var index = panes.IndexOf(container);
+            if (index >= 0 && panes.Count > 1)
+            {
+                var vertical = parentSplit.Orientation == Orientation.Vertical;
+                if (index > 0)
+                {
+                    sibling = panes[index - 1] as FrameworkElement;
+                    side = vertical ? DockSide.Bottom : DockSide.Right;
+                }
+                else
+                {
+                    sibling = panes[index + 1] as FrameworkElement;
+                    side = vertical ? DockSide.Top : DockSide.Left;
+                }
+            }
+        }
+
+        return new DockRestoreHint(container, sibling, side, SplitContainer.GetEffectiveRelativeSize(container));
+    }
+
+    /// <summary>
+    /// Puts windows back where a restore hint says they came from: into their original
+    /// container when it is still part of the layout, otherwise into a new pane rebuilt at
+    /// the remembered position.
+    /// </summary>
+    internal static void RestoreWindows(
+        DockSite site,
+        IReadOnlyList<ToolWindow> windows,
+        DockRestoreHint? hint,
+        DockSide fallbackEdge)
+    {
+        if (hint?.Container is { } original && ReferenceEquals(original.FindAncestor<DockSite>(), site))
+        {
+            foreach (var window in windows)
+            {
+                window.IsRelocating = true;
+                original.Items.Add(window);
+                window.IsRelocating = false;
+            }
+
+            return;
+        }
+
         var container = new ToolWindowContainer();
-        foreach (var window in group.Windows)
+        foreach (var window in windows)
         {
             window.IsRelocating = true;
             container.Items.Add(window);
             window.IsRelocating = false;
         }
 
-        // Restore next to the original neighbor when it is still part of this dock site's
-        // layout; otherwise fall back to docking at the edge the group collapsed to.
-        if (group.RestoreSibling is { } sibling
-            && ReferenceEquals(sibling.FindAncestor<DockSite>(), site))
+        RestoreContainer(site, container, hint, fallbackEdge);
+    }
+
+    /// <summary>
+    /// Puts a container back where a restore hint says it was. Restoring next to the original
+    /// neighbor only works while that neighbor is still part of this dock site's layout;
+    /// otherwise the container docks at the given fallback edge.
+    /// </summary>
+    private static void RestoreContainer(
+        DockSite site,
+        ToolWindowContainer container,
+        DockRestoreHint? hint,
+        DockSide fallbackEdge)
+    {
+        if (hint?.Sibling is { } sibling && ReferenceEquals(sibling.FindAncestor<DockSite>(), site))
         {
             var siblingRelative = SplitContainer.GetEffectiveRelativeSize(sibling);
-            InsertRelativeTo(container, sibling, group.RestoreSide);
+            InsertRelativeTo(container, sibling, hint.Side);
             DockSite.SetRelativeSize(sibling, siblingRelative);
-            DockSite.SetRelativeSize(container, group.RestoreRelativeSize);
+            DockSite.SetRelativeSize(container, hint.RelativeSize);
         }
         else
         {
-            DockContainerToSide(site, container, group.Edge);
+            DockContainerToSide(site, container, fallbackEdge);
+        }
+    }
+
+    /// <summary>
+    /// Floats a window out of the layout into its own top-level window, remembering where it
+    /// was docked so it can be sent back to the same place.
+    /// </summary>
+    internal static void FloatWindow(DockSite site, ToolWindow window, RectInt32 bounds)
+    {
+        var hint = window.Container is { } previous ? CaptureRestoreHint(previous, DockSide.Left) : null;
+
+        Detach(window);
+
+        var container = new ToolWindowContainer();
+        container.Items.Add(window);
+        window.IsRelocating = false;
+        window.State = DockingWindowState.Floating;
+
+        site.RegisterWindow(window);
+        window.DockSite = site;
+
+        var host = new FloatingWindowHost(site, container, bounds) { RestoreHint = hint };
+        site.AddFloatingHost(host);
+
+        site.NotifyLayoutChanged(LayoutChangeKind.WindowFloated);
+        window.Activate();
+    }
+
+    /// <summary>
+    /// Docks every window of a floating host back into the layout at the given target, closing
+    /// the floating window. The windows keep their tab order and their content.
+    /// </summary>
+    internal static void DockFloatingHost(DockSite site, FloatingWindowHost host, DockTarget target)
+    {
+        var windows = host.Container.Items.ToList();
+        if (windows.Count == 0 || target.Kind == DockTargetKind.None)
+        {
+            return;
+        }
+
+        var hint = host.RestoreHint;
+        host.ReleaseAndClose();
+
+        foreach (var window in windows)
+        {
+            window.IsRelocating = true;
+            host.Container.Items.Remove(window);
+            window.IsRelocating = false;
+            window.State = DockingWindowState.Docked;
+        }
+
+        switch (target)
+        {
+            case { Kind: DockTargetKind.Tab, Element: ToolWindowContainer tabTarget }:
+                AddWindows(tabTarget, windows);
+                break;
+
+            case { Kind: DockTargetKind.Relative, Element: { } node }:
+                var relativeContainer = new ToolWindowContainer();
+                AddWindows(relativeContainer, windows);
+                InsertRelativeTo(relativeContainer, node, target.Side);
+                break;
+
+            case { Kind: DockTargetKind.Edge }:
+                var edgeContainer = new ToolWindowContainer();
+                AddWindows(edgeContainer, windows);
+                DockContainerToSide(site, edgeContainer, target.Side);
+                break;
+
+            default:
+                RestoreWindows(site, windows, hint, target.Side);
+                break;
         }
 
         site.NotifyLayoutChanged(LayoutChangeKind.WindowDocked);
-        group.Windows.FirstOrDefault()?.Activate();
+        windows[0].Activate();
+
+        static void AddWindows(ToolWindowContainer container, List<ToolWindow> windows)
+        {
+            foreach (var window in windows)
+            {
+                window.IsRelocating = true;
+                container.Items.Add(window);
+                window.IsRelocating = false;
+            }
+        }
+    }
+
+    /// <summary>Docks a single window at a resolved drop target.</summary>
+    internal static void DockAtTarget(DockSite site, ToolWindow window, DockTarget target)
+    {
+        switch (target)
+        {
+            case { Kind: DockTargetKind.Edge }:
+                DockToSide(site, window, target.Side);
+                break;
+            case { Kind: DockTargetKind.Relative, Element: { } node }:
+                DockRelativeTo(site, window, node, target.Side);
+                break;
+            case { Kind: DockTargetKind.Tab, Element: ToolWindowContainer container }:
+                AttachAsTab(site, window, container);
+                break;
+        }
     }
 
     /// <summary>
@@ -358,6 +505,14 @@ internal static class LayoutManager
 
             tool.IsOpen = false;
             tool.IsSelected = false;
+            tool.State = DockingWindowState.Docked;
+            return;
+        }
+
+        if (tool.State == DockingWindowState.Floating && tool.Container is { } floatingContainer)
+        {
+            // Removing the last window empties the container, which closes its floating host.
+            floatingContainer.Items.Remove(tool);
             tool.State = DockingWindowState.Docked;
             return;
         }
