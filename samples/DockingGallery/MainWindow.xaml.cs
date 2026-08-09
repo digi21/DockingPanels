@@ -86,6 +86,19 @@ public sealed partial class MainWindow : Window
         EventLog.Text = "Floating windows docked";
     }
 
+    /// <summary>
+    /// Switches the whole window between light and dark. The docking chrome follows because its
+    /// brushes live in theme dictionaries, and floating windows follow the dock site's theme.
+    /// </summary>
+    private void OnToggleTheme(object sender, RoutedEventArgs e)
+    {
+        RootGrid.RequestedTheme = RootGrid.ActualTheme == ElementTheme.Dark
+            ? ElementTheme.Light
+            : ElementTheme.Dark;
+
+        EventLog.Text = $"Theme: {RootGrid.RequestedTheme}";
+    }
+
     private void OnWindowEvent(object? sender, DockingWindowEventArgs e)
     {
         EventLog.Text = $"{e.Window.Title}: last event at {DateTime.Now:HH:mm:ss}";

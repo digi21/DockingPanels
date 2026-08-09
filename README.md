@@ -27,7 +27,8 @@ layout serialization.
 - Save and restore the docking layout as XML (`DockSiteLayoutSerializer`), including the document
   area, auto-hidden groups, floating window positions and their inner layout.
 - Cancelable close, activation tracking, and layout-change events on `DockSite`.
-- Light, dark, and high-contrast aware out of the box (built on WinUI theme resources).
+- Light, dark, and high-contrast aware out of the box (built on WinUI theme resources), and
+  recolorable through the library's own brush keys.
 
 ## Requirements
 
@@ -194,6 +195,34 @@ auto-hidden groups, and the screen bounds of floating windows together with the 
 them). Window instances and their content are matched by id and reused, so control state survives
 a reload. Floating windows are restored on a monitor that exists, so a layout saved with two
 monitors still loads on one. Layouts written by earlier versions are still read.
+
+### Theming
+
+The chrome follows the light, dark and high-contrast themes with no setup. Every color it paints
+with has a key of its own, so recoloring it means redefining those keys — in a dictionary *merged*
+into `Application.Resources`, which is the only place WinUI honors theme dictionaries:
+
+```xml
+<ResourceDictionary.MergedDictionaries>
+  <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+
+  <ResourceDictionary>
+    <ResourceDictionary.ThemeDictionaries>
+      <ResourceDictionary x:Key="Default">
+        <SolidColorBrush x:Key="DockingPaneBackgroundBrush" Color="#102A43" />
+        <SolidColorBrush x:Key="DockingTitleBarActiveBackgroundBrush" Color="#C50F1F" />
+      </ResourceDictionary>
+      <ResourceDictionary x:Key="Light">
+        <SolidColorBrush x:Key="DockingPaneBackgroundBrush" Color="#FFF4E5" />
+        <SolidColorBrush x:Key="DockingTitleBarActiveBackgroundBrush" Color="#B4009E" />
+      </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+  </ResourceDictionary>
+</ResourceDictionary.MergedDictionaries>
+```
+
+The full list of brushes and metrics, and how to retemplate a control, is in
+[docs/theming.md](docs/theming.md).
 
 ## Sample
 

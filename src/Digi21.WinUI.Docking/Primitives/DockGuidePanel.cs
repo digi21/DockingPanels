@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.Foundation;
 
 namespace Digi21.WinUI.Docking.Primitives;
 
@@ -9,12 +10,6 @@ namespace Digi21.WinUI.Docking.Primitives;
 /// </summary>
 public partial class DockGuidePanel : Control
 {
-    /// <summary>The width and height of a single guide, matching the default style.</summary>
-    internal const double GuideSize = 40.0;
-
-    /// <summary>The width and height of the whole cluster, matching the default style.</summary>
-    internal const double ClusterSize = 128.0;
-
     /// <summary>Identifies the <see cref="ShowCenter"/> dependency property.</summary>
     public static readonly DependencyProperty ShowCenterProperty = DependencyProperty.Register(
         nameof(ShowCenter),
@@ -66,18 +61,34 @@ public partial class DockGuidePanel : Control
 
     internal DockGuide? BottomGuide { get; private set; }
 
-    /// <summary>Gets the guide's position (top-left corner) within the cluster.</summary>
-    internal static Windows.Foundation.Point GuideOffset(DockSide? side)
+    /// <summary>
+    /// Gets a guide's bounds within the cluster, or <see cref="Rect.Empty"/> when that guide is
+    /// hidden or the cluster has not been laid out yet. The center guide is the one with no side.
+    /// </summary>
+    /// <remarks>
+    /// The drag code hit-tests the guides by geometry rather than by pointer routing, because the
+    /// guides sit in a hit-test-invisible overlay. Measuring the elements instead of assuming the
+    /// sizes of the default style is what keeps a retemplated cluster clickable where it is drawn.
+    /// </remarks>
+    internal Rect GuideBounds(DockSide? side)
     {
-        const double edge = (ClusterSize - GuideSize) / 2;
-        return side switch
+        var guide = side switch
         {
-            DockSide.Left => new(0, edge),
-            DockSide.Top => new(edge, 0),
-            DockSide.Right => new(ClusterSize - GuideSize, edge),
-            DockSide.Bottom => new(edge, ClusterSize - GuideSize),
-            _ => new(edge, edge),
+            DockSide.Left => LeftGuide,
+            DockSide.Top => TopGuide,
+            DockSide.Right => RightGuide,
+            DockSide.Bottom => BottomGuide,
+            _ => CenterGuide,
         };
+
+        if (guide is not { Visibility: Visibility.Visible } || guide.ActualWidth <= 0 || guide.ActualHeight <= 0)
+        {
+            return Rect.Empty;
+        }
+
+        return guide
+            .TransformToVisual(this)
+            .TransformBounds(new Rect(0, 0, guide.ActualWidth, guide.ActualHeight));
     }
 
     /// <inheritdoc />

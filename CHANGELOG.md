@@ -75,6 +75,9 @@ is published, the entries below describe what that first release will contain; p
 
 - Light, dark and high-contrast aware out of the box, built on WinUI theme resources; floating
   windows follow the theme of the dock site.
+- A named brush and metric for every part of the docking chrome (`DockingPaneBackgroundBrush`,
+  `DockingTitleBarActiveBackgroundBrush`, `DockingGuideSize`, …), so an application recolors or
+  resizes it by redefining those keys instead of retemplating. See [docs/theming.md](docs/theming.md).
 
 ### Requirements
 

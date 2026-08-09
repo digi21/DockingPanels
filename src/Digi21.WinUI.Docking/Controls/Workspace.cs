@@ -14,5 +14,9 @@ public partial class Workspace : ContentControl
     {
         DefaultStyleKey = typeof(Workspace);
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
+
+        // The templates below reference the library's own brush and metric keys; this is what
+        // puts them within reach of the application's resources.
+        DockingThemeResources.Ensure();
     }
 }
