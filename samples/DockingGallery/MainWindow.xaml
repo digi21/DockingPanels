@@ -5,7 +5,7 @@
     xmlns:docking="using:Digi21.WinUI.Docking"
     Title="Docking Gallery">
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -26,6 +26,7 @@
                 Click="OnLoadLayout"
                 Content="Load Layout"
                 IsEnabled="False" />
+            <Button Click="OnToggleTheme" Content="Toggle Theme" />
             <TextBlock
                 x:Name="EventLog"
                 VerticalAlignment="Center"

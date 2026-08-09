@@ -4,6 +4,13 @@
     xmlns:docking="using:Digi21.WinUI.Docking"
     xmlns:primitives="using:Digi21.WinUI.Docking.Primitives">
 
+    <!--
+        The brushes and metrics these templates reference live in Themes/DockingResources.xaml,
+        merged into Application.Resources by DockingThemeResources so that an application can
+        override any of them. Defining them here instead would make them unoverridable: a key
+        found in the same dictionary as the template that uses it wins over the application's.
+    -->
+
     <Style BasedOn="{StaticResource DefaultDockSiteStyle}" TargetType="docking:DockSite" />
     <Style BasedOn="{StaticResource DefaultWorkspaceStyle}" TargetType="docking:Workspace" />
     <Style BasedOn="{StaticResource DefaultDockSplitterStyle}" TargetType="primitives:DockSplitter" />
@@ -24,7 +31,7 @@
     <Style BasedOn="{StaticResource DefaultAutoHideFlyoutStyle}" TargetType="primitives:AutoHideFlyout" />
 
     <Style x:Key="DefaultDockSiteStyle" TargetType="docking:DockSite">
-        <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
+        <Setter Property="Background" Value="{ThemeResource DockingSiteBackgroundBrush}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="VerticalAlignment" Value="Stretch" />
@@ -82,11 +89,11 @@
                             <Rectangle
                                 x:Name="PART_DockPreview"
                                 IsHitTestVisible="False"
-                                Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                                Opacity="0.3"
+                                Fill="{ThemeResource DockingDropPreviewFillBrush}"
+                                Opacity="{ThemeResource DockingDropPreviewOpacity}"
                                 RadiusX="4"
                                 RadiusY="4"
-                                Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                                Stroke="{ThemeResource DockingDropPreviewStrokeBrush}"
                                 StrokeThickness="1"
                                 Visibility="Collapsed" />
                             <primitives:DockGuidePanel
@@ -118,12 +125,15 @@
                                 x:Name="PART_DragGhost"
                                 IsHitTestVisible="False"
                                 Padding="12,6"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                                Background="{ThemeResource DockingDragGhostBackgroundBrush}"
+                                BorderBrush="{ThemeResource DockingDragGhostBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Visibility="Collapsed">
-                                <TextBlock x:Name="PART_DragGhostText" Style="{ThemeResource CaptionTextBlockStyle}" />
+                                <TextBlock
+                                    x:Name="PART_DragGhostText"
+                                    Foreground="{ThemeResource DockingDragGhostForegroundBrush}"
+                                    Style="{ThemeResource CaptionTextBlockStyle}" />
                             </Border>
                         </Canvas>
                     </Grid>
@@ -133,7 +143,7 @@
     </Style>
 
     <Style x:Key="DefaultFloatingWindowRootStyle" TargetType="primitives:FloatingWindowRoot">
-        <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
+        <Setter Property="Background" Value="{ThemeResource DockingFloatingWindowBackgroundBrush}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -157,11 +167,11 @@
                             <Rectangle
                                 x:Name="PART_DockPreview"
                                 IsHitTestVisible="False"
-                                Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                                Opacity="0.3"
+                                Fill="{ThemeResource DockingDropPreviewFillBrush}"
+                                Opacity="{ThemeResource DockingDropPreviewOpacity}"
                                 RadiusX="4"
                                 RadiusY="4"
-                                Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                                Stroke="{ThemeResource DockingDropPreviewStrokeBrush}"
                                 StrokeThickness="1"
                                 Visibility="Collapsed" />
                             <primitives:DockGuidePanel
@@ -192,12 +202,15 @@
                                 x:Name="PART_DragGhost"
                                 IsHitTestVisible="False"
                                 Padding="12,6"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                                Background="{ThemeResource DockingDragGhostBackgroundBrush}"
+                                BorderBrush="{ThemeResource DockingDragGhostBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Visibility="Collapsed">
-                                <TextBlock x:Name="PART_DragGhostText" Style="{ThemeResource CaptionTextBlockStyle}" />
+                                <TextBlock
+                                    x:Name="PART_DragGhostText"
+                                    Foreground="{ThemeResource DockingDragGhostForegroundBrush}"
+                                    Style="{ThemeResource CaptionTextBlockStyle}" />
                             </Border>
                         </Canvas>
                     </Grid>
@@ -207,9 +220,10 @@
     </Style>
 
     <Style x:Key="DefaultFloatingWindowCaptionStyle" TargetType="primitives:FloatingWindowCaption">
-        <Setter Property="Height" Value="32" />
+        <Setter Property="Height" Value="{ThemeResource DockingCaptionHeight}" />
         <Setter Property="IsTabStop" Value="False" />
-        <Setter Property="Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+        <Setter Property="Background" Value="{ThemeResource DockingCaptionBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{ThemeResource DockingCaptionForegroundBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:FloatingWindowCaption">
@@ -221,7 +235,7 @@
                         <TextBlock
                             x:Name="PART_Title"
                             VerticalAlignment="Center"
-                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                            Foreground="{TemplateBinding Foreground}"
                             Style="{ThemeResource CaptionTextBlockStyle}"
                             TextTrimming="CharacterEllipsis" />
                         <Button
@@ -233,7 +247,7 @@
                             VerticalAlignment="Center"
                             Background="Transparent"
                             BorderThickness="0"
-                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                            Foreground="{TemplateBinding Foreground}"
                             IsTabStop="False">
                             <FontIcon FontSize="10" Glyph="&#xE8BB;" />
                         </Button>
@@ -244,9 +258,9 @@
     </Style>
 
     <Style x:Key="DefaultWorkspaceStyle" TargetType="docking:Workspace">
-        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{ThemeResource DockingPaneBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource DockingPaneBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{ThemeResource DockingPaneBorderThickness}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
@@ -287,9 +301,9 @@
     </Style>
 
     <Style x:Key="DefaultToolWindowContainerStyle" TargetType="docking:ToolWindowContainer">
-        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{ThemeResource DockingPaneBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource DockingPaneBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{ThemeResource DockingPaneBorderThickness}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -321,9 +335,9 @@
     </Style>
 
     <Style x:Key="DefaultDocumentHostStyle" TargetType="docking:DocumentHost">
-        <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{ThemeResource DockingDocumentHostBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource DockingPaneBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{ThemeResource DockingPaneBorderThickness}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -362,9 +376,9 @@
     </Style>
 
     <Style x:Key="DefaultDocumentContainerStyle" TargetType="docking:DocumentContainer">
-        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{ThemeResource DockingPaneBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource DockingPaneBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{ThemeResource DockingPaneBorderThickness}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -380,8 +394,8 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <Border
-                                Background="{ThemeResource LayerFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                Background="{ThemeResource DockingTabStripBackgroundBrush}"
+                                BorderBrush="{ThemeResource DockingTabStripBorderBrush}"
                                 BorderThickness="0,0,0,1">
                                 <ScrollViewer
                                     HorizontalScrollBarVisibility="Auto"
@@ -403,9 +417,10 @@
     </Style>
 
     <Style x:Key="DefaultDocumentTabItemStyle" TargetType="primitives:DocumentTabItem">
-        <Setter Property="Height" Value="30" />
+        <Setter Property="Height" Value="{ThemeResource DockingDocumentTabHeight}" />
         <Setter Property="IsTabStop" Value="False" />
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{ThemeResource DockingTabBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{ThemeResource DockingTabForegroundBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:DocumentTabItem">
@@ -413,7 +428,7 @@
                         x:Name="Root"
                         Padding="10,0,4,0"
                         Background="{TemplateBinding Background}"
-                        CornerRadius="4,4,0,0">
+                        CornerRadius="{ThemeResource DockingDocumentTabCornerRadius}">
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="CommonStates">
                                 <VisualState x:Name="Normal" />
@@ -428,15 +443,15 @@
                                 <VisualState x:Name="Unselected" />
                                 <VisualState x:Name="Selected">
                                     <VisualState.Setters>
-                                        <Setter Target="Root.Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                                        <Setter Target="Root.Background" Value="{ThemeResource DockingDocumentTabSelectedBackgroundBrush}" />
                                         <Setter Target="PART_CloseButton.Opacity" Value="1" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Active">
                                     <VisualState.Setters>
-                                        <Setter Target="Root.Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
-                                        <Setter Target="PART_Title.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                                        <Setter Target="PART_CloseButton.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                        <Setter Target="Root.Background" Value="{ThemeResource DockingDocumentTabActiveBackgroundBrush}" />
+                                        <Setter Target="PART_Title.Foreground" Value="{ThemeResource DockingDocumentTabActiveForegroundBrush}" />
+                                        <Setter Target="PART_CloseButton.Foreground" Value="{ThemeResource DockingDocumentTabActiveForegroundBrush}" />
                                         <Setter Target="PART_CloseButton.Opacity" Value="1" />
                                     </VisualState.Setters>
                                 </VisualState>
@@ -449,6 +464,7 @@
                         <TextBlock
                             x:Name="PART_Title"
                             VerticalAlignment="Center"
+                            Foreground="{TemplateBinding Foreground}"
                             Style="{ThemeResource CaptionTextBlockStyle}"
                             TextTrimming="CharacterEllipsis" />
                         <Button
@@ -460,6 +476,7 @@
                             VerticalAlignment="Center"
                             Background="Transparent"
                             BorderThickness="0"
+                            Foreground="{TemplateBinding Foreground}"
                             IsTabStop="False"
                             Opacity="0">
                             <FontIcon FontSize="10" Glyph="&#xE8BB;" />
@@ -471,9 +488,10 @@
     </Style>
 
     <Style x:Key="DefaultToolWindowTitleBarStyle" TargetType="primitives:ToolWindowTitleBar">
-        <Setter Property="Height" Value="32" />
+        <Setter Property="Height" Value="{ThemeResource DockingTitleBarHeight}" />
         <Setter Property="IsTabStop" Value="False" />
-        <Setter Property="Background" Value="{ThemeResource SubtleFillColorTransparentBrush}" />
+        <Setter Property="Background" Value="{ThemeResource DockingTitleBarBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{ThemeResource DockingTitleBarForegroundBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:ToolWindowTitleBar">
@@ -483,10 +501,10 @@
                                 <VisualState x:Name="Inactive" />
                                 <VisualState x:Name="Active">
                                     <VisualState.Setters>
-                                        <Setter Target="Root.Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
-                                        <Setter Target="PART_Title.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                                        <Setter Target="PART_CloseButton.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                                        <Setter Target="PART_PinButton.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                        <Setter Target="Root.Background" Value="{ThemeResource DockingTitleBarActiveBackgroundBrush}" />
+                                        <Setter Target="PART_Title.Foreground" Value="{ThemeResource DockingTitleBarActiveForegroundBrush}" />
+                                        <Setter Target="PART_CloseButton.Foreground" Value="{ThemeResource DockingTitleBarActiveForegroundBrush}" />
+                                        <Setter Target="PART_PinButton.Foreground" Value="{ThemeResource DockingTitleBarActiveForegroundBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
@@ -499,6 +517,7 @@
                         <TextBlock
                             x:Name="PART_Title"
                             VerticalAlignment="Center"
+                            Foreground="{TemplateBinding Foreground}"
                             Style="{ThemeResource CaptionTextBlockStyle}"
                             TextTrimming="CharacterEllipsis" />
                         <Button
@@ -510,6 +529,7 @@
                             VerticalAlignment="Center"
                             Background="Transparent"
                             BorderThickness="0"
+                            Foreground="{TemplateBinding Foreground}"
                             IsTabStop="False">
                             <FontIcon FontSize="10" Glyph="&#xE718;" />
                         </Button>
@@ -522,6 +542,7 @@
                             VerticalAlignment="Center"
                             Background="Transparent"
                             BorderThickness="0"
+                            Foreground="{TemplateBinding Foreground}"
                             IsTabStop="False">
                             <FontIcon FontSize="10" Glyph="&#xE8BB;" />
                         </Button>
@@ -532,9 +553,10 @@
     </Style>
 
     <Style x:Key="DefaultToolWindowTabItemStyle" TargetType="primitives:ToolWindowTabItem">
-        <Setter Property="Height" Value="28" />
+        <Setter Property="Height" Value="{ThemeResource DockingToolWindowTabHeight}" />
         <Setter Property="IsTabStop" Value="False" />
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{ThemeResource DockingTabBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{ThemeResource DockingTabForegroundBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:ToolWindowTabItem">
@@ -544,12 +566,12 @@
                                 <VisualState x:Name="Normal" />
                                 <VisualState x:Name="PointerOver">
                                     <VisualState.Setters>
-                                        <Setter Target="Root.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                        <Setter Target="Root.Background" Value="{ThemeResource DockingTabPointerOverBackgroundBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Pressed">
                                     <VisualState.Setters>
-                                        <Setter Target="Root.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                        <Setter Target="Root.Background" Value="{ThemeResource DockingTabPressedBackgroundBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
@@ -558,7 +580,7 @@
                                 <VisualState x:Name="Selected">
                                     <VisualState.Setters>
                                         <Setter Target="SelectionIndicator.Visibility" Value="Visible" />
-                                        <Setter Target="PART_Title.Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                        <Setter Target="PART_Title.Foreground" Value="{ThemeResource DockingTabSelectedForegroundBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
@@ -566,12 +588,13 @@
                         <TextBlock
                             x:Name="PART_Title"
                             VerticalAlignment="Center"
+                            Foreground="{TemplateBinding Foreground}"
                             Style="{ThemeResource CaptionTextBlockStyle}" />
                         <Rectangle
                             x:Name="SelectionIndicator"
                             Height="2"
                             VerticalAlignment="Bottom"
-                            Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                            Fill="{ThemeResource DockingTabSelectionIndicatorBrush}"
                             RadiusX="1"
                             RadiusY="1"
                             Visibility="Collapsed" />
@@ -582,7 +605,7 @@
     </Style>
 
     <Style x:Key="DefaultAutoHideTabStripStyle" TargetType="primitives:AutoHideTabStrip">
-        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="Background" Value="{ThemeResource DockingAutoHideTabStripBackgroundBrush}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -594,7 +617,8 @@
     </Style>
 
     <Style x:Key="DefaultAutoHideTabItemStyle" TargetType="primitives:AutoHideTabItem">
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{ThemeResource DockingAutoHideTabBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{ThemeResource DockingAutoHideTabForegroundBrush}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -603,12 +627,13 @@
                         x:Name="Root"
                         Padding="10,6"
                         Background="{TemplateBinding Background}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderBrush="{ThemeResource DockingAutoHideTabBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="4">
                         <TextBlock
                             x:Name="PART_Title"
                             VerticalAlignment="Center"
+                            Foreground="{TemplateBinding Foreground}"
                             Style="{ThemeResource CaptionTextBlockStyle}" />
                     </Grid>
                 </ControlTemplate>
@@ -622,10 +647,10 @@
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:AutoHideFlyout">
                     <Border
-                        Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}"
-                        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
+                        Background="{ThemeResource DockingFlyoutBackgroundBrush}"
+                        BorderBrush="{ThemeResource DockingFlyoutBorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="4">
+                        CornerRadius="{ThemeResource DockingFlyoutCornerRadius}">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -641,25 +666,26 @@
     </Style>
 
     <Style x:Key="DefaultDockGuideStyle" TargetType="primitives:DockGuide">
-        <Setter Property="Width" Value="40" />
-        <Setter Property="Height" Value="40" />
+        <Setter Property="Width" Value="{ThemeResource DockingGuideSize}" />
+        <Setter Property="Height" Value="{ThemeResource DockingGuideSize}" />
         <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Foreground" Value="{ThemeResource DockingGuideForegroundBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:DockGuide">
                     <Grid
                         x:Name="Root"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        Background="{ThemeResource DockingGuideBackgroundBrush}"
+                        BorderBrush="{ThemeResource DockingGuideBorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="4">
+                        CornerRadius="{ThemeResource DockingGuideCornerRadius}">
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="HotStates">
                                 <VisualState x:Name="Normal" />
                                 <VisualState x:Name="Hot">
                                     <VisualState.Setters>
-                                        <Setter Target="Root.Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
-                                        <Setter Target="PART_Icon.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                        <Setter Target="Root.Background" Value="{ThemeResource DockingGuideHotBackgroundBrush}" />
+                                        <Setter Target="PART_Icon.Foreground" Value="{ThemeResource DockingGuideHotForegroundBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
@@ -668,7 +694,8 @@
                             x:Name="PART_Icon"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
-                            FontSize="14" />
+                            FontSize="14"
+                            Foreground="{TemplateBinding Foreground}" />
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
@@ -676,8 +703,8 @@
     </Style>
 
     <Style x:Key="DefaultDockGuidePanelStyle" TargetType="primitives:DockGuidePanel">
-        <Setter Property="Width" Value="128" />
-        <Setter Property="Height" Value="128" />
+        <Setter Property="Width" Value="{ThemeResource DockingGuideClusterSize}" />
+        <Setter Property="Height" Value="{ThemeResource DockingGuideClusterSize}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -715,6 +742,7 @@
     </Style>
 
     <Style x:Key="DefaultDockSplitterStyle" TargetType="primitives:DockSplitter">
+        <!--  Transparent, not unset: the splitter needs a filled background to be hit-testable.  -->
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
@@ -726,17 +754,17 @@
                                 <VisualState x:Name="Normal" />
                                 <VisualState x:Name="PointerOver">
                                     <VisualState.Setters>
-                                        <Setter Target="GripLine.Fill" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                                        <Setter Target="GripLine.Fill" Value="{ThemeResource DockingSplitterPointerOverBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Pressed">
                                     <VisualState.Setters>
-                                        <Setter Target="GripLine.Fill" Value="{ThemeResource AccentFillColorTertiaryBrush}" />
+                                        <Setter Target="GripLine.Fill" Value="{ThemeResource DockingSplitterPressedBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
                         </VisualStateManager.VisualStateGroups>
-                        <Rectangle x:Name="GripLine" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Rectangle x:Name="GripLine" Fill="{ThemeResource DockingSplitterBrush}" />
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>

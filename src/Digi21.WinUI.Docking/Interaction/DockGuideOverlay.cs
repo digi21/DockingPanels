@@ -27,6 +27,13 @@ internal sealed class DockGuideOverlay
     private readonly DockGuidePanel centerGuides;
     private readonly Dictionary<DockSide, DockGuide> edgeGuides;
 
+    // Where the guides ended up, in surface coordinates, measured once they were laid out. The
+    // cluster's are kept as offsets from its origin so that they survive it being hidden while
+    // the cursor slides along a tab strip.
+    private readonly Dictionary<DockSide, Rect> edgeGuideRects = [];
+    private readonly Dictionary<DockSide, Rect> clusterSideOffsets = [];
+    private Rect clusterCenterOffset = Rect.Empty;
+
     private FrameworkElement? hoveredTarget;
     private bool documentDrag;
 
@@ -72,10 +79,6 @@ internal sealed class DockGuideOverlay
         }
 
         PositionEdgeGuides();
-        foreach (var guide in edgeGuides.Values)
-        {
-            guide.Visibility = Visibility.Visible;
-        }
     }
 
     /// <summary>Updates the guides for a drag position and resolves what a drop there would do.</summary>
@@ -104,6 +107,9 @@ internal sealed class DockGuideOverlay
     internal void Reset()
     {
         hoveredTarget = null;
+        edgeGuideRects.Clear();
+        clusterSideOffsets.Clear();
+        clusterCenterOffset = Rect.Empty;
 
         if (ghost is not null)
         {
@@ -129,40 +135,73 @@ internal sealed class DockGuideOverlay
             && point.Y <= surface.Root.ActualHeight;
     }
 
+    /// <summary>Centers each edge guide on its edge and records where it landed.</summary>
+    /// <remarks>
+    /// The guides are shown and laid out before being placed, because their size comes from
+    /// whatever style is in effect, and a collapsed element has no size to center by.
+    /// </remarks>
     private void PositionEdgeGuides()
     {
+        foreach (var guide in edgeGuides.Values)
+        {
+            guide.Visibility = Visibility.Visible;
+        }
+
+        surface.Root.UpdateLayout();
+
         var width = surface.Root.ActualWidth;
         var height = surface.Root.ActualHeight;
-        const double size = DockGuidePanel.GuideSize;
 
-        Place(edgeGuides[DockSide.Left], EdgeGuideMargin, (height - size) / 2);
-        Place(edgeGuides[DockSide.Right], width - size - EdgeGuideMargin, (height - size) / 2);
-        Place(edgeGuides[DockSide.Top], (width - size) / 2, EdgeGuideMargin);
-        Place(edgeGuides[DockSide.Bottom], (width - size) / 2, height - size - EdgeGuideMargin);
-
-        static void Place(DockGuide guide, double x, double y)
+        edgeGuideRects.Clear();
+        foreach (var (side, guide) in edgeGuides)
         {
+            var size = guide.ActualWidth > 0 && guide.ActualHeight > 0
+                ? new Size(guide.ActualWidth, guide.ActualHeight)
+                : guide.DesiredSize;
+
+            var (x, y) = side switch
+            {
+                DockSide.Left => (EdgeGuideMargin, (height - size.Height) / 2),
+                DockSide.Right => (width - size.Width - EdgeGuideMargin, (height - size.Height) / 2),
+                DockSide.Top => ((width - size.Width) / 2, EdgeGuideMargin),
+                _ => ((width - size.Width) / 2, height - size.Height - EdgeGuideMargin),
+            };
+
             Canvas.SetLeft(guide, x);
             Canvas.SetTop(guide, y);
+            edgeGuideRects[side] = new Rect(x, y, size.Width, size.Height);
         }
     }
 
     private void MoveClusterTo(FrameworkElement? target)
     {
+        clusterSideOffsets.Clear();
+        clusterCenterOffset = Rect.Empty;
+
         if (target is null)
         {
             centerGuides.Visibility = Visibility.Collapsed;
             return;
         }
 
-        var bounds = BoundsIn(target);
-
         // An empty document area is dropped into as a whole, so only its center guide is shown.
         centerGuides.ShowCenter = target is DockingWindowContainer or DocumentHost;
         centerGuides.ShowSides = target is not DocumentHost;
-        Canvas.SetLeft(centerGuides, bounds.X + (bounds.Width - DockGuidePanel.ClusterSize) / 2);
-        Canvas.SetTop(centerGuides, bounds.Y + (bounds.Height - DockGuidePanel.ClusterSize) / 2);
         centerGuides.Visibility = Visibility.Visible;
+
+        // Laying the cluster out before centering it gives it the size its style asks for, and
+        // gives each guide inside it the bounds the drop is later hit-tested against.
+        centerGuides.UpdateLayout();
+
+        var bounds = BoundsIn(target);
+        Canvas.SetLeft(centerGuides, bounds.X + (bounds.Width - centerGuides.ActualWidth) / 2);
+        Canvas.SetTop(centerGuides, bounds.Y + (bounds.Height - centerGuides.ActualHeight) / 2);
+
+        clusterCenterOffset = centerGuides.GuideBounds(null);
+        foreach (var side in Enum.GetValues<DockSide>())
+        {
+            clusterSideOffsets[side] = centerGuides.GuideBounds(side);
+        }
     }
 
     private FrameworkElement? HitTestTarget(Point point)
@@ -201,7 +240,9 @@ internal sealed class DockGuideOverlay
     {
         foreach (var (side, guide) in edgeGuides)
         {
-            if (guide.Visibility == Visibility.Visible && ElementRect(guide, DockGuidePanel.GuideSize).Contains(point))
+            if (guide.Visibility == Visibility.Visible
+                && edgeGuideRects.TryGetValue(side, out var rect)
+                && rect.Contains(point))
             {
                 return new DockTarget(DockTargetKind.Edge, side, null);
             }
@@ -229,16 +270,16 @@ internal sealed class DockGuideOverlay
         {
             var clusterOrigin = new Point(Canvas.GetLeft(centerGuides), Canvas.GetTop(centerGuides));
 
-            if (centerGuides.ShowCenter && ClusterGuideRect(clusterOrigin, null).Contains(point))
+            if (centerGuides.ShowCenter && ClusterGuideRect(clusterOrigin, clusterCenterOffset).Contains(point))
             {
                 return new DockTarget(DockTargetKind.Tab, DockSide.Left, target);
             }
 
             if (centerGuides.ShowSides)
             {
-                foreach (var side in Enum.GetValues<DockSide>())
+                foreach (var (side, offset) in clusterSideOffsets)
                 {
-                    if (ClusterGuideRect(clusterOrigin, side).Contains(point))
+                    if (ClusterGuideRect(clusterOrigin, offset).Contains(point))
                     {
                         return new DockTarget(DockTargetKind.Relative, side, target);
                     }
@@ -318,19 +359,12 @@ internal sealed class DockGuideOverlay
         };
     }
 
-    private static Rect ClusterGuideRect(Point clusterOrigin, DockSide? side)
+    /// <summary>Turns a guide's offset within the cluster into a rectangle in surface coordinates.</summary>
+    private static Rect ClusterGuideRect(Point clusterOrigin, Rect offset)
     {
-        var offset = DockGuidePanel.GuideOffset(side);
-        return new Rect(
-            clusterOrigin.X + offset.X,
-            clusterOrigin.Y + offset.Y,
-            DockGuidePanel.GuideSize,
-            DockGuidePanel.GuideSize);
-    }
-
-    private static Rect ElementRect(FrameworkElement element, double size)
-    {
-        return new Rect(Canvas.GetLeft(element), Canvas.GetTop(element), size, size);
+        return offset.IsEmpty
+            ? Rect.Empty
+            : new Rect(clusterOrigin.X + offset.X, clusterOrigin.Y + offset.Y, offset.Width, offset.Height);
     }
 
     /// <summary>Converts a point in the surface's coordinates into an element's own coordinates.</summary>

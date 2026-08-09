@@ -16,6 +16,11 @@ public partial class DocumentWindow : DockingWindow
     {
         DefaultStyleKey = typeof(DocumentWindow);
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
+
+        // The templates below reference the library's own brush and metric keys; this is what
+        // puts them within reach of the application's resources.
+        DockingThemeResources.Ensure();
+
         CanAutoHide = false;
     }
 }
