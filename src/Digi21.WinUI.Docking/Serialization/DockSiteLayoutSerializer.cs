@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Microsoft.UI.Xaml;
+using Windows.Graphics;
 
 namespace Digi21.WinUI.Docking.Serialization;
 
@@ -56,25 +57,53 @@ public class DockSiteLayoutSerializer
         {
             var groupNode = new AutoHideGroupNode { Edge = group.Edge, Size = group.Size, Offset = group.Offset };
 
-            if (CaptureSiblingReference(dockSite, group.RestoreSibling) is { } siblingReference)
+            if (group.RestoreHint is { } hint && CaptureSiblingReference(dockSite, hint.Sibling) is { } siblingReference)
             {
                 groupNode.RestoreSibling = siblingReference;
-                groupNode.RestoreSide = group.RestoreSide;
-                groupNode.RestoreRelativeSize = group.RestoreRelativeSize;
+                groupNode.RestoreSide = hint.Side;
+                groupNode.RestoreRelativeSize = hint.RelativeSize;
             }
 
-            foreach (var window in group.Windows)
+            CaptureWindows(group.Windows, groupNode.Windows);
+            layout.AutoHideGroups.Add(groupNode);
+        }
+
+        foreach (var host in dockSite.FloatingHosts)
+        {
+            var bounds = host.Bounds;
+            var floatingNode = new FloatingWindowNode
+            {
+                X = bounds.X,
+                Y = bounds.Y,
+                Width = bounds.Width,
+                Height = bounds.Height,
+                SelectedId = host.Container.SelectedItem?.SerializationId,
+                RestoreContainer = CaptureSiblingReference(dockSite, host.RestoreHint?.Container),
+            };
+
+            if (host.RestoreHint is { } hint && CaptureSiblingReference(dockSite, hint.Sibling) is { } siblingReference)
+            {
+                floatingNode.RestoreSibling = siblingReference;
+                floatingNode.RestoreSide = hint.Side;
+                floatingNode.RestoreRelativeSize = hint.RelativeSize;
+            }
+
+            CaptureWindows(host.Container.Items, floatingNode.Windows);
+            layout.FloatingWindows.Add(floatingNode);
+        }
+
+        LayoutXml.Write(stream, layout);
+
+        static void CaptureWindows(IEnumerable<ToolWindow> windows, List<LayoutWindowEntry> entries)
+        {
+            foreach (var window in windows)
             {
                 var id = window.SerializationId
                     ?? throw new InvalidOperationException(
                         $"The tool window '{window.Title}' has no SerializationId. Every open tool window needs a stable id to save the layout.");
-                groupNode.Windows.Add(new LayoutWindowEntry(id, window.State.ToString()));
+                entries.Add(new LayoutWindowEntry(id, window.State.ToString()));
             }
-
-            layout.AutoHideGroups.Add(groupNode);
         }
-
-        LayoutXml.Write(stream, layout);
     }
 
     /// <summary>Loads a layout previously saved with this serializer from an XML string.</summary>
@@ -169,9 +198,10 @@ public class DockSiteLayoutSerializer
             window.IsRelocating = window.IsOpen;
         }
 
-        // Hide the flyout and drop existing auto-hide groups before touching the tree so
-        // any flyout-hosted window is released.
+        // Hide the flyout, drop existing auto-hide groups and close the floating windows
+        // before touching the tree, so every window they host is released and reusable.
         site.ClearAutoHideGroups();
+        site.CloseFloatingWindows();
 
         // Detach the old tree and dismantle its split containers so every reusable element
         // (the workspace in particular) is fully released before the rebuild. Once the tree
@@ -211,13 +241,66 @@ public class DockSiteLayoutSerializer
 
                 if (ResolveSiblingReference(site, groupNode.RestoreSibling, index) is { } sibling)
                 {
-                    group.RestoreSibling = sibling;
-                    group.RestoreSide = groupNode.RestoreSide;
-                    group.RestoreRelativeSize = groupNode.RestoreRelativeSize;
+                    group.RestoreHint = new DockRestoreHint(
+                        container: null,
+                        sibling,
+                        groupNode.RestoreSide,
+                        groupNode.RestoreRelativeSize);
                 }
 
                 site.AddAutoHideGroup(group);
             }
+        }
+
+        foreach (var floatingNode in layout.FloatingWindows)
+        {
+            var floatingWindows = new List<ToolWindow>();
+            foreach (var entry in floatingNode.Windows)
+            {
+                if (Resolve(entry.Id, index) is { } window && !used.Contains(window))
+                {
+                    used.Add(window);
+                    window.IsRelocating = true;
+                    window.Container?.Items.Remove(window);
+                    floatingWindows.Add(window);
+                }
+            }
+
+            if (floatingWindows.Count == 0)
+            {
+                continue;
+            }
+
+            var container = new ToolWindowContainer();
+            foreach (var window in floatingWindows)
+            {
+                container.Items.Add(window);
+                window.IsRelocating = false;
+                window.State = DockingWindowState.Floating;
+            }
+
+            if (floatingNode.SelectedId is { } floatingSelectedId
+                && container.Items.FirstOrDefault(w => w.SerializationId == floatingSelectedId) is { } floatingSelected)
+            {
+                container.SelectedItem = floatingSelected;
+            }
+
+            var bounds = FloatingWindowHost.ClampToDisplay(
+                new RectInt32(floatingNode.X, floatingNode.Y, floatingNode.Width, floatingNode.Height));
+            var host = new FloatingWindowHost(site, container, bounds);
+
+            var restoreContainer = ResolveSiblingReference(site, floatingNode.RestoreContainer, index) as ToolWindowContainer;
+            var restoreSibling = ResolveSiblingReference(site, floatingNode.RestoreSibling, index);
+            if (restoreContainer is not null || restoreSibling is not null)
+            {
+                host.RestoreHint = new DockRestoreHint(
+                    restoreContainer,
+                    restoreSibling,
+                    floatingNode.RestoreSide,
+                    floatingNode.RestoreRelativeSize);
+            }
+
+            site.AddFloatingHost(host);
         }
 
         foreach (var window in site.ToolWindows.ToList())

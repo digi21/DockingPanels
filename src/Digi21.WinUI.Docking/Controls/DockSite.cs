@@ -2,8 +2,10 @@ using Digi21.WinUI.Docking.Primitives;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using Windows.Graphics;
 
 namespace Digi21.WinUI.Docking;
 
@@ -68,9 +70,11 @@ public partial class DockSite : Control
     private readonly List<ToolWindow> toolWindows = [];
     private readonly HashSet<FrameworkElement> dropTargets = [];
     private readonly List<AutoHideGroup> autoHideGroups = [];
+    private readonly List<FloatingWindowHost> floatingHosts = [];
     private readonly Dictionary<DockSide, AutoHideTabStrip> autoHideStrips = [];
     private AutoHideFlyout? autoHideFlyout;
     private ContentPresenter? layoutRootPresenter;
+    private AppWindow? ownerWindow;
 
     /// <summary>Initializes a new instance of the <see cref="DockSite"/> class.</summary>
     public DockSite()
@@ -78,6 +82,32 @@ public partial class DockSite : Control
         DefaultStyleKey = typeof(DockSite);
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
         GotFocus += OnAnyDescendantGotFocus;
+        Loaded += (_, _) => HookOwnerWindow();
+        Unloaded += (_, _) => CloseFloatingWindows();
+    }
+
+    /// <summary>
+    /// Closes the floating windows while the window hosting this dock site is still alive.
+    /// They are owned windows, so leaving them to be destroyed together with their owner tears
+    /// down their XAML islands during the owner's own teardown, which crashes the process.
+    /// </summary>
+    private void HookOwnerWindow()
+    {
+        if (ownerWindow is not null || XamlRoot?.ContentIslandEnvironment is not { } environment)
+        {
+            return;
+        }
+
+        ownerWindow = AppWindow.GetFromWindowId(environment.AppWindowId);
+        if (ownerWindow is not null)
+        {
+            ownerWindow.Closing += OnOwnerWindowClosing;
+        }
+    }
+
+    private void OnOwnerWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        CloseFloatingWindows();
     }
 
     /// <summary>Raised when a window becomes the active window of this dock site.</summary>
@@ -222,6 +252,70 @@ public partial class DockSite : Control
         }
 
         LayoutManager.AttachAsTab(this, window, container);
+    }
+
+    /// <summary>
+    /// Floats a tool window out of the layout into its own top-level window, placed near the
+    /// dock site. Floating windows can be moved across monitors and dragged back into the layout.
+    /// </summary>
+    /// <param name="window">The window to float.</param>
+    public void FloatToolWindow(ToolWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        FloatToolWindow(window, DefaultFloatingBounds(window));
+    }
+
+    /// <summary>
+    /// Floats a tool window out of the layout into its own top-level window with explicit bounds.
+    /// </summary>
+    /// <param name="window">The window to float.</param>
+    /// <param name="bounds">The bounds of the floating window, in screen pixels.</param>
+    public void FloatToolWindow(ToolWindow window, RectInt32 bounds)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+
+        if (!window.CanFloat)
+        {
+            return;
+        }
+
+        LayoutManager.FloatWindow(this, window, FloatingWindowHost.ClampToDisplay(bounds));
+    }
+
+    /// <summary>Gets the floating windows opened by this dock site.</summary>
+    internal IReadOnlyList<FloatingWindowHost> FloatingHosts => floatingHosts;
+
+    internal void AddFloatingHost(FloatingWindowHost host) => floatingHosts.Add(host);
+
+    internal void RemoveFloatingHost(FloatingWindowHost host) => floatingHosts.Remove(host);
+
+    /// <summary>Finds the floating window hosting the given tool window, if any.</summary>
+    internal FloatingWindowHost? FindFloatingHost(DockingWindow window)
+    {
+        return window is ToolWindow tool
+            ? floatingHosts.FirstOrDefault(h => h.Container.Items.Contains(tool))
+            : null;
+    }
+
+    /// <summary>Closes every floating window, releasing the tool windows they host.</summary>
+    internal void CloseFloatingWindows()
+    {
+        foreach (var host in floatingHosts.ToList())
+        {
+            host.ReleaseAndClose();
+        }
+    }
+
+    /// <summary>Picks the initial bounds of a floating window: the size it has while docked, cascaded from the site's corner.</summary>
+    private RectInt32 DefaultFloatingBounds(ToolWindow window)
+    {
+        var (width, height) = FloatingWindowHost.PreferredSize(window.Container);
+        var size = ScreenInterop.ToScreenSize(this, width, height);
+        var cascade = 24.0 * (floatingHosts.Count + 1);
+        var origin = ScreenInterop.ToScreen(this, new Windows.Foundation.Point(cascade, cascade))
+            ?? new Windows.Graphics.PointInt32(120, 120);
+
+        return new RectInt32(origin.X, origin.Y, size.Width, size.Height);
     }
 
     /// <summary>Gets the auto-hide groups collapsed to the edges of this dock site.</summary>

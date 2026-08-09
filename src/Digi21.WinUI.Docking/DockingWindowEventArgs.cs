@@ -50,6 +50,9 @@ public enum LayoutChangeKind
     /// <summary>A window group was collapsed to an auto-hide edge.</summary>
     WindowAutoHidden,
 
+    /// <summary>A window was floated out into its own top-level window.</summary>
+    WindowFloated,
+
     /// <summary>A full layout was loaded, e.g. by the layout serializer.</summary>
     LayoutLoaded,
 }

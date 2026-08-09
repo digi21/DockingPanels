@@ -85,6 +85,28 @@ public partial class ToolWindowTitleBar : Control
         }
     }
 
+    /// <inheritdoc />
+    protected override void OnDoubleTapped(DoubleTappedRoutedEventArgs e)
+    {
+        base.OnDoubleTapped(e);
+
+        // Same gesture as Visual Studio: a docked window floats, a floating one goes back home.
+        if (Window is ToolWindow tool)
+        {
+            switch (tool.State)
+            {
+                case DockingWindowState.Docked:
+                    tool.Float();
+                    break;
+                case DockingWindowState.Floating:
+                    tool.Dock();
+                    break;
+            }
+
+            e.Handled = true;
+        }
+    }
+
     private void OnWindowChanged()
     {
         if (observed is not null)

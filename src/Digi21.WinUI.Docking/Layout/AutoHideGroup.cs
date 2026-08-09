@@ -1,5 +1,3 @@
-using Microsoft.UI.Xaml;
-
 namespace Digi21.WinUI.Docking;
 
 /// <summary>
@@ -25,17 +23,8 @@ internal sealed class AutoHideGroup
     /// <summary>Gets or sets the flyout size in pixels (width for vertical edges, height for horizontal ones).</summary>
     internal double Size { get; set; }
 
-    /// <summary>
-    /// Gets or sets the neighbor pane the group's container sat next to when it was unpinned,
-    /// so pinning it back can restore the original position instead of docking to the site edge.
-    /// </summary>
-    internal FrameworkElement? RestoreSibling { get; set; }
-
-    /// <summary>Gets or sets the side of <see cref="RestoreSibling"/> the container sat on.</summary>
-    internal DockSide RestoreSide { get; set; }
-
-    /// <summary>Gets or sets the container's relative size at unpin time.</summary>
-    internal double RestoreRelativeSize { get; set; } = 1.0;
+    /// <summary>Gets or sets where the group re-docks when it is pinned back into the layout.</summary>
+    internal DockRestoreHint? RestoreHint { get; set; }
 
     /// <summary>
     /// Gets or sets the position of the container along the edge at unpin time (X for

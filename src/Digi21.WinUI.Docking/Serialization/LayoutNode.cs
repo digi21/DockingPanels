@@ -71,7 +71,48 @@ internal sealed class AutoHideGroupNode
     internal List<LayoutWindowEntry> Windows { get; } = [];
 }
 
-/// <summary>The full serialized layout: the docked tree plus the auto-hide groups.</summary>
+/// <summary>A serialized floating window with the tool windows it hosts.</summary>
+internal sealed class FloatingWindowNode
+{
+    /// <summary>Gets or sets the window bounds in screen pixels.</summary>
+    internal int X { get; set; }
+
+    /// <inheritdoc cref="X" />
+    internal int Y { get; set; }
+
+    /// <inheritdoc cref="X" />
+    internal int Width { get; set; } = 380;
+
+    /// <inheritdoc cref="X" />
+    internal int Height { get; set; } = 300;
+
+    /// <summary>Gets or sets the id of the selected window, if any.</summary>
+    internal string? SelectedId { get; set; }
+
+    /// <summary>
+    /// Gets or sets a "Window:id" reference to the container the windows were floated from,
+    /// so docking them back rejoins that tab group when it still exists.
+    /// </summary>
+    internal string? RestoreContainer { get; set; }
+
+    /// <summary>
+    /// Gets or sets a stable reference to the pane the windows re-dock next to when the
+    /// original container is gone ("Workspace:n" or "Window:id"), or <see langword="null"/>
+    /// when they fall back to a dock site edge.
+    /// </summary>
+    internal string? RestoreSibling { get; set; }
+
+    /// <summary>Gets or sets the side of the restore sibling the container sat on.</summary>
+    internal DockSide RestoreSide { get; set; }
+
+    /// <summary>Gets or sets the container's relative size when it was floated.</summary>
+    internal double RestoreRelativeSize { get; set; } = 1.0;
+
+    /// <summary>Gets the windows in the floating window, in tab order.</summary>
+    internal List<LayoutWindowEntry> Windows { get; } = [];
+}
+
+/// <summary>The full serialized layout: the docked tree, the auto-hide groups and the floating windows.</summary>
 internal sealed class LayoutDocument
 {
     /// <summary>Gets or sets the root of the docked layout tree, if any.</summary>
@@ -79,4 +120,7 @@ internal sealed class LayoutDocument
 
     /// <summary>Gets the auto-hide groups.</summary>
     internal List<AutoHideGroupNode> AutoHideGroups { get; } = [];
+
+    /// <summary>Gets the floating windows.</summary>
+    internal List<FloatingWindowNode> FloatingWindows { get; } = [];
 }

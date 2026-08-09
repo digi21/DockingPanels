@@ -30,6 +30,27 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OnFloatOutput(object sender, RoutedEventArgs e)
+    {
+        if (!Output.IsOpen)
+        {
+            DockSite.DockToolWindow(Output, DockSide.Bottom);
+        }
+
+        Output.Float();
+        EventLog.Text = $"Output state: {Output.State}";
+    }
+
+    private void OnDockFloating(object sender, RoutedEventArgs e)
+    {
+        foreach (var window in DockSite.ToolWindows.Where(w => w.State == DockingWindowState.Floating).ToList())
+        {
+            window.Dock();
+        }
+
+        EventLog.Text = "Floating windows docked";
+    }
+
     private void OnWindowEvent(object? sender, DockingWindowEventArgs e)
     {
         EventLog.Text = $"{e.Window.Title}: last event at {DateTime.Now:HH:mm:ss}";
