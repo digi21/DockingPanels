@@ -235,6 +235,10 @@ serializer.DocumentResolving += (_, e) =>
 serializer.LoadFromString(dockSite, xml);         // or LoadFromFile / LoadFromStream
 ```
 
+Restoring the saved layout from the dock site's `Loaded` works, which is where an application
+usually has one to restore into. Every element the load moves raises `Relocated` once the tree has
+settled — see below — so content with a life cycle of its own comes back with it.
+
 Only the structure is saved (splits, proportions, tab order, selection, the document tab groups,
 auto-hidden groups, and the screen bounds of floating windows together with the layout inside
 them). Window instances and their content are matched by id and reused, so control state survives

@@ -184,12 +184,26 @@ public partial class DockSite : Control, IDockSurface
     /// <summary>
     /// Gets all tool windows known to this dock site, including closed ones that can be reopened.
     /// </summary>
-    public IReadOnlyList<ToolWindow> ToolWindows => toolWindows;
+    public IReadOnlyList<ToolWindow> ToolWindows
+    {
+        get
+        {
+            EnsureWindowsRegistered();
+            return toolWindows;
+        }
+    }
 
     /// <summary>
     /// Gets all documents known to this dock site, including closed ones that can be reopened.
     /// </summary>
-    public IReadOnlyList<DocumentWindow> Documents => documents;
+    public IReadOnlyList<DocumentWindow> Documents
+    {
+        get
+        {
+            EnsureWindowsRegistered();
+            return documents;
+        }
+    }
 
     /// <summary>
     /// Gets the document area of the layout, or <see langword="null"/> when the layout has none.
@@ -589,6 +603,44 @@ public partial class DockSite : Control, IDockSurface
     {
         ArgumentNullException.ThrowIfNull(window);
         window.Close();
+    }
+
+    // Takes into the registry every window this dock site already holds: in its layout, inside its
+    // floating windows, and collapsed to its edges.
+    //
+    // A window declared in XAML registers itself when it loads, and a dock site's own Loaded is
+    // raised before that of the windows it contains. An application restoring its layout from
+    // there — which is where an application has a dock site to restore into — would otherwise find
+    // an empty registry, so no serialized id would match anything and the load would empty the
+    // window instead of filling it.
+    private void EnsureWindowsRegistered()
+    {
+        foreach (var window in LayoutTree.Windows(Child))
+        {
+            Adopt(window);
+        }
+
+        foreach (var host in floatingHosts)
+        {
+            foreach (var window in host.Windows)
+            {
+                Adopt(window);
+            }
+        }
+
+        foreach (var group in autoHideGroups)
+        {
+            foreach (var window in group.Windows)
+            {
+                Adopt(window);
+            }
+        }
+
+        void Adopt(DockingWindow window)
+        {
+            window.DockSite = this;
+            RegisterWindow(window);
+        }
     }
 
     // Adds a window to the registry of known windows.

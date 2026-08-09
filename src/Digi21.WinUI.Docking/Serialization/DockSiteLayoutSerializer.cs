@@ -270,6 +270,11 @@ public class DockSiteLayoutSerializer
         {
             rebuild.Detach(root);
             site.Child = root;
+
+            // Everything the new tree carries has just been moved, however little of it changed
+            // place within the tree: this is where a workspace whose split became the root, with
+            // nothing else about it altered, finds out that it was reparented.
+            site.NotifyRelocated(root);
         }
 
         foreach (var groupNode in layout.AutoHideGroups)
@@ -325,6 +330,7 @@ public class DockSiteLayoutSerializer
             var bounds = FloatingWindowHost.ClampToDisplay(
                 new RectInt32(floatingNode.X, floatingNode.Y, floatingNode.Width, floatingNode.Height));
             var host = new FloatingWindowHost(site, floatingContent, bounds);
+            site.NotifyRelocated(floatingContent);
 
             var restoreContainer = ResolveSiblingReference(site, floatingNode.RestoreContainer, index) as DockingWindowContainer;
             var restoreSibling = ResolveSiblingReference(site, floatingNode.RestoreSibling, index);
@@ -494,7 +500,7 @@ public class DockSiteLayoutSerializer
 
         var container = rebuild.TakeContainer<T>(windows);
         DockSite.SetRelativeSize(container, relativeSize);
-        Rebuild.SetItems(container, windows);
+        rebuild.SetItems(container, windows);
 
         if (selectedId is not null
             && container.Items.FirstOrDefault(w => w.SerializationId == selectedId) is { } selected)
@@ -708,7 +714,7 @@ public class DockSiteLayoutSerializer
         }
 
         // Makes the tabs of a pane match the given windows, moving only what has to move.
-        internal static void SetItems(DockingWindowContainer container, List<DockingWindow> windows)
+        internal void SetItems(DockingWindowContainer container, List<DockingWindow> windows)
         {
             if (container.Items.SequenceEqual(windows))
             {
@@ -731,6 +737,10 @@ public class DockSiteLayoutSerializer
                     continue;
                 }
 
+                // Reordering tabs within a pane leaves the windows where they are in the XAML
+                // tree; joining another pane is what moves them.
+                var moved = !ReferenceEquals(windows[i].Container, container);
+
                 if (at >= 0)
                 {
                     container.Items.RemoveAt(at);
@@ -738,6 +748,11 @@ public class DockSiteLayoutSerializer
 
                 // Adding a window to a pane takes it out of the one it was in.
                 container.Items.Insert(i, windows[i]);
+
+                if (moved)
+                {
+                    site.NotifyRelocated(windows[i]);
+                }
             }
         }
 
