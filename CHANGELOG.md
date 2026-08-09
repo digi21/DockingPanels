@@ -88,6 +88,14 @@ is published, the entries below describe what that first release will contain; p
   the pane corner radius (`DockingPaneCornerRadius`) and the splitter metrics
   (`DockingSplitterThickness`, `DockingSplitterGripThickness`).
 
+#### Sample
+
+- The `DockingGallery` app carries an **Event Trace** panel: the docking events in the order they
+  actually happen, and the situations that have gone wrong before — restoring a layout, reloading
+  an unchanged one, floating a window, collapsing panes to an edge — as buttons that replay them.
+  Each also runs unattended through the `DOCKPROBE` environment variable, tracing to a file and
+  closing by itself.
+
 ### Fixed
 
 Since `0.1.0-dev.2`:
@@ -107,6 +115,14 @@ Since `0.1.0-dev.2`:
 - The auto-hide flyout kept the size and position it was given when it opened, so resizing or
   maximizing the window left it hanging over the layout instead of sliding along the edge it
   belongs to. It now follows the area it slides over.
+- Restoring a layout from the dock site's `Loaded` emptied the site instead of filling it: the tree
+  collapsed to a bare `DocumentHost` and the windows unloaded for good. A window declared in XAML
+  registers itself with its site when it loads, which WinUI raises after the site's own `Loaded`,
+  so the registry was still empty and no serialized id matched anything. `DockSite.ToolWindows` and
+  `DockSite.Documents` now sweep the layout, the floating windows and the auto-hide groups before
+  answering, and a load reports every element it moved through `Relocated` — including the new root
+  of the tree and the content it puts into a floating window. Reordering tabs within one pane
+  leaves them where they are and reports nothing.
 - A dock site taken out of the tree left a `Closing` handler on the window hosting it.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
