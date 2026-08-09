@@ -104,6 +104,9 @@ Since `0.1.0-dev.2`:
   and `DocumentHost` elements it did not mention, with no way of bringing either back.
 - Reloading a layout rebuilt the whole tree even when nothing had changed. It is now rebuilt out
   of the elements it is already made of, so an unchanged layout moves nothing.
+- The auto-hide flyout kept the size and position it was given when it opened, so resizing or
+  maximizing the window left it hanging over the layout instead of sliding along the edge it
+  belongs to. It now follows the area it slides over.
 - A dock site taken out of the tree left a `Closing` handler on the window hosting it.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the

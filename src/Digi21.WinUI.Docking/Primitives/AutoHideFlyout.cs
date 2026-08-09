@@ -47,8 +47,9 @@ public partial class AutoHideFlyout : Control
         titleBar = GetTemplateChild("PART_TitleBar") as ToolWindowTitleBar;
     }
 
-    // Shows the given auto-hidden window with the given explicit size.
-    internal void Show(ToolWindow newWindow, double width, double height)
+    // Shows the given auto-hidden window. The dock site sizes and places the flyout, and does it
+    // again whenever the area it slides over changes size.
+    internal void Show(ToolWindow newWindow)
     {
         ApplyTemplate();
         Release();
@@ -61,9 +62,6 @@ public partial class AutoHideFlyout : Control
         {
             titleBar.Window = window;
         }
-
-        Width = width;
-        Height = height;
     }
 
     // Releases the hosted window so it can be re-docked or shown elsewhere.

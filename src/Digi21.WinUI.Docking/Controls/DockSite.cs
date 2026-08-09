@@ -225,7 +225,19 @@ public partial class DockSite : Control, IDockSurface
         }
 
         autoHideFlyout = GetTemplateChild("PART_AutoHideFlyout") as AutoHideFlyout;
+
+        if (layoutRootPresenter is not null)
+        {
+            layoutRootPresenter.SizeChanged -= OnLayoutRootSizeChanged;
+        }
+
         layoutRootPresenter = GetTemplateChild("PART_LayoutRoot") as ContentPresenter;
+
+        if (layoutRootPresenter is not null)
+        {
+            layoutRootPresenter.SizeChanged += OnLayoutRootSizeChanged;
+        }
+
         RefreshAutoHideStrips();
         AddHandler(PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnDismissPointerPressed), true);
 
@@ -465,27 +477,51 @@ public partial class DockSite : Control, IDockSurface
             return;
         }
 
-        var cellWidth = layoutRootPresenter.ActualWidth;
-        var cellHeight = layoutRootPresenter.ActualHeight;
-        var size = Math.Min(group.Size, (group.Edge is DockSide.Left or DockSide.Right ? cellWidth : cellHeight) * 0.8);
-
-        var (width, height) = group.Edge is DockSide.Left or DockSide.Right
-            ? (size, cellHeight)
-            : (cellWidth, size);
-
         // Showing the flyout takes the window out of the auto-hide group and into the flyout's own
         // content host, which is a move like any other as far as its content is concerned.
-        autoHideFlyout.Show(window, width, height);
+        autoHideFlyout.Show(window);
         NotifyRelocated(window);
+
+        PositionAutoHideFlyout(group);
+        autoHideFlyout.Visibility = Visibility.Visible;
+
+        SetActiveWindow(window);
+    }
+
+    // Sizes the flyout to the area the layout occupies and pins it to its group's edge. The flyout
+    // is laid out on a canvas over the whole dock site, so unlike the rest of the chrome it does
+    // not follow that area on its own: this is called again whenever the area changes size, or
+    // maximizing the window would leave the flyout hanging where it was.
+    private void PositionAutoHideFlyout(AutoHideGroup group)
+    {
+        if (autoHideFlyout is null || layoutRootPresenter is null)
+        {
+            return;
+        }
+
+        var cellWidth = layoutRootPresenter.ActualWidth;
+        var cellHeight = layoutRootPresenter.ActualHeight;
+        var horizontal = group.Edge is DockSide.Left or DockSide.Right;
+        var size = Math.Min(group.Size, (horizontal ? cellWidth : cellHeight) * 0.8);
+
+        var (width, height) = horizontal ? (size, cellHeight) : (cellWidth, size);
+
+        autoHideFlyout.Width = width;
+        autoHideFlyout.Height = height;
 
         var origin = layoutRootPresenter
             .TransformToVisual(this)
             .TransformPoint(new Windows.Foundation.Point(0, 0));
         Canvas.SetLeft(autoHideFlyout, origin.X + (group.Edge == DockSide.Right ? cellWidth - width : 0));
         Canvas.SetTop(autoHideFlyout, origin.Y + (group.Edge == DockSide.Bottom ? cellHeight - height : 0));
-        autoHideFlyout.Visibility = Visibility.Visible;
+    }
 
-        SetActiveWindow(window);
+    private void OnLayoutRootSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (autoHideFlyout?.Window is { } shown && FindAutoHideGroup(shown) is { } group)
+        {
+            PositionAutoHideFlyout(group);
+        }
     }
 
     // Hides the auto-hide flyout if it is open.
