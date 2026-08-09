@@ -70,6 +70,11 @@ public class DockSiteLayoutSerializer
 
         foreach (var host in dockSite.FloatingHosts)
         {
+            if (host.LayoutChild is not { } hostRoot)
+            {
+                continue;
+            }
+
             var bounds = host.Bounds;
             var floatingNode = new FloatingWindowNode
             {
@@ -77,8 +82,11 @@ public class DockSiteLayoutSerializer
                 Y = bounds.Y,
                 Width = bounds.Width,
                 Height = bounds.Height,
-                SelectedId = host.Container.SelectedItem?.SerializationId,
                 RestoreContainer = CaptureSiblingReference(dockSite, host.RestoreHint?.Container),
+
+                // A floating window holds a layout tree of its own: windows can be docked and
+                // split inside it, and that structure is part of the layout.
+                Root = Capture(hostRoot),
             };
 
             if (host.RestoreHint is { } hint && CaptureSiblingReference(dockSite, hint.Sibling) is { } siblingReference)
@@ -88,7 +96,6 @@ public class DockSiteLayoutSerializer
                 floatingNode.RestoreRelativeSize = hint.RelativeSize;
             }
 
-            CaptureWindows(host.Container.Items, floatingNode.Windows);
             layout.FloatingWindows.Add(floatingNode);
         }
 
@@ -254,40 +261,17 @@ public class DockSiteLayoutSerializer
 
         foreach (var floatingNode in layout.FloatingWindows)
         {
-            var floatingWindows = new List<ToolWindow>();
-            foreach (var entry in floatingNode.Windows)
-            {
-                if (Resolve(entry.Id, index) is { } window && !used.Contains(window))
-                {
-                    used.Add(window);
-                    window.IsRelocating = true;
-                    window.Container?.Items.Remove(window);
-                    floatingWindows.Add(window);
-                }
-            }
-
-            if (floatingWindows.Count == 0)
+            if (floatingNode.Root is null
+                || Build(floatingNode.Root, index, workspaces, used) is not { } floatingContent)
             {
                 continue;
             }
 
-            var container = new ToolWindowContainer();
-            foreach (var window in floatingWindows)
-            {
-                container.Items.Add(window);
-                window.IsRelocating = false;
-                window.State = DockingWindowState.Floating;
-            }
-
-            if (floatingNode.SelectedId is { } floatingSelectedId
-                && container.Items.FirstOrDefault(w => w.SerializationId == floatingSelectedId) is { } floatingSelected)
-            {
-                container.SelectedItem = floatingSelected;
-            }
-
+            // The hosted windows are marked as floating by the host itself, which also does it
+            // for the ones docked inside it.
             var bounds = FloatingWindowHost.ClampToDisplay(
                 new RectInt32(floatingNode.X, floatingNode.Y, floatingNode.Width, floatingNode.Height));
-            var host = new FloatingWindowHost(site, container, bounds);
+            var host = new FloatingWindowHost(site, floatingContent, bounds);
 
             var restoreContainer = ResolveSiblingReference(site, floatingNode.RestoreContainer, index) as ToolWindowContainer;
             var restoreSibling = ResolveSiblingReference(site, floatingNode.RestoreSibling, index);

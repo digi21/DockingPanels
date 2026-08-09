@@ -71,9 +71,15 @@ internal sealed class AutoHideGroupNode
     internal List<LayoutWindowEntry> Windows { get; } = [];
 }
 
-/// <summary>A serialized floating window with the tool windows it hosts.</summary>
+/// <summary>A serialized floating window with the layout tree it hosts.</summary>
 internal sealed class FloatingWindowNode
 {
+    /// <summary>
+    /// Gets or sets the root of the window's layout tree: a single container for a floating
+    /// window with one pane, or a split for one that has windows docked inside it.
+    /// </summary>
+    internal LayoutNode? Root { get; set; }
+
     /// <summary>Gets or sets the window bounds in screen pixels.</summary>
     internal int X { get; set; }
 
@@ -85,9 +91,6 @@ internal sealed class FloatingWindowNode
 
     /// <inheritdoc cref="X" />
     internal int Height { get; set; } = 300;
-
-    /// <summary>Gets or sets the id of the selected window, if any.</summary>
-    internal string? SelectedId { get; set; }
 
     /// <summary>
     /// Gets or sets a "Window:id" reference to the container the windows were floated from,
@@ -107,9 +110,6 @@ internal sealed class FloatingWindowNode
 
     /// <summary>Gets or sets the container's relative size when it was floated.</summary>
     internal double RestoreRelativeSize { get; set; } = 1.0;
-
-    /// <summary>Gets the windows in the floating window, in tab order.</summary>
-    internal List<LayoutWindowEntry> Windows { get; } = [];
 }
 
 /// <summary>The full serialized layout: the docked tree, the auto-hide groups and the floating windows.</summary>

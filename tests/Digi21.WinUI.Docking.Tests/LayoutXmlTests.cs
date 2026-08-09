@@ -175,6 +175,10 @@ public class LayoutXmlTests
     [Fact]
     public void RoundTrip_FloatingWindows_ArePreserved()
     {
+        var pane = new ContainerLayoutNode { SelectedId = "output" };
+        pane.Windows.Add(new LayoutWindowEntry("output", "Floating"));
+        pane.Windows.Add(new LayoutWindowEntry("watch", "Floating"));
+
         var layout = new LayoutDocument { Root = new WorkspaceLayoutNode() };
         var floating = new FloatingWindowNode
         {
@@ -182,14 +186,12 @@ public class LayoutXmlTests
             Y = 240,
             Width = 570,
             Height = 450,
-            SelectedId = "output",
             RestoreContainer = "Window:errorList",
             RestoreSibling = "Workspace:0",
             RestoreSide = DockSide.Bottom,
             RestoreRelativeSize = 0.3,
+            Root = pane,
         };
-        floating.Windows.Add(new LayoutWindowEntry("output", "Floating"));
-        floating.Windows.Add(new LayoutWindowEntry("watch", "Floating"));
         layout.FloatingWindows.Add(floating);
 
         using var stream = new MemoryStream();
@@ -203,12 +205,61 @@ public class LayoutXmlTests
         Assert.Equal(240, restoredFloating.Y);
         Assert.Equal(570, restoredFloating.Width);
         Assert.Equal(450, restoredFloating.Height);
-        Assert.Equal("output", restoredFloating.SelectedId);
         Assert.Equal("Window:errorList", restoredFloating.RestoreContainer);
         Assert.Equal("Workspace:0", restoredFloating.RestoreSibling);
         Assert.Equal(DockSide.Bottom, restoredFloating.RestoreSide);
         Assert.Equal(0.3, restoredFloating.RestoreRelativeSize);
-        Assert.Equal(["output", "watch"], restoredFloating.Windows.Select(w => w.Id));
+
+        var restoredPane = Assert.IsType<ContainerLayoutNode>(restoredFloating.Root);
+        Assert.Equal("output", restoredPane.SelectedId);
+        Assert.Equal(["output", "watch"], restoredPane.Windows.Select(w => w.Id));
+    }
+
+    [Fact]
+    public void RoundTrip_FloatingWindowWithDockedPanes_PreservesItsTree()
+    {
+        var left = new ContainerLayoutNode { RelativeSize = 0.4, SelectedId = "output" };
+        left.Windows.Add(new LayoutWindowEntry("output", "Floating"));
+        var right = new ContainerLayoutNode { RelativeSize = 0.6 };
+        right.Windows.Add(new LayoutWindowEntry("watch", "Floating"));
+        var split = new SplitLayoutNode { Orientation = Orientation.Horizontal };
+        split.Children.Add(left);
+        split.Children.Add(right);
+
+        var layout = new LayoutDocument();
+        layout.FloatingWindows.Add(new FloatingWindowNode { X = 40, Y = 60, Width = 640, Height = 480, Root = split });
+
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, layout);
+        stream.Position = 0;
+        var restored = LayoutXml.Read(stream);
+
+        var restoredSplit = Assert.IsType<SplitLayoutNode>(Assert.Single(restored.FloatingWindows).Root);
+        Assert.Equal(Orientation.Horizontal, restoredSplit.Orientation);
+        Assert.Equal(2, restoredSplit.Children.Count);
+        Assert.Equal(0.4, Assert.IsType<ContainerLayoutNode>(restoredSplit.Children[0]).RelativeSize);
+        Assert.Equal(
+            ["watch"],
+            Assert.IsType<ContainerLayoutNode>(restoredSplit.Children[1]).Windows.Select(w => w.Id));
+    }
+
+    [Fact]
+    public void Read_Version1FloatingWindow_BecomesASinglePane()
+    {
+        var xml = """
+            <DockSiteLayout Version="1">
+              <FloatingWindow X="10" Y="20" Width="300" Height="200" SelectedId="watch">
+                <ToolWindow Id="output" State="Floating" />
+                <ToolWindow Id="watch" State="Floating" />
+              </FloatingWindow>
+            </DockSiteLayout>
+            """;
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
+        var restored = LayoutXml.Read(stream);
+
+        var pane = Assert.IsType<ContainerLayoutNode>(Assert.Single(restored.FloatingWindows).Root);
+        Assert.Equal("watch", pane.SelectedId);
+        Assert.Equal(["output", "watch"], pane.Windows.Select(w => w.Id));
     }
 
     [Fact]
@@ -218,9 +269,9 @@ public class LayoutXmlTests
         var group = new AutoHideGroupNode { Edge = DockSide.Left, Size = 220 };
         group.Windows.Add(new LayoutWindowEntry("solutionExplorer", "AutoHide"));
         layout.AutoHideGroups.Add(group);
-        var floating = new FloatingWindowNode { X = 10, Y = 20, Width = 300, Height = 200 };
-        floating.Windows.Add(new LayoutWindowEntry("output", "Floating"));
-        layout.FloatingWindows.Add(floating);
+        var pane = new ContainerLayoutNode();
+        pane.Windows.Add(new LayoutWindowEntry("output", "Floating"));
+        layout.FloatingWindows.Add(new FloatingWindowNode { X = 10, Y = 20, Width = 300, Height = 200, Root = pane });
 
         using var stream = new MemoryStream();
         LayoutXml.Write(stream, layout);
@@ -250,7 +301,9 @@ public class LayoutXmlTests
         Assert.Equal(380, floating.Width);
         Assert.Equal(300, floating.Height);
         Assert.Null(floating.RestoreContainer);
-        Assert.Equal("Floating", Assert.Single(floating.Windows).State);
+
+        var pane = Assert.IsType<ContainerLayoutNode>(floating.Root);
+        Assert.Equal("Floating", Assert.Single(pane.Windows).State);
     }
 
     private static LayoutNode? RoundTrip(LayoutNode? node)

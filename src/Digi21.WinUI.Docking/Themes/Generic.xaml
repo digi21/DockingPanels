@@ -11,6 +11,8 @@
     <Style BasedOn="{StaticResource DefaultToolWindowContainerStyle}" TargetType="docking:ToolWindowContainer" />
     <Style BasedOn="{StaticResource DefaultToolWindowTitleBarStyle}" TargetType="primitives:ToolWindowTitleBar" />
     <Style BasedOn="{StaticResource DefaultToolWindowTabItemStyle}" TargetType="primitives:ToolWindowTabItem" />
+    <Style BasedOn="{StaticResource DefaultFloatingWindowRootStyle}" TargetType="primitives:FloatingWindowRoot" />
+    <Style BasedOn="{StaticResource DefaultFloatingWindowCaptionStyle}" TargetType="primitives:FloatingWindowCaption" />
     <Style BasedOn="{StaticResource DefaultDockGuideStyle}" TargetType="primitives:DockGuide" />
     <Style BasedOn="{StaticResource DefaultDockGuidePanelStyle}" TargetType="primitives:DockGuidePanel" />
     <Style BasedOn="{StaticResource DefaultAutoHideTabStripStyle}" TargetType="primitives:AutoHideTabStrip" />
@@ -120,6 +122,117 @@
                                 <TextBlock x:Name="PART_DragGhostText" Style="{ThemeResource CaptionTextBlockStyle}" />
                             </Border>
                         </Canvas>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultFloatingWindowRootStyle" TargetType="primitives:FloatingWindowRoot">
+        <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:FloatingWindowRoot">
+                    <Grid Background="{TemplateBinding Background}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <primitives:FloatingWindowCaption x:Name="PART_Caption" Visibility="Collapsed" />
+                        <ContentPresenter
+                            x:Name="PART_LayoutRoot"
+                            Grid.Row="1"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            Content="{TemplateBinding Child}" />
+                        <Canvas
+                            x:Name="PART_Overlay"
+                            Grid.Row="0"
+                            Grid.RowSpan="2">
+                            <Rectangle
+                                x:Name="PART_DockPreview"
+                                IsHitTestVisible="False"
+                                Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                Opacity="0.3"
+                                RadiusX="4"
+                                RadiusY="4"
+                                Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                                StrokeThickness="1"
+                                Visibility="Collapsed" />
+                            <primitives:DockGuidePanel
+                                x:Name="PART_CenterGuides"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed" />
+                            <primitives:DockGuide
+                                x:Name="PART_EdgeGuideLeft"
+                                IsHitTestVisible="False"
+                                Side="Left"
+                                Visibility="Collapsed" />
+                            <primitives:DockGuide
+                                x:Name="PART_EdgeGuideTop"
+                                IsHitTestVisible="False"
+                                Side="Top"
+                                Visibility="Collapsed" />
+                            <primitives:DockGuide
+                                x:Name="PART_EdgeGuideRight"
+                                IsHitTestVisible="False"
+                                Side="Right"
+                                Visibility="Collapsed" />
+                            <primitives:DockGuide
+                                x:Name="PART_EdgeGuideBottom"
+                                IsHitTestVisible="False"
+                                Side="Bottom"
+                                Visibility="Collapsed" />
+                            <Border
+                                x:Name="PART_DragGhost"
+                                IsHitTestVisible="False"
+                                Padding="12,6"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Visibility="Collapsed">
+                                <TextBlock x:Name="PART_DragGhostText" Style="{ThemeResource CaptionTextBlockStyle}" />
+                            </Border>
+                        </Canvas>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultFloatingWindowCaptionStyle" TargetType="primitives:FloatingWindowCaption">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:FloatingWindowCaption">
+                    <Grid Padding="8,0,4,0" Background="{TemplateBinding Background}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="PART_Title"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            TextTrimming="CharacterEllipsis" />
+                        <Button
+                            x:Name="PART_CloseButton"
+                            Grid.Column="1"
+                            Width="24"
+                            Height="24"
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                            IsTabStop="False">
+                            <FontIcon FontSize="10" Glyph="&#xE8BB;" />
+                        </Button>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>

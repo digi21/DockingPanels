@@ -42,7 +42,7 @@ public partial class ToolWindowContainer : Control
     private ToolWindowTitleBar? titleBar;
     private bool syncingSelection;
 
-    private DockSite? registeredSite;
+    private IDockSurface? registeredSurface;
 
     /// <summary>Initializes a new instance of the <see cref="ToolWindowContainer"/> class.</summary>
     public ToolWindowContainer()
@@ -51,15 +51,17 @@ public partial class ToolWindowContainer : Control
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
         items.CollectionChanged += OnItemsChanged;
 
+        // The surface is the dock site, or the floating window the container has been docked
+        // into: both take drops, and a container moves between them as it is dragged around.
         Loaded += (_, _) =>
         {
-            registeredSite = this.FindAncestor<DockSite>();
-            registeredSite?.RegisterDropTarget(this);
+            registeredSurface = this.FindSurface();
+            registeredSurface?.RegisterDropTarget(this);
         };
         Unloaded += (_, _) =>
         {
-            registeredSite?.UnregisterDropTarget(this);
-            registeredSite = null;
+            registeredSurface?.UnregisterDropTarget(this);
+            registeredSurface = null;
         };
     }
 

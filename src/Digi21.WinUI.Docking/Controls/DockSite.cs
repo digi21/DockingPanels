@@ -14,7 +14,7 @@ namespace Digi21.WinUI.Docking;
 /// (such as <c>SplitContainer</c> and <c>ToolWindowContainer</c>) and the central workspace.
 /// </summary>
 [ContentProperty(Name = nameof(Child))]
-public partial class DockSite : Control
+public partial class DockSite : Control, IDockSurface
 {
     /// <summary>Identifies the <see cref="Child"/> dependency property.</summary>
     public static readonly DependencyProperty ChildProperty = DependencyProperty.Register(
@@ -75,6 +75,7 @@ public partial class DockSite : Control
     private AutoHideFlyout? autoHideFlyout;
     private ContentPresenter? layoutRootPresenter;
     private AppWindow? ownerWindow;
+    private DockGuideOverlay? overlay;
 
     /// <summary>Initializes a new instance of the <see cref="DockSite"/> class.</summary>
     public DockSite()
@@ -184,26 +185,57 @@ public partial class DockSite : Control
         AddHandler(PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnDismissPointerPressed), true);
 
         if (GetTemplateChild("PART_DockPreview") is Rectangle preview
-            && GetTemplateChild("PART_DragGhost") is Border ghost
-            && GetTemplateChild("PART_DragGhostText") is TextBlock ghostText
             && GetTemplateChild("PART_CenterGuides") is DockGuidePanel centerGuides
             && GetTemplateChild("PART_EdgeGuideLeft") is DockGuide left
             && GetTemplateChild("PART_EdgeGuideTop") is DockGuide top
             && GetTemplateChild("PART_EdgeGuideRight") is DockGuide right
             && GetTemplateChild("PART_EdgeGuideBottom") is DockGuide bottom)
         {
-            DragController = new DragDockController(this, preview, ghost, ghostText, centerGuides, new Dictionary<DockSide, DockGuide>
-            {
-                [DockSide.Left] = left,
-                [DockSide.Top] = top,
-                [DockSide.Right] = right,
-                [DockSide.Bottom] = bottom,
-            });
+            overlay = new DockGuideOverlay(
+                this,
+                preview,
+                GetTemplateChild("PART_DragGhost") as Border,
+                GetTemplateChild("PART_DragGhostText") as TextBlock,
+                centerGuides,
+                new Dictionary<DockSide, DockGuide>
+                {
+                    [DockSide.Left] = left,
+                    [DockSide.Top] = top,
+                    [DockSide.Right] = right,
+                    [DockSide.Bottom] = bottom,
+                });
+
+            DragController = new DragDockController(this);
         }
         else
         {
+            overlay = null;
             DragController = null;
         }
+    }
+
+    DockSite IDockSurface.Site => this;
+
+    FrameworkElement IDockSurface.Root => this;
+
+    bool IDockSurface.IsFloating => false;
+
+    UIElement? IDockSurface.LayoutChild
+    {
+        get => Child;
+        set => Child = value;
+    }
+
+    DockGuideOverlay? IDockSurface.Overlay => overlay;
+
+    IReadOnlyCollection<FrameworkElement> IDockSurface.DropTargets => dropTargets;
+
+    void IDockSurface.RegisterDropTarget(FrameworkElement element) => RegisterDropTarget(element);
+
+    void IDockSurface.UnregisterDropTarget(FrameworkElement element) => UnregisterDropTarget(element);
+
+    void IDockSurface.OnLayoutMutated()
+    {
     }
 
     /// <summary>
@@ -293,8 +325,14 @@ public partial class DockSite : Control
     internal FloatingWindowHost? FindFloatingHost(DockingWindow window)
     {
         return window is ToolWindow tool
-            ? floatingHosts.FirstOrDefault(h => h.Container.Items.Contains(tool))
+            ? floatingHosts.FirstOrDefault(h => h.Windows.Contains(tool))
             : null;
+    }
+
+    /// <summary>Finds the floating window with the given window handle, if it belongs to this site.</summary>
+    internal FloatingWindowHost? FindFloatingHost(IntPtr handle)
+    {
+        return handle == IntPtr.Zero ? null : floatingHosts.FirstOrDefault(h => h.Handle == handle);
     }
 
     /// <summary>Closes every floating window, releasing the tool windows they host.</summary>
