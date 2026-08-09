@@ -9,6 +9,10 @@
     <Style BasedOn="{StaticResource DefaultDockSplitterStyle}" TargetType="primitives:DockSplitter" />
     <Style BasedOn="{StaticResource DefaultToolWindowStyle}" TargetType="docking:ToolWindow" />
     <Style BasedOn="{StaticResource DefaultToolWindowContainerStyle}" TargetType="docking:ToolWindowContainer" />
+    <Style BasedOn="{StaticResource DefaultDocumentHostStyle}" TargetType="docking:DocumentHost" />
+    <Style BasedOn="{StaticResource DefaultDocumentWindowStyle}" TargetType="docking:DocumentWindow" />
+    <Style BasedOn="{StaticResource DefaultDocumentContainerStyle}" TargetType="docking:DocumentContainer" />
+    <Style BasedOn="{StaticResource DefaultDocumentTabItemStyle}" TargetType="primitives:DocumentTabItem" />
     <Style BasedOn="{StaticResource DefaultToolWindowTitleBarStyle}" TargetType="primitives:ToolWindowTitleBar" />
     <Style BasedOn="{StaticResource DefaultToolWindowTabItemStyle}" TargetType="primitives:ToolWindowTabItem" />
     <Style BasedOn="{StaticResource DefaultFloatingWindowRootStyle}" TargetType="primitives:FloatingWindowRoot" />
@@ -311,6 +315,156 @@
                                 Visibility="Collapsed" />
                         </Grid>
                     </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultDocumentHostStyle" TargetType="docking:DocumentHost">
+        <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="docking:DocumentHost">
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+                        <ContentPresenter
+                            x:Name="PART_LayoutRoot"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            Content="{TemplateBinding Child}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultDocumentWindowStyle" TargetType="docking:DocumentWindow">
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="docking:DocumentWindow">
+                    <ContentPresenter
+                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                        Content="{TemplateBinding Content}"
+                        ContentTemplate="{TemplateBinding ContentTemplate}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultDocumentContainerStyle" TargetType="docking:DocumentContainer">
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="docking:DocumentContainer">
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border
+                                Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                BorderThickness="0,0,0,1">
+                                <ScrollViewer
+                                    HorizontalScrollBarVisibility="Auto"
+                                    HorizontalScrollMode="Auto"
+                                    VerticalScrollBarVisibility="Disabled"
+                                    VerticalScrollMode="Disabled">
+                                    <StackPanel
+                                        x:Name="PART_TabStrip"
+                                        Orientation="Horizontal"
+                                        Spacing="2" />
+                                </ScrollViewer>
+                            </Border>
+                            <ContentPresenter x:Name="PART_ContentHost" Grid.Row="1" />
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultDocumentTabItemStyle" TargetType="primitives:DocumentTabItem">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:DocumentTabItem">
+                    <Grid
+                        x:Name="Root"
+                        Padding="10,0,4,0"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="4,4,0,0">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="PART_CloseButton.Opacity" Value="1" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed" />
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="SelectionStates">
+                                <VisualState x:Name="Unselected" />
+                                <VisualState x:Name="Selected">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                                        <Setter Target="PART_CloseButton.Opacity" Value="1" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Active">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                                        <Setter Target="PART_Title.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                        <Setter Target="PART_CloseButton.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                        <Setter Target="PART_CloseButton.Opacity" Value="1" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="PART_Title"
+                            VerticalAlignment="Center"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            TextTrimming="CharacterEllipsis" />
+                        <Button
+                            x:Name="PART_CloseButton"
+                            Grid.Column="1"
+                            Width="20"
+                            Height="20"
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            IsTabStop="False"
+                            Opacity="0">
+                            <FontIcon FontSize="10" Glyph="&#xE8BB;" />
+                        </Button>
+                    </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

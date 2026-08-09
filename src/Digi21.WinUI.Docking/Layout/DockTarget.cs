@@ -26,7 +26,14 @@ internal enum DockTargetKind
 /// element. Shared by the drag controller and the layout manager so an interactive drop and a
 /// programmatic one take exactly the same path.
 /// </summary>
-internal readonly record struct DockTarget(DockTargetKind Kind, DockSide Side, FrameworkElement? Element)
+/// <param name="Kind">What the drop does with the dragged windows.</param>
+/// <param name="Side">The side to dock to, for edge and relative drops.</param>
+/// <param name="Element">The element the drop acts on, for relative and tab drops.</param>
+/// <param name="Index">
+/// The tab position a tab drop lands on, or -1 to append. This is what turns dragging a tab
+/// along its own strip into a reorder instead of a re-dock.
+/// </param>
+internal readonly record struct DockTarget(DockTargetKind Kind, DockSide Side, FrameworkElement? Element, int Index = -1)
 {
     /// <summary>Gets a target that docks the windows back where they came from.</summary>
     internal static DockTarget Home { get; } = new(DockTargetKind.Home, DockSide.Left, null);

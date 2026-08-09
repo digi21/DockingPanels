@@ -9,7 +9,7 @@ namespace Digi21.WinUI.Docking;
 /// </summary>
 internal sealed class DockRestoreHint
 {
-    internal DockRestoreHint(ToolWindowContainer? container, FrameworkElement? sibling, DockSide side, double relativeSize)
+    internal DockRestoreHint(DockingWindowContainer? container, FrameworkElement? sibling, DockSide side, double relativeSize)
     {
         Container = container;
         Sibling = sibling;
@@ -22,7 +22,7 @@ internal sealed class DockRestoreHint
     /// (because other windows kept it alive) they rejoin it as tabs, which is where the user
     /// left them; otherwise the position is rebuilt from <see cref="Sibling"/>.
     /// </summary>
-    internal ToolWindowContainer? Container { get; }
+    internal DockingWindowContainer? Container { get; }
 
     /// <summary>Gets the neighbor pane the container sat next to, if any.</summary>
     internal FrameworkElement? Sibling { get; }

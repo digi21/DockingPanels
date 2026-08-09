@@ -28,6 +28,7 @@ internal sealed class DockGuideOverlay
     private readonly Dictionary<DockSide, DockGuide> edgeGuides;
 
     private FrameworkElement? hoveredTarget;
+    private bool documentDrag;
 
     internal DockGuideOverlay(
         IDockSurface surface,
@@ -46,8 +47,13 @@ internal sealed class DockGuideOverlay
     }
 
     /// <summary>Shows the edge guides, and the drag ghost when the drag has no visual of its own.</summary>
-    internal void Begin(bool withGhost, string title)
+    /// <param name="withGhost">Whether to show the drag ghost following the cursor.</param>
+    /// <param name="title">The title shown in the ghost.</param>
+    /// <param name="documents">Whether the drag carries documents rather than tool windows.</param>
+    internal void Begin(bool withGhost, string title, bool documents)
     {
+        documentDrag = documents;
+
         if (ghost is not null)
         {
             if (withGhost && ghostText is not null)
@@ -56,6 +62,13 @@ internal sealed class DockGuideOverlay
             }
 
             ghost.Visibility = withGhost ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        // Documents belong in the document area, so the edges of the dock site are no target for
+        // them; inside a floating window there is no document area and the edges split the window.
+        if (documentDrag && !surface.IsFloating)
+        {
+            return;
         }
 
         PositionEdgeGuides();
@@ -143,7 +156,10 @@ internal sealed class DockGuideOverlay
         }
 
         var bounds = BoundsIn(target);
-        centerGuides.ShowCenter = target is ToolWindowContainer;
+
+        // An empty document area is dropped into as a whole, so only its center guide is shown.
+        centerGuides.ShowCenter = target is DockingWindowContainer or DocumentHost;
+        centerGuides.ShowSides = target is not DocumentHost;
         Canvas.SetLeft(centerGuides, bounds.X + (bounds.Width - DockGuidePanel.ClusterSize) / 2);
         Canvas.SetTop(centerGuides, bounds.Y + (bounds.Height - DockGuidePanel.ClusterSize) / 2);
         centerGuides.Visibility = Visibility.Visible;
@@ -151,9 +167,9 @@ internal sealed class DockGuideOverlay
 
     private FrameworkElement? HitTestTarget(Point point)
     {
-        foreach (var target in surface.DropTargets)
+        foreach (var target in Targets())
         {
-            if (target.ActualWidth <= 0 || target.ActualHeight <= 0)
+            if (target.ActualWidth <= 0 || target.ActualHeight <= 0 || !Accepts(target))
             {
                 continue;
             }
@@ -167,6 +183,20 @@ internal sealed class DockGuideOverlay
         return null;
     }
 
+    /// <summary>Enumerates what a drop can land on, from the surface's current layout tree.</summary>
+    private IEnumerable<FrameworkElement> Targets() => LayoutTree.DropTargets(surface.LayoutChild);
+
+    /// <summary>
+    /// Tells whether a drop target takes what is being dragged: documents only go into the
+    /// document area, and tool windows only into the panes around it.
+    /// </summary>
+    private bool Accepts(FrameworkElement target)
+    {
+        return documentDrag
+            ? target is DocumentContainer or DocumentHost
+            : target is ToolWindowContainer or Workspace;
+    }
+
     private DockTarget ResolveTarget(Point point, FrameworkElement? target)
     {
         foreach (var (side, guide) in edgeGuides)
@@ -177,7 +207,25 @@ internal sealed class DockGuideOverlay
             }
         }
 
-        if (target is not null && centerGuides.Visibility == Visibility.Visible)
+        // Over the tab strip of a pane the drop lands at a tab position, which is what turns
+        // dragging a tab along its own strip into a reorder instead of a re-dock.
+        if (target is DockingWindowContainer container)
+        {
+            var local = ToLocal(container, point);
+            var strip = container.TabStripBounds;
+            if (!strip.IsEmpty && strip.Contains(local))
+            {
+                return new DockTarget(
+                    DockTargetKind.Tab,
+                    DockSide.Left,
+                    container,
+                    container.InsertionIndexAt(local));
+            }
+        }
+
+        // The cluster is hidden while the cursor slides along a tab strip, but it stays where it
+        // was placed, so what decides whether its guides can be hit is the hovered target.
+        if (target is not null && ReferenceEquals(target, hoveredTarget))
         {
             var clusterOrigin = new Point(Canvas.GetLeft(centerGuides), Canvas.GetTop(centerGuides));
 
@@ -186,11 +234,14 @@ internal sealed class DockGuideOverlay
                 return new DockTarget(DockTargetKind.Tab, DockSide.Left, target);
             }
 
-            foreach (var side in Enum.GetValues<DockSide>())
+            if (centerGuides.ShowSides)
             {
-                if (ClusterGuideRect(clusterOrigin, side).Contains(point))
+                foreach (var side in Enum.GetValues<DockSide>())
                 {
-                    return new DockTarget(DockTargetKind.Relative, side, target);
+                    if (ClusterGuideRect(clusterOrigin, side).Contains(point))
+                    {
+                        return new DockTarget(DockTargetKind.Relative, side, target);
+                    }
                 }
             }
         }
@@ -207,12 +258,23 @@ internal sealed class DockGuideOverlay
 
         centerGuides.SetHotGuide(
             target.Kind == DockTargetKind.Relative ? target.Side : null,
-            target.Kind == DockTargetKind.Tab);
+            target is { Kind: DockTargetKind.Tab, Index: < 0 });
+
+        if (hoveredTarget is not null)
+        {
+            // Sliding a tab along a strip is a reorder: the caret says where it lands, and the
+            // guides would only be in the way.
+            centerGuides.Visibility = target is { Kind: DockTargetKind.Tab, Index: >= 0 }
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
 
         var previewRect = target switch
         {
             { Kind: DockTargetKind.Edge } => EdgePreviewRect(target.Side),
             { Kind: DockTargetKind.Relative, Element: { } element } => SidePreviewRect(BoundsIn(element), target.Side),
+            { Kind: DockTargetKind.Tab, Element: DockingWindowContainer pane, Index: >= 0 } =>
+                ToSurface(pane, pane.InsertionMarker(target.Index)),
             { Kind: DockTargetKind.Tab, Element: { } element } => BoundsIn(element),
             _ => Rect.Empty,
         };
@@ -269,6 +331,25 @@ internal sealed class DockGuideOverlay
     private static Rect ElementRect(FrameworkElement element, double size)
     {
         return new Rect(Canvas.GetLeft(element), Canvas.GetTop(element), size, size);
+    }
+
+    /// <summary>Converts a point in the surface's coordinates into an element's own coordinates.</summary>
+    private Point ToLocal(FrameworkElement element, Point point)
+    {
+        var bounds = BoundsIn(element);
+        return new Point(point.X - bounds.X, point.Y - bounds.Y);
+    }
+
+    /// <summary>Converts a rectangle in an element's coordinates into the surface's coordinates.</summary>
+    private Rect ToSurface(FrameworkElement element, Rect rect)
+    {
+        if (rect.IsEmpty)
+        {
+            return Rect.Empty;
+        }
+
+        var bounds = BoundsIn(element);
+        return new Rect(bounds.X + rect.X, bounds.Y + rect.Y, rect.Width, rect.Height);
     }
 
     private Rect BoundsIn(FrameworkElement element)

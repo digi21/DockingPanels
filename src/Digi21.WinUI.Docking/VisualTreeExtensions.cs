@@ -42,4 +42,24 @@ internal static class VisualTreeExtensions
 
         return null;
     }
+
+    /// <summary>
+    /// Walks up the visual tree looking for the element that owns the layout tree the given
+    /// element belongs to: the nearest document host, or the surface it lives in.
+    /// </summary>
+    internal static ILayoutHost? FindLayoutHost(this DependencyObject start)
+    {
+        var current = VisualTreeHelper.GetParent(start);
+        while (current is not null)
+        {
+            if (current is ILayoutHost host)
+            {
+                return host;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
 }

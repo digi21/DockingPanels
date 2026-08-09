@@ -5,29 +5,29 @@
 [![NuGet downloads](https://img.shields.io/nuget/dt/Digi21.WinUI.Docking.svg)](https://www.nuget.org/packages/Digi21.WinUI.Docking)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Docking panels for WinUI 3 applications: dockable tool windows with splitters and tabs, Visual Studio-style drag-and-drop dock guides, floating windows, auto-hide, and layout serialization.
+Docking panels for WinUI 3 applications: dockable tool windows with splitters and tabs, a tabbed
+MDI document area, Visual Studio-style drag-and-drop dock guides, floating windows, auto-hide, and
+layout serialization.
 
 > ⚠️ **Under active development.** The first release (`v0.1.0`) has not been published yet. The API may change until then.
 
 ## Features
 
 - `DockSite` root control hosting a declarative docking layout.
-- `ToolWindow` panels dockable to any side of the workspace or of each other, by code or by dragging.
+- `ToolWindow` panels dockable to any side of the document area or of each other, by code or by dragging.
 - Proportional resizing with splitters (`SplitContainer` + `DockSite.RelativeSize`).
 - Multiple tool windows in one container become tabs; switching tabs preserves control state.
+- Tabbed MDI document area (`DocumentHost`): documents open as tabs, split into as many tab
+  groups as needed, are reordered by dragging their tabs, and can be floated out.
 - Drag & drop re-docking with Visual Studio-style dock guides and drop previews.
 - Floating tool windows in real top-level windows, across monitors.
 - Docking *inside* a floating window: it takes drops with its own dock guides and holds a
   layout of split panes and tabs, like a small dock site.
 - Auto-hide (unpin) tool windows to the dock site edges, with a slide-in flyout.
-- Save and restore the docking layout as XML (`DockSiteLayoutSerializer`), including
-  auto-hidden groups, floating window positions and their inner layout.
+- Save and restore the docking layout as XML (`DockSiteLayoutSerializer`), including the document
+  area, auto-hidden groups, floating window positions and their inner layout.
 - Cancelable close, activation tracking, and layout-change events on `DockSite`.
 - Light, dark, and high-contrast aware out of the box (built on WinUI theme resources).
-
-### Roadmap (not yet implemented)
-
-- Tabbed MDI document area.
 
 ## Requirements
 
@@ -63,9 +63,15 @@ dotnet add package Digi21.WinUI.Docking
       </docking:ToolWindowContainer>
 
       <docking:SplitContainer docking:DockSite.RelativeSize="0.75" Orientation="Vertical">
-        <docking:Workspace docking:DockSite.RelativeSize="0.7">
-          <TextBox AcceptsReturn="True" />
-        </docking:Workspace>
+
+        <docking:DocumentHost docking:DockSite.RelativeSize="0.7">
+          <docking:DocumentContainer>
+            <docking:DocumentWindow Title="README.md" SerializationId="readme">
+              <TextBox AcceptsReturn="True" />
+            </docking:DocumentWindow>
+          </docking:DocumentContainer>
+        </docking:DocumentHost>
+
         <docking:ToolWindowContainer docking:DockSite.RelativeSize="0.3">
           <docking:ToolWindow Title="Output" SerializationId="output">
             <TextBlock Text="Build succeeded." />
@@ -83,27 +89,55 @@ Windows in the same `ToolWindowContainer` become tabs. Users can re-dock any win
 dragging its tab or title bar: dock guides appear over the hovered target (dock to any side,
 or drop on the center guide to attach as a tab) and at the edges of the whole dock site.
 
+### Documents (tabbed MDI)
+
+`DocumentHost` is the central area documents live in, the equivalent of the editor area of Visual
+Studio: tool windows dock around it and never inside it, and documents never dock outside it.
+It holds a layout tree of `DocumentContainer` tab groups, so dropping a document on the side
+guide of a group splits the area into a new tab group, and dragging a tab along a tab strip
+reorders it or moves it to another group. A document dropped away from every guide floats into
+its own window, and can be dragged back — the empty area takes drops too, so the last document
+can always be brought home.
+
+```csharp
+dockSite.OpenDocument(document);            // open in the active tab group
+dockSite.DocumentHost?.OpenDocument(document);   // same, on a specific area
+
+document.Float();                           // pull it out into its own window
+document.Dock();                            // send it back where it came from
+document.Close();                           // cancelable via DockSite.WindowClosing
+
+var active = dockSite.ActiveDocument;       // last activated document
+var open = dockSite.DocumentHost?.Documents;     // documents across all tab groups
+```
+
+An application without documents can use `Workspace` instead: a plain content area that tool
+windows dock around. Both can appear in the same layout.
+
 ### Floating windows
 
-Dragging a tool window out of the layout and dropping it away from every dock guide floats it
-into its own top-level window, which can be moved to any monitor. Floating windows are owned by
-the application window, so they stay above it, stay out of the taskbar, and close with it.
-Dragging their caption back over the dock site shows the same dock guides as any other drag.
-Double-clicking a title bar floats a docked window and docks a floating one back where it came
-from.
+A window is torn off as soon as the drag leaves its tab strip: it floats out there and then, and
+the rest of the drag moves that real window, so what follows the cursor is the window itself with
+its live content rather than a placeholder. Releasing it over a dock guide docks it again;
+releasing it anywhere else leaves it floating, on any monitor. Floating windows are owned by the
+application window, so they stay above it, stay out of the taskbar, and close with it. Dragging
+their caption back over the dock site shows the same dock guides as any other drag, and
+double-clicking a title bar floats a docked window and docks a floating one back where it came
+from. Windows with `CanFloat="False"` cannot be torn off, so they are dragged with a small ghost
+and can only be dropped on a dock guide.
 
 A floating window is a docking surface of its own: dragging a window over it shows the same dock
 guides, so the drop can split it into panes or attach the window as a tab of one of them. With a
-single pane, the pane's title bar is the window's caption; once it holds several panes, the
-window gets a caption of its own, which drags and docks the whole group as before, while each
-pane's title bar drags only that pane.
+single tool pane, the pane's title bar is the window's caption; once it holds several panes (or a
+document group, which has no title bar), the window gets a caption of its own, which drags and
+docks the whole group as before, while each pane's title bar drags only that pane.
 
 ```csharp
-outputWindow.Float();                       // float it near the dock site
-dockSite.FloatToolWindow(outputWindow);     // same, from the dock site
-dockSite.FloatToolWindow(outputWindow, new RectInt32(2200, 300, 480, 640));  // explicit screen bounds
+outputWindow.Float();                   // float it near the dock site
+dockSite.FloatWindow(outputWindow);     // same, from the dock site
+dockSite.FloatWindow(outputWindow, new RectInt32(2200, 300, 480, 640));  // explicit screen bounds
 
-outputWindow.Dock();                        // back to the position it was floated from
+outputWindow.Dock();                    // back to the position it was floated from
 ```
 
 ### Auto-hide
@@ -135,7 +169,7 @@ outputWindow.Close();   // cancelable via DockSite.WindowClosing
 
 ### Saving and restoring the layout
 
-Give every tool window a stable `SerializationId`, then:
+Give every tool window and document a stable `SerializationId`, then:
 
 ```csharp
 var serializer = new DockSiteLayoutSerializer();
@@ -147,14 +181,19 @@ serializer.ToolWindowResolving += (_, e) =>
     // Optional: create windows on demand for ids that are not registered yet.
     e.ToolWindow = CreateToolWindow(e.Id);
 };
+serializer.DocumentResolving += (_, e) =>
+{
+    // Documents opened at runtime are recreated the same way.
+    e.Document = OpenDocument(e.Id);
+};
 serializer.LoadFromString(dockSite, xml);         // or LoadFromFile / LoadFromStream
 ```
 
-Only the structure is saved (splits, proportions, tab order, selection, auto-hidden groups, and
-the screen bounds of floating windows together with the layout inside them). Window instances and
-their content are matched by id and reused, so control state survives a reload. Floating windows
-are restored on a monitor that exists, so a layout saved with two monitors still loads on one.
-Layouts written by earlier versions are still read.
+Only the structure is saved (splits, proportions, tab order, selection, the document tab groups,
+auto-hidden groups, and the screen bounds of floating windows together with the layout inside
+them). Window instances and their content are matched by id and reused, so control state survives
+a reload. Floating windows are restored on a monitor that exists, so a layout saved with two
+monitors still loads on one. Layouts written by earlier versions are still read.
 
 ## Sample
 

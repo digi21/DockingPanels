@@ -22,7 +22,6 @@ public partial class FloatingWindowRoot : Control, IDockSurface
         typeof(FloatingWindowRoot),
         new PropertyMetadata(null));
 
-    private readonly HashSet<FrameworkElement> dropTargets = [];
     private readonly DockSite site;
     private FloatingWindowCaption? caption;
     private string captionTitle = string.Empty;
@@ -118,19 +117,13 @@ public partial class FloatingWindowRoot : Control, IDockSurface
     // Restructuring the tree detaches the old root before plugging the new one in, so an empty
     // tree here is a passing state, not an empty window: whether the window still holds anything
     // is settled once the mutation is over, in OnLayoutMutated.
-    UIElement? IDockSurface.LayoutChild
+    UIElement? ILayoutHost.LayoutChild
     {
         get => Child;
         set => Child = value;
     }
 
     DockGuideOverlay? IDockSurface.Overlay => Overlay;
-
-    IReadOnlyCollection<FrameworkElement> IDockSurface.DropTargets => dropTargets;
-
-    void IDockSurface.RegisterDropTarget(FrameworkElement element) => dropTargets.Add(element);
-
-    void IDockSurface.UnregisterDropTarget(FrameworkElement element) => dropTargets.Remove(element);
 
     void IDockSurface.OnLayoutMutated() => Host.SyncWithLayout();
 }
