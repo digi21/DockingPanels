@@ -174,9 +174,13 @@ public partial class DockSplitter : Control
 
         if (GetTemplateChild("GripLine") is Rectangle grip)
         {
+            // Which axis the line runs along depends on the orientation, so its thickness cannot
+            // come from the template; it is read from the resources instead of being fixed here.
+            var thickness = DockingThemeResources.Value("DockingSplitterGripThickness", 1.0);
+
             if (horizontal)
             {
-                grip.Width = 1;
+                grip.Width = thickness;
                 grip.Height = double.NaN;
                 grip.HorizontalAlignment = HorizontalAlignment.Center;
                 grip.VerticalAlignment = VerticalAlignment.Stretch;
@@ -184,7 +188,7 @@ public partial class DockSplitter : Control
             else
             {
                 grip.Width = double.NaN;
-                grip.Height = 1;
+                grip.Height = thickness;
                 grip.HorizontalAlignment = HorizontalAlignment.Stretch;
                 grip.VerticalAlignment = VerticalAlignment.Center;
             }

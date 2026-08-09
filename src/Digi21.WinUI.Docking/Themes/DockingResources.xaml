@@ -195,8 +195,39 @@
     <x:Double x:Key="DockingGuideClusterSize">128</x:Double>
     <x:Double x:Key="DockingDropPreviewOpacity">0.3</x:Double>
     <Thickness x:Key="DockingPaneBorderThickness">1</Thickness>
+    <CornerRadius x:Key="DockingPaneCornerRadius">0</CornerRadius>
     <CornerRadius x:Key="DockingDocumentTabCornerRadius">4,4,0,0</CornerRadius>
     <CornerRadius x:Key="DockingGuideCornerRadius">4</CornerRadius>
     <CornerRadius x:Key="DockingFlyoutCornerRadius">4</CornerRadius>
+
+    <!--
+        The splitter metrics are read from here by the layout code, since a splitter is sized by
+        the panel that arranges it rather than by its own template: the band is how much room the
+        splitter takes between two panes, the grip is the line drawn inside it.
+    -->
+    <x:Double x:Key="DockingSplitterThickness">6</x:Double>
+    <x:Double x:Key="DockingSplitterGripThickness">1</x:Double>
+
+    <!--
+        Icons. The glyphs are Segoe Fluent Icons code points; replacing the font family means
+        replacing the glyphs with the corresponding code points of the new font.
+    -->
+    <StaticResource x:Key="DockingIconFontFamily" ResourceKey="SymbolThemeFontFamily" />
+    <x:Double x:Key="DockingIconFontSize">10</x:Double>
+    <x:Double x:Key="DockingGuideIconFontSize">14</x:Double>
+    <x:String x:Key="DockingCloseGlyph">&#xE8BB;</x:String>
+    <x:String x:Key="DockingPinGlyph">&#xE718;</x:String>
+    <x:String x:Key="DockingGuideCenterGlyph">&#xE8A9;</x:String>
+    <x:String x:Key="DockingGuideLeftGlyph">&#xE76B;</x:String>
+    <x:String x:Key="DockingGuideTopGlyph">&#xE70E;</x:String>
+    <x:String x:Key="DockingGuideRightGlyph">&#xE76C;</x:String>
+    <x:String x:Key="DockingGuideBottomGlyph">&#xE70D;</x:String>
+
+    <!--
+        Text. Both alias the WinUI caption style, so the chrome can be restyled on its own instead
+        of by overriding CaptionTextBlockStyle, which would reach the whole application.
+    -->
+    <StaticResource x:Key="DockingTitleTextStyle" ResourceKey="CaptionTextBlockStyle" />
+    <StaticResource x:Key="DockingTabTextStyle" ResourceKey="CaptionTextBlockStyle" />
 
 </ResourceDictionary>

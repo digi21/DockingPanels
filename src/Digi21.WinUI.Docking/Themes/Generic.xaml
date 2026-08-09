@@ -133,7 +133,7 @@
                                 <TextBlock
                                     x:Name="PART_DragGhostText"
                                     Foreground="{ThemeResource DockingDragGhostForegroundBrush}"
-                                    Style="{ThemeResource CaptionTextBlockStyle}" />
+                                    Style="{ThemeResource DockingTitleTextStyle}" />
                             </Border>
                         </Canvas>
                     </Grid>
@@ -210,7 +210,7 @@
                                 <TextBlock
                                     x:Name="PART_DragGhostText"
                                     Foreground="{ThemeResource DockingDragGhostForegroundBrush}"
-                                    Style="{ThemeResource CaptionTextBlockStyle}" />
+                                    Style="{ThemeResource DockingTitleTextStyle}" />
                             </Border>
                         </Canvas>
                     </Grid>
@@ -236,7 +236,7 @@
                             x:Name="PART_Title"
                             VerticalAlignment="Center"
                             Foreground="{TemplateBinding Foreground}"
-                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Style="{ThemeResource DockingTitleTextStyle}"
                             TextTrimming="CharacterEllipsis" />
                         <Button
                             x:Name="PART_CloseButton"
@@ -249,7 +249,10 @@
                             BorderThickness="0"
                             Foreground="{TemplateBinding Foreground}"
                             IsTabStop="False">
-                            <FontIcon FontSize="10" Glyph="&#xE8BB;" />
+                            <FontIcon
+                                FontFamily="{ThemeResource DockingIconFontFamily}"
+                                FontSize="{ThemeResource DockingIconFontSize}"
+                                Glyph="{ThemeResource DockingCloseGlyph}" />
                         </Button>
                     </Grid>
                 </ControlTemplate>
@@ -261,6 +264,7 @@
         <Setter Property="Background" Value="{ThemeResource DockingPaneBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource DockingPaneBorderBrush}" />
         <Setter Property="BorderThickness" Value="{ThemeResource DockingPaneBorderThickness}" />
+        <Setter Property="CornerRadius" Value="{ThemeResource DockingPaneCornerRadius}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
@@ -304,6 +308,7 @@
         <Setter Property="Background" Value="{ThemeResource DockingPaneBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource DockingPaneBorderBrush}" />
         <Setter Property="BorderThickness" Value="{ThemeResource DockingPaneBorderThickness}" />
+        <Setter Property="CornerRadius" Value="{ThemeResource DockingPaneCornerRadius}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -338,6 +343,7 @@
         <Setter Property="Background" Value="{ThemeResource DockingDocumentHostBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource DockingPaneBorderBrush}" />
         <Setter Property="BorderThickness" Value="{ThemeResource DockingPaneBorderThickness}" />
+        <Setter Property="CornerRadius" Value="{ThemeResource DockingPaneCornerRadius}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -379,6 +385,7 @@
         <Setter Property="Background" Value="{ThemeResource DockingPaneBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource DockingPaneBorderBrush}" />
         <Setter Property="BorderThickness" Value="{ThemeResource DockingPaneBorderThickness}" />
+        <Setter Property="CornerRadius" Value="{ThemeResource DockingPaneCornerRadius}" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -465,7 +472,7 @@
                             x:Name="PART_Title"
                             VerticalAlignment="Center"
                             Foreground="{TemplateBinding Foreground}"
-                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Style="{ThemeResource DockingTabTextStyle}"
                             TextTrimming="CharacterEllipsis" />
                         <Button
                             x:Name="PART_CloseButton"
@@ -479,7 +486,10 @@
                             Foreground="{TemplateBinding Foreground}"
                             IsTabStop="False"
                             Opacity="0">
-                            <FontIcon FontSize="10" Glyph="&#xE8BB;" />
+                            <FontIcon
+                                FontFamily="{ThemeResource DockingIconFontFamily}"
+                                FontSize="{ThemeResource DockingIconFontSize}"
+                                Glyph="{ThemeResource DockingCloseGlyph}" />
                         </Button>
                     </Grid>
                 </ControlTemplate>
@@ -518,7 +528,7 @@
                             x:Name="PART_Title"
                             VerticalAlignment="Center"
                             Foreground="{TemplateBinding Foreground}"
-                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Style="{ThemeResource DockingTitleTextStyle}"
                             TextTrimming="CharacterEllipsis" />
                         <Button
                             x:Name="PART_PinButton"
@@ -531,7 +541,10 @@
                             BorderThickness="0"
                             Foreground="{TemplateBinding Foreground}"
                             IsTabStop="False">
-                            <FontIcon FontSize="10" Glyph="&#xE718;" />
+                            <FontIcon
+                                FontFamily="{ThemeResource DockingIconFontFamily}"
+                                FontSize="{ThemeResource DockingIconFontSize}"
+                                Glyph="{ThemeResource DockingPinGlyph}" />
                         </Button>
                         <Button
                             x:Name="PART_CloseButton"
@@ -544,7 +557,10 @@
                             BorderThickness="0"
                             Foreground="{TemplateBinding Foreground}"
                             IsTabStop="False">
-                            <FontIcon FontSize="10" Glyph="&#xE8BB;" />
+                            <FontIcon
+                                FontFamily="{ThemeResource DockingIconFontFamily}"
+                                FontSize="{ThemeResource DockingIconFontSize}"
+                                Glyph="{ThemeResource DockingCloseGlyph}" />
                         </Button>
                     </Grid>
                 </ControlTemplate>
@@ -589,7 +605,7 @@
                             x:Name="PART_Title"
                             VerticalAlignment="Center"
                             Foreground="{TemplateBinding Foreground}"
-                            Style="{ThemeResource CaptionTextBlockStyle}" />
+                            Style="{ThemeResource DockingTabTextStyle}" />
                         <Rectangle
                             x:Name="SelectionIndicator"
                             Height="2"
@@ -634,7 +650,7 @@
                             x:Name="PART_Title"
                             VerticalAlignment="Center"
                             Foreground="{TemplateBinding Foreground}"
-                            Style="{ThemeResource CaptionTextBlockStyle}" />
+                            Style="{ThemeResource DockingTabTextStyle}" />
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
@@ -694,7 +710,8 @@
                             x:Name="PART_Icon"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
-                            FontSize="14"
+                            FontFamily="{ThemeResource DockingIconFontFamily}"
+                            FontSize="{ThemeResource DockingGuideIconFontSize}"
                             Foreground="{TemplateBinding Foreground}" />
                     </Grid>
                 </ControlTemplate>
