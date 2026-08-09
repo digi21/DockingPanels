@@ -14,7 +14,13 @@ namespace Digi21.WinUI.Docking.Serialization;
 internal static class LayoutXml
 {
     internal const string RootElementName = "DockSiteLayout";
-    internal const int CurrentVersion = 1;
+
+    /// <summary>
+    /// The format version written by this library. Version 2 replaced the flat window list of a
+    /// floating window with a layout tree, so windows docked inside it are preserved; version 1
+    /// documents are still read, their window list becoming a single container.
+    /// </summary>
+    internal const int CurrentVersion = 2;
 
     internal static void Write(Stream stream, LayoutDocument layout)
     {
@@ -62,11 +68,6 @@ internal static class LayoutXml
             writer.WriteAttributeString("Width", floating.Width.ToString(CultureInfo.InvariantCulture));
             writer.WriteAttributeString("Height", floating.Height.ToString(CultureInfo.InvariantCulture));
 
-            if (floating.SelectedId is not null)
-            {
-                writer.WriteAttributeString("SelectedId", floating.SelectedId);
-            }
-
             if (floating.RestoreContainer is not null)
             {
                 writer.WriteAttributeString("RestoreContainer", floating.RestoreContainer);
@@ -79,7 +80,11 @@ internal static class LayoutXml
                 writer.WriteAttributeString("RestoreRelativeSize", floating.RestoreRelativeSize.ToString("R", CultureInfo.InvariantCulture));
             }
 
-            WriteWindows(writer, floating.Windows);
+            if (floating.Root is not null)
+            {
+                WriteNode(writer, floating.Root);
+            }
+
             writer.WriteEndElement();
         }
 
@@ -159,7 +164,6 @@ internal static class LayoutXml
                     Y = ReadInt(element, "Y", 0),
                     Width = ReadInt(element, "Width", 380),
                     Height = ReadInt(element, "Height", 300),
-                    SelectedId = (string?)element.Attribute("SelectedId"),
                     RestoreContainer = (string?)element.Attribute("RestoreContainer"),
                     RestoreSibling = (string?)element.Attribute("RestoreSibling"),
                 };
@@ -176,7 +180,7 @@ internal static class LayoutXml
                     floating.RestoreRelativeSize = floatingRelative;
                 }
 
-                ReadWindows(element, floating.Windows, nameof(DockingWindowState.Floating));
+                floating.Root = ReadFloatingRoot(element);
                 layout.FloatingWindows.Add(floating);
             }
             else if (layout.Root is null)
@@ -190,6 +194,26 @@ internal static class LayoutXml
         }
 
         return layout;
+    }
+
+    /// <summary>
+    /// Reads the layout tree of a floating window. Version 1 wrote the hosted windows as a flat
+    /// list, which is the same thing a floating window with a single pane holds, so it is read
+    /// back as one container.
+    /// </summary>
+    private static LayoutNode? ReadFloatingRoot(XElement element)
+    {
+        foreach (var child in element.Elements())
+        {
+            if (child.Name.LocalName is "SplitContainer" or "ToolWindowContainer" or "Workspace")
+            {
+                return ReadNode(child);
+            }
+        }
+
+        var container = new ContainerLayoutNode { SelectedId = (string?)element.Attribute("SelectedId") };
+        ReadWindows(element, container.Windows, nameof(DockingWindowState.Floating));
+        return container.Windows.Count > 0 ? container : null;
     }
 
     private static void ReadWindows(XElement element, List<LayoutWindowEntry> windows, string defaultState)

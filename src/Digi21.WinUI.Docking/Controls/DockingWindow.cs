@@ -283,7 +283,9 @@ public abstract partial class DockingWindow : ContentControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (this.FindAncestor<DockSite>() is { } site)
+        // Inside a floating window there is no dock site above the window: the site it belongs
+        // to is the one that owns the floating window, which its surface knows.
+        if (this.FindSurface()?.Site is { } site)
         {
             DockSite = site;
             if (this is ToolWindow tool)

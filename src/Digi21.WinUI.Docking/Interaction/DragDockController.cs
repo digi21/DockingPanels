@@ -2,9 +2,7 @@ using System.Runtime.InteropServices;
 using Digi21.WinUI.Docking.Primitives;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Shapes;
 using Windows.Foundation;
 using Windows.Graphics;
 
@@ -17,31 +15,26 @@ namespace Digi21.WinUI.Docking;
 /// API with system-drawn visuals and little mid-drag control.
 /// </summary>
 /// <remarks>
-/// Dragging the caption of a floating window is a second, screen-coordinate based mode: the
-/// gesture starts in another top-level window, so the dock site's guides have to be driven from
-/// the cursor position instead of from local pointer arguments.
+/// A drag can cross windows, so the gesture is tracked in screen coordinates and the guides are
+/// shown on the <see cref="IDockSurface"/> under the cursor: the dock site, or any of its floating
+/// windows. That is what lets a window be dropped inside a floating window instead of only onto
+/// it. Dragging the caption of a floating window is a second mode: the gesture starts in another
+/// top-level window and the window itself follows the cursor.
 /// </remarks>
 internal sealed partial class DragDockController
 {
     private const double DragThreshold = 4.0;
-    private const double EdgeGuideMargin = 16.0;
-    private const double EdgeDockFraction = 0.25;
     private const int ExternalPollMilliseconds = 16;
 
     private readonly DockSite site;
-    private readonly Rectangle preview;
-    private readonly Border ghost;
-    private readonly TextBlock ghostText;
-    private readonly DockGuidePanel centerGuides;
-    private readonly Dictionary<DockSide, DockGuide> edgeGuides;
 
     private ToolWindow? draggedWindow;
     private UIElement? source;
     private Pointer? pointer;
     private Point startPoint;
-    private Point lastPoint;
     private bool dragActive;
-    private FrameworkElement? hoveredTarget;
+    private bool showGhost;
+    private IDockSurface? activeSurface;
     private DockTarget currentTarget;
 
     private FloatingWindowHost? draggedHost;
@@ -51,20 +44,9 @@ internal sealed partial class DragDockController
     private PointInt32 startHostPosition;
     private PointInt32 lastCursor;
 
-    internal DragDockController(
-        DockSite site,
-        Rectangle preview,
-        Border ghost,
-        TextBlock ghostText,
-        DockGuidePanel centerGuides,
-        Dictionary<DockSide, DockGuide> edgeGuides)
+    internal DragDockController(DockSite site)
     {
         this.site = site;
-        this.preview = preview;
-        this.ghost = ghost;
-        this.ghostText = ghostText;
-        this.centerGuides = centerGuides;
-        this.edgeGuides = edgeGuides;
     }
 
     /// <summary>
@@ -82,9 +64,11 @@ internal sealed partial class DragDockController
         {
             if (site.FindFloatingHost(window) is { } host)
             {
-                // Dragging the caption moves the whole floating window; dragging one of its
-                // tabs pulls that single window out of it.
-                BeginExternalDrag(window, sourceElement, e, host, sourceElement is ToolWindowTitleBar);
+                // In a floating window with a single pane the title bar is the window's caption,
+                // so dragging it moves the whole window; with several panes it belongs to one of
+                // them, and dragging it takes only that window, as it does when docked.
+                var movesTheHost = sourceElement is ToolWindowTitleBar && host.SinglePane is not null;
+                BeginExternalDrag(window, sourceElement, e, host, movesTheHost);
             }
 
             return;
@@ -99,13 +83,23 @@ internal sealed partial class DragDockController
         source = sourceElement;
         pointer = e.Pointer;
         startPoint = e.GetCurrentPoint(site).Position;
-        lastPoint = startPoint;
         dragActive = false;
         currentTarget = DockTarget.None;
 
         sourceElement.PointerMoved += OnPointerMoved;
         sourceElement.PointerReleased += OnPointerReleased;
         sourceElement.PointerCaptureLost += OnPointerCaptureLost;
+    }
+
+    /// <summary>Starts dragging a whole floating window by its caption.</summary>
+    internal void BeginHostDrag(FloatingWindowHost host, UIElement sourceElement, PointerRoutedEventArgs e)
+    {
+        if (draggedWindow is not null || host.Windows.FirstOrDefault() is not { } window)
+        {
+            return;
+        }
+
+        BeginExternalDrag(window, sourceElement, e, host, movesTheHost: true);
     }
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
@@ -115,35 +109,34 @@ internal sealed partial class DragDockController
             return;
         }
 
-        var point = e.GetCurrentPoint(site).Position;
-
         if (!dragActive)
         {
+            var point = e.GetCurrentPoint(site).Position;
             if (Math.Abs(point.X - startPoint.X) < DragThreshold && Math.Abs(point.Y - startPoint.Y) < DragThreshold)
             {
                 return;
             }
 
-            StartDragVisuals(withGhost: true);
+            StartDrag(withGhost: true);
         }
 
-        lastPoint = point;
-        UpdateDrag(point);
+        UpdateDrag();
         e.Handled = true;
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
     {
         var window = draggedWindow;
+        var surface = activeSurface;
         var target = currentTarget;
-        var dropPoint = lastPoint;
+        var cursor = ScreenInterop.CursorPosition;
         var wasActive = dragActive;
 
         EndDrag();
 
         if (wasActive && window is not null)
         {
-            Perform(target, window, dropPoint);
+            Drop(surface, target, window, cursor);
         }
 
         e.Handled = wasActive;
@@ -154,40 +147,81 @@ internal sealed partial class DragDockController
         EndDrag();
     }
 
-    private void StartDragVisuals(bool withGhost)
+    /// <summary>Starts showing the drag feedback, on whichever surface the cursor is over.</summary>
+    private void StartDrag(bool withGhost)
     {
         dragActive = true;
-
-        if (withGhost)
-        {
-            ghostText.Text = draggedWindow?.Title ?? string.Empty;
-            ghost.Visibility = Visibility.Visible;
-        }
-
-        PositionEdgeGuides();
-        foreach (var guide in edgeGuides.Values)
-        {
-            guide.Visibility = Visibility.Visible;
-        }
+        showGhost = withGhost;
+        activeSurface = null;
     }
 
-    private void UpdateDrag(Point point)
+    /// <summary>
+    /// Follows the cursor: moves the guides to the surface under it and resolves what dropping
+    /// there would do.
+    /// </summary>
+    private void UpdateDrag()
     {
-        if (ghost.Visibility == Visibility.Visible)
+        var cursor = ScreenInterop.CursorPosition;
+        var surface = SurfaceAt(cursor);
+        var point = surface is null ? null : ScreenInterop.FromScreen(surface.Root, cursor);
+
+        if (surface?.Overlay is not { } overlay || point is not { } local || !overlay.Contains(local))
         {
-            Canvas.SetLeft(ghost, point.X + 16);
-            Canvas.SetTop(ghost, point.Y + 16);
+            LeaveSurface();
+            return;
         }
 
-        var target = HitTestTarget(point);
-        if (!ReferenceEquals(target, hoveredTarget))
+        if (!ReferenceEquals(surface, activeSurface))
         {
-            hoveredTarget = target;
-            MoveClusterTo(target);
+            LeaveSurface();
+            activeSurface = surface;
+            overlay.Begin(showGhost, draggedWindow?.Title ?? string.Empty);
         }
 
-        currentTarget = ResolveTarget(point, target);
-        ApplyHotVisuals(currentTarget);
+        currentTarget = overlay.Update(local);
+    }
+
+    private void LeaveSurface()
+    {
+        activeSurface?.Overlay?.Reset();
+        activeSurface = null;
+        currentTarget = DockTarget.None;
+    }
+
+    /// <summary>Finds the docking surface the cursor is over, if any.</summary>
+    private IDockSurface? SurfaceAt(PointInt32 cursor)
+    {
+        if (movesHost)
+        {
+            // The dragged window follows the cursor and covers whatever is under it, so what the
+            // topmost window is says nothing here: the surface has to be found by geometry.
+            for (var i = site.FloatingHosts.Count - 1; i >= 0; i--)
+            {
+                var candidate = site.FloatingHosts[i];
+                if (!ReferenceEquals(candidate, draggedHost) && Contains(candidate.Bounds, cursor))
+                {
+                    return candidate.Surface;
+                }
+            }
+
+            return site;
+        }
+
+        var handle = ScreenInterop.TopLevelWindowAt(cursor);
+        if (site.FindFloatingHost(handle) is { } host)
+        {
+            return host.Surface;
+        }
+
+        return ScreenInterop.GetWindowHandle(site) == handle ? site : null;
+    }
+
+    private static bool Contains(RectInt32 bounds, PointInt32 point)
+    {
+        return point.X >= bounds.X
+            && point.Y >= bounds.Y
+            && point.X < bounds.X + bounds.Width
+            && point.Y < bounds.Y + bounds.Height;
     }
 
     private void EndDrag()
@@ -204,62 +238,31 @@ internal sealed partial class DragDockController
             }
         }
 
-        ResetVisuals();
+        LeaveSurface();
 
         draggedWindow = null;
         source = null;
         pointer = null;
         dragActive = false;
-        hoveredTarget = null;
-        currentTarget = DockTarget.None;
+        showGhost = false;
     }
 
-    private void ResetVisuals()
+    /// <summary>Applies the drop of a single dragged window.</summary>
+    private void Drop(IDockSurface? surface, DockTarget target, ToolWindow window, PointInt32 cursor)
     {
-        ghost.Visibility = Visibility.Collapsed;
-        preview.Visibility = Visibility.Collapsed;
-        centerGuides.Visibility = Visibility.Collapsed;
-        centerGuides.SetHotGuide(null, false);
-        foreach (var guide in edgeGuides.Values)
+        if (surface is not null && target.Kind != DockTargetKind.None)
         {
-            guide.Visibility = Visibility.Collapsed;
-            guide.IsHot = false;
-        }
-    }
-
-    /// <summary>Applies the drop of a window dragged from inside the dock site.</summary>
-    private void Perform(DockTarget target, ToolWindow window, Point dropPoint)
-    {
-        if (target.Kind != DockTargetKind.None)
-        {
-            LayoutManager.DockAtTarget(site, window, target);
-            return;
-        }
-
-        if (FloatingHostUnderCursor() is { } host)
-        {
-            // Dropped on a floating window: join it as a tab.
-            LayoutManager.AttachAsTab(site, window, host.Container);
-            host.Activate();
+            LayoutManager.DockAtTarget(surface, window, target);
             return;
         }
 
         // Released away from every guide: the window leaves the layout and floats, which
         // is how a floating window is created with the mouse.
-        FloatAtPointer(window, dropPoint);
-    }
-
-    /// <summary>Finds the floating window the cursor is over, respecting z-order.</summary>
-    private FloatingWindowHost? FloatingHostUnderCursor()
-    {
-        var hwnd = ScreenInterop.TopLevelWindowAt(ScreenInterop.CursorPosition);
-        return hwnd == IntPtr.Zero
-            ? null
-            : site.FloatingHosts.FirstOrDefault(h => h.Handle == hwnd);
+        FloatAtCursor(window, cursor);
     }
 
     /// <summary>Floats a dragged window under the cursor, keeping the size it had while docked.</summary>
-    private void FloatAtPointer(ToolWindow window, Point dropPoint)
+    private void FloatAtCursor(ToolWindow window, PointInt32 cursor)
     {
         if (!window.CanFloat)
         {
@@ -270,21 +273,17 @@ internal sealed partial class DragDockController
         var size = ScreenInterop.ToScreenSize(site, width, height);
 
         // Put the caption under the cursor, roughly where the user was holding the window.
-        var grab = ScreenInterop.ToScreen(site, new Point(dropPoint.X - 24, dropPoint.Y - 12));
-        if (grab is not { } origin)
-        {
-            site.FloatToolWindow(window);
-            return;
-        }
+        var scale = site.XamlRoot?.RasterizationScale ?? 1.0;
+        var origin = new PointInt32(cursor.X - (int)Math.Round(24 * scale), cursor.Y - (int)Math.Round(12 * scale));
 
         site.FloatToolWindow(window, new RectInt32(origin.X, origin.Y, size.Width, size.Height));
     }
 
     /// <summary>
-    /// Starts dragging a floating window's caption (or one of its tabs) over the dock site.
-    /// The gesture lives in another top-level window, so it is tracked in screen coordinates:
-    /// while the window follows the cursor its pointer never changes position inside the
-    /// window, and XAML would stop reporting moves.
+    /// Starts dragging a floating window (by its caption or by the title bar that acts as one),
+    /// or one of the windows inside it. The gesture lives in another top-level window, so it is
+    /// tracked in screen coordinates: while the window follows the cursor its pointer never
+    /// changes position inside the window, and XAML would stop reporting moves.
     /// </summary>
     private void BeginExternalDrag(
         ToolWindow window,
@@ -340,38 +339,27 @@ internal sealed partial class DragDockController
         }
 
         lastCursor = cursor;
-        var deltaX = cursor.X - startCursor.X;
-        var deltaY = cursor.Y - startCursor.Y;
 
         if (!dragActive)
         {
             var threshold = DragThreshold * (site.XamlRoot?.RasterizationScale ?? 1.0);
-            if (Math.Abs(deltaX) < threshold && Math.Abs(deltaY) < threshold)
+            if (Math.Abs(cursor.X - startCursor.X) < threshold && Math.Abs(cursor.Y - startCursor.Y) < threshold)
             {
                 return;
             }
 
-            // The moved window is its own drag visual; a tab pulled out of it needs the ghost.
-            StartDragVisuals(withGhost: !movesHost);
+            // The moved window is its own drag visual; a window pulled out of it needs the ghost.
+            StartDrag(withGhost: !movesHost);
         }
 
         if (movesHost)
         {
-            draggedHost.MoveTo(new PointInt32(startHostPosition.X + deltaX, startHostPosition.Y + deltaY));
+            draggedHost.MoveTo(new PointInt32(
+                startHostPosition.X + cursor.X - startCursor.X,
+                startHostPosition.Y + cursor.Y - startCursor.Y));
         }
 
-        if (ScreenInterop.FromScreen(site, cursor) is { } point && IsOverSite(point))
-        {
-            lastPoint = point;
-            UpdateDrag(point);
-        }
-        else
-        {
-            ResetVisuals();
-            StartDragVisuals(withGhost: false);
-            hoveredTarget = null;
-            currentTarget = DockTarget.None;
-        }
+        UpdateDrag();
     }
 
     private void OnExternalPointerReleased(object sender, PointerRoutedEventArgs e)
@@ -383,8 +371,9 @@ internal sealed partial class DragDockController
     {
         var window = draggedWindow;
         var host = draggedHost;
+        var surface = activeSurface;
         var target = currentTarget;
-        var dropPoint = lastPoint;
+        var cursor = ScreenInterop.CursorPosition;
         var wasActive = dragActive;
         var wasMovingHost = movesHost;
 
@@ -406,23 +395,22 @@ internal sealed partial class DragDockController
             }
         }
 
-        ResetVisuals();
+        LeaveSurface();
 
         draggedWindow = null;
         draggedHost = null;
         source = null;
         pointer = null;
         dragActive = false;
+        showGhost = false;
         movesHost = false;
-        hoveredTarget = null;
-        currentTarget = DockTarget.None;
 
         if (!drop || !wasActive || window is null || host is null)
         {
             return;
         }
 
-        var dropHost = FloatingHostUnderCursor();
+        var hasTarget = surface is not null && target.Kind != DockTargetKind.None;
 
         // Docking closes the floating window this gesture started in; let its input event
         // finish first so the window is not torn down from inside its own handler.
@@ -430,190 +418,22 @@ internal sealed partial class DragDockController
         {
             if (wasMovingHost)
             {
-                LayoutManager.DockFloatingHost(site, host, target);
-            }
-            else if (target.Kind != DockTargetKind.None)
-            {
-                LayoutManager.DockAtTarget(site, window, target);
-            }
-            else if (dropHost is not null && !ReferenceEquals(dropHost, host))
-            {
-                LayoutManager.AttachAsTab(site, window, dropHost.Container);
-                dropHost.Activate();
-            }
-            else if (host.Container.Items.Count > 1 && dropHost is null)
-            {
-                // A tab dropped outside every window becomes a floating window of its own.
-                FloatAtPointer(window, dropPoint);
-            }
-        });
-    }
-
-    private bool IsOverSite(Point point)
-    {
-        return point.X >= 0 && point.Y >= 0 && point.X <= site.ActualWidth && point.Y <= site.ActualHeight;
-    }
-
-    private void PositionEdgeGuides()
-    {
-        var width = site.ActualWidth;
-        var height = site.ActualHeight;
-        const double size = DockGuidePanel.GuideSize;
-
-        Place(edgeGuides[DockSide.Left], EdgeGuideMargin, (height - size) / 2);
-        Place(edgeGuides[DockSide.Right], width - size - EdgeGuideMargin, (height - size) / 2);
-        Place(edgeGuides[DockSide.Top], (width - size) / 2, EdgeGuideMargin);
-        Place(edgeGuides[DockSide.Bottom], (width - size) / 2, height - size - EdgeGuideMargin);
-
-        static void Place(DockGuide guide, double x, double y)
-        {
-            Canvas.SetLeft(guide, x);
-            Canvas.SetTop(guide, y);
-        }
-    }
-
-    private void MoveClusterTo(FrameworkElement? target)
-    {
-        if (target is null)
-        {
-            centerGuides.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        var bounds = BoundsIn(target);
-        centerGuides.ShowCenter = target is ToolWindowContainer;
-        Canvas.SetLeft(centerGuides, bounds.X + (bounds.Width - DockGuidePanel.ClusterSize) / 2);
-        Canvas.SetTop(centerGuides, bounds.Y + (bounds.Height - DockGuidePanel.ClusterSize) / 2);
-        centerGuides.Visibility = Visibility.Visible;
-    }
-
-    private FrameworkElement? HitTestTarget(Point point)
-    {
-        foreach (var target in site.DropTargets)
-        {
-            if (target.ActualWidth <= 0 || target.ActualHeight <= 0)
-            {
-                continue;
-            }
-
-            if (BoundsIn(target).Contains(point))
-            {
-                return target;
-            }
-        }
-
-        return null;
-    }
-
-    private DockTarget ResolveTarget(Point point, FrameworkElement? target)
-    {
-        foreach (var (side, guide) in edgeGuides)
-        {
-            if (guide.Visibility == Visibility.Visible && ElementRect(guide, DockGuidePanel.GuideSize).Contains(point))
-            {
-                return new DockTarget(DockTargetKind.Edge, side, null);
-            }
-        }
-
-        if (target is not null && centerGuides.Visibility == Visibility.Visible)
-        {
-            var clusterOrigin = new Point(Canvas.GetLeft(centerGuides), Canvas.GetTop(centerGuides));
-
-            if (centerGuides.ShowCenter && ClusterGuideRect(clusterOrigin, null).Contains(point))
-            {
-                return new DockTarget(DockTargetKind.Tab, DockSide.Left, target);
-            }
-
-            foreach (var side in Enum.GetValues<DockSide>())
-            {
-                if (ClusterGuideRect(clusterOrigin, side).Contains(point))
+                if (hasTarget)
                 {
-                    return new DockTarget(DockTargetKind.Relative, side, target);
+                    LayoutManager.DockFloatingHost(site, host, target, surface!);
                 }
             }
-        }
-
-        return DockTarget.None;
-    }
-
-    private void ApplyHotVisuals(DockTarget target)
-    {
-        foreach (var (side, guide) in edgeGuides)
-        {
-            guide.IsHot = target.Kind == DockTargetKind.Edge && target.Side == side;
-        }
-
-        centerGuides.SetHotGuide(
-            target.Kind == DockTargetKind.Relative ? target.Side : null,
-            target.Kind == DockTargetKind.Tab);
-
-        var previewRect = target switch
-        {
-            { Kind: DockTargetKind.Edge } => EdgePreviewRect(target.Side),
-            { Kind: DockTargetKind.Relative, Element: { } element } => SidePreviewRect(BoundsIn(element), target.Side),
-            { Kind: DockTargetKind.Tab, Element: { } element } => BoundsIn(element),
-            _ => Rect.Empty,
-        };
-
-        if (previewRect.IsEmpty)
-        {
-            preview.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            Canvas.SetLeft(preview, previewRect.X);
-            Canvas.SetTop(preview, previewRect.Y);
-            preview.Width = previewRect.Width;
-            preview.Height = previewRect.Height;
-            preview.Visibility = Visibility.Visible;
-        }
-    }
-
-    private Rect EdgePreviewRect(DockSide side)
-    {
-        var width = site.ActualWidth;
-        var height = site.ActualHeight;
-
-        return side switch
-        {
-            DockSide.Left => new Rect(0, 0, width * EdgeDockFraction, height),
-            DockSide.Right => new Rect(width * (1 - EdgeDockFraction), 0, width * EdgeDockFraction, height),
-            DockSide.Top => new Rect(0, 0, width, height * EdgeDockFraction),
-            _ => new Rect(0, height * (1 - EdgeDockFraction), width, height * EdgeDockFraction),
-        };
-    }
-
-    private static Rect SidePreviewRect(Rect bounds, DockSide side)
-    {
-        return side switch
-        {
-            DockSide.Left => new Rect(bounds.X, bounds.Y, bounds.Width / 2, bounds.Height),
-            DockSide.Right => new Rect(bounds.X + bounds.Width / 2, bounds.Y, bounds.Width / 2, bounds.Height),
-            DockSide.Top => new Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height / 2),
-            _ => new Rect(bounds.X, bounds.Y + bounds.Height / 2, bounds.Width, bounds.Height / 2),
-        };
-    }
-
-    private static Rect ClusterGuideRect(Point clusterOrigin, DockSide? side)
-    {
-        var offset = DockGuidePanel.GuideOffset(side);
-        return new Rect(
-            clusterOrigin.X + offset.X,
-            clusterOrigin.Y + offset.Y,
-            DockGuidePanel.GuideSize,
-            DockGuidePanel.GuideSize);
-    }
-
-    private static Rect ElementRect(FrameworkElement element, double size)
-    {
-        return new Rect(Canvas.GetLeft(element), Canvas.GetTop(element), size, size);
-    }
-
-    private Rect BoundsIn(FrameworkElement element)
-    {
-        return element
-            .TransformToVisual(site)
-            .TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+            else if (hasTarget)
+            {
+                LayoutManager.DockAtTarget(surface!, window, target);
+            }
+            else if (host.Windows.Skip(1).Any())
+            {
+                // A window dropped outside every guide becomes a floating window of its own,
+                // unless it was already alone in the one it was dragged out of.
+                FloatAtCursor(window, cursor);
+            }
+        });
     }
 
     private static bool IsPrimaryButtonDown() => (GetAsyncKeyState(VirtualKeyLeftButton) & 0x8000) != 0;

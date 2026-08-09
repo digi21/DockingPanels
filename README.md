@@ -17,15 +17,16 @@ Docking panels for WinUI 3 applications: dockable tool windows with splitters an
 - Multiple tool windows in one container become tabs; switching tabs preserves control state.
 - Drag & drop re-docking with Visual Studio-style dock guides and drop previews.
 - Floating tool windows in real top-level windows, across monitors.
+- Docking *inside* a floating window: it takes drops with its own dock guides and holds a
+  layout of split panes and tabs, like a small dock site.
 - Auto-hide (unpin) tool windows to the dock site edges, with a slide-in flyout.
 - Save and restore the docking layout as XML (`DockSiteLayoutSerializer`), including
-  auto-hidden groups and floating window positions.
+  auto-hidden groups, floating window positions and their inner layout.
 - Cancelable close, activation tracking, and layout-change events on `DockSite`.
 - Light, dark, and high-contrast aware out of the box (built on WinUI theme resources).
 
 ### Roadmap (not yet implemented)
 
-- Docking *inside* a floating window (splitting it into several panes).
 - Tabbed MDI document area.
 
 ## Requirements
@@ -87,9 +88,15 @@ or drop on the center guide to attach as a tab) and at the edges of the whole do
 Dragging a tool window out of the layout and dropping it away from every dock guide floats it
 into its own top-level window, which can be moved to any monitor. Floating windows are owned by
 the application window, so they stay above it, stay out of the taskbar, and close with it.
-Dragging their caption back over the dock site shows the same dock guides as any other drag, and
-dropping a docked window onto a floating one turns them into tabs. Double-clicking a title bar
-floats a docked window and docks a floating one back where it came from.
+Dragging their caption back over the dock site shows the same dock guides as any other drag.
+Double-clicking a title bar floats a docked window and docks a floating one back where it came
+from.
+
+A floating window is a docking surface of its own: dragging a window over it shows the same dock
+guides, so the drop can split it into panes or attach the window as a tab of one of them. With a
+single pane, the pane's title bar is the window's caption; once it holds several panes, the
+window gets a caption of its own, which drags and docks the whole group as before, while each
+pane's title bar drags only that pane.
 
 ```csharp
 outputWindow.Float();                       // float it near the dock site
@@ -143,10 +150,11 @@ serializer.ToolWindowResolving += (_, e) =>
 serializer.LoadFromString(dockSite, xml);         // or LoadFromFile / LoadFromStream
 ```
 
-Only the structure is saved (splits, proportions, tab order, selection, auto-hidden groups and
-the screen bounds of floating windows). Window instances and their content are matched by id and
-reused, so control state survives a reload. Floating windows are restored on a monitor that
-exists, so a layout saved with two monitors still loads on one.
+Only the structure is saved (splits, proportions, tab order, selection, auto-hidden groups, and
+the screen bounds of floating windows together with the layout inside them). Window instances and
+their content are matched by id and reused, so control state survives a reload. Floating windows
+are restored on a monitor that exists, so a layout saved with two monitors still loads on one.
+Layouts written by earlier versions are still read.
 
 ## Sample
 
