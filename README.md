@@ -116,12 +116,15 @@ windows dock around. Both can appear in the same layout.
 
 ### Floating windows
 
-Dragging a window out of the layout and dropping it away from every dock guide floats it
-into its own top-level window, which can be moved to any monitor. Floating windows are owned by
-the application window, so they stay above it, stay out of the taskbar, and close with it.
-Dragging their caption back over the dock site shows the same dock guides as any other drag.
-Double-clicking a title bar floats a docked window and docks a floating one back where it came
-from.
+A window is torn off as soon as the drag leaves its tab strip: it floats out there and then, and
+the rest of the drag moves that real window, so what follows the cursor is the window itself with
+its live content rather than a placeholder. Releasing it over a dock guide docks it again;
+releasing it anywhere else leaves it floating, on any monitor. Floating windows are owned by the
+application window, so they stay above it, stay out of the taskbar, and close with it. Dragging
+their caption back over the dock site shows the same dock guides as any other drag, and
+double-clicking a title bar floats a docked window and docks a floating one back where it came
+from. Windows with `CanFloat="False"` cannot be torn off, so they are dragged with a small ghost
+and can only be dropped on a dock guide.
 
 A floating window is a docking surface of its own: dragging a window over it shows the same dock
 guides, so the drop can split it into panes or attach the window as a tab of one of them. With a

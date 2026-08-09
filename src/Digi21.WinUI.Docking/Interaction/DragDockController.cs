@@ -20,6 +20,11 @@ namespace Digi21.WinUI.Docking;
 /// windows. That is what lets a window be dropped inside a floating window instead of only onto
 /// it. Dragging the caption of a floating window is a second mode: the gesture starts in another
 /// top-level window and the window itself follows the cursor.
+///
+/// A window that can float is torn off as soon as the drag leaves its tab strip: it floats out
+/// there and then, and the rest of the gesture moves that real window, so what follows the cursor
+/// is the window with its live content instead of a placeholder. Dragging within the tab strip
+/// stays a reorder, and windows that cannot float keep dragging a small ghost.
 /// </remarks>
 internal sealed partial class DragDockController
 {
@@ -29,6 +34,7 @@ internal sealed partial class DragDockController
     private readonly DockSite site;
 
     private DockingWindow? draggedWindow;
+    private DockingWindowContainer? originContainer;
     private UIElement? source;
     private Pointer? pointer;
     private Point startPoint;
@@ -81,6 +87,7 @@ internal sealed partial class DragDockController
         }
 
         draggedWindow = window;
+        originContainer = window.Container;
         draggingDocuments = window is DocumentWindow;
         source = sourceElement;
         pointer = e.Pointer;
@@ -119,11 +126,19 @@ internal sealed partial class DragDockController
                 return;
             }
 
-            StartDrag(withGhost: true);
+            // The ghost is the fallback visual for windows that cannot be torn off.
+            StartDrag(withGhost: !draggedWindow.CanFloat);
+        }
+
+        e.Handled = true;
+
+        if (draggedWindow.CanFloat && !IsOverOriginTabStrip())
+        {
+            TearOff();
+            return;
         }
 
         UpdateDrag();
-        e.Handled = true;
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
@@ -228,6 +243,18 @@ internal sealed partial class DragDockController
 
     private void EndDrag()
     {
+        DetachPointer();
+        LeaveSurface();
+
+        draggedWindow = null;
+        originContainer = null;
+        dragActive = false;
+        showGhost = false;
+    }
+
+    /// <summary>Ends the pointer part of the gesture, leaving the drag state untouched.</summary>
+    private void DetachPointer()
+    {
         if (source is not null)
         {
             source.PointerMoved -= OnPointerMoved;
@@ -240,13 +267,72 @@ internal sealed partial class DragDockController
             }
         }
 
-        LeaveSurface();
-
-        draggedWindow = null;
         source = null;
         pointer = null;
-        dragActive = false;
+    }
+
+    /// <summary>
+    /// Tells whether the cursor is still over the tab strip the drag started in, where the
+    /// gesture means "move this tab to another position" rather than "take this window out".
+    /// </summary>
+    private bool IsOverOriginTabStrip()
+    {
+        if (originContainer is not { } container)
+        {
+            return false;
+        }
+
+        var strip = container.TabStripBounds;
+        return !strip.IsEmpty
+            && ScreenInterop.FromScreen(container, ScreenInterop.CursorPosition) is { } local
+            && strip.Contains(local);
+    }
+
+    /// <summary>
+    /// Takes the dragged window out of the layout into a floating window placed under the cursor,
+    /// and carries on dragging that window. The pane moves to another top-level window, so the
+    /// pointer gesture that started in it cannot continue: the rest of the drag is polled in
+    /// screen coordinates, exactly like dragging a floating window that was already there.
+    /// </summary>
+    private void TearOff()
+    {
+        if (draggedWindow is not { } window)
+        {
+            return;
+        }
+
+        var cursor = ScreenInterop.CursorPosition;
+        var (width, height) = FloatingWindowHost.PreferredSize(window.Container);
+        var size = ScreenInterop.ToScreenSize(site, width, height);
+        var scale = site.XamlRoot?.RasterizationScale ?? 1.0;
+
+        // Keep the window under the grip, roughly where the user took hold of it.
+        var origin = new PointInt32(cursor.X - (int)Math.Round(24 * scale), cursor.Y - (int)Math.Round(12 * scale));
+
+        DetachPointer();
+        LeaveSurface();
+
+        site.FloatWindow(window, new RectInt32(origin.X, origin.Y, size.Width, size.Height));
+
+        if (site.FindFloatingHost(window) is not { } host)
+        {
+            EndDrag();
+            return;
+        }
+
+        draggedWindow = window;
+        draggedHost = host;
+        movesHost = true;
+        dragActive = true;
         showGhost = false;
+        currentTarget = DockTarget.None;
+        startCursor = cursor;
+        lastCursor = cursor;
+
+        var bounds = host.Bounds;
+        startHostPosition = new PointInt32(bounds.X, bounds.Y);
+
+        StartPolling();
     }
 
     /// <summary>Applies the drop of a single dragged window.</summary>
@@ -318,6 +404,12 @@ internal sealed partial class DragDockController
         sourceElement.PointerReleased += OnExternalPointerReleased;
         sourceElement.PointerCaptureLost += OnExternalPointerReleased;
 
+        StartPolling();
+    }
+
+    /// <summary>Starts following the cursor in screen coordinates until the button comes up.</summary>
+    private void StartPolling()
+    {
         externalTimer = site.DispatcherQueue.CreateTimer();
         externalTimer.Interval = TimeSpan.FromMilliseconds(ExternalPollMilliseconds);
         externalTimer.IsRepeating = true;
@@ -406,6 +498,7 @@ internal sealed partial class DragDockController
         LeaveSurface();
 
         draggedWindow = null;
+        originContainer = null;
         draggedHost = null;
         source = null;
         pointer = null;

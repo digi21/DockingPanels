@@ -223,7 +223,9 @@ internal sealed class DockGuideOverlay
             }
         }
 
-        if (target is not null && centerGuides.Visibility == Visibility.Visible)
+        // The cluster is hidden while the cursor slides along a tab strip, but it stays where it
+        // was placed, so what decides whether its guides can be hit is the hovered target.
+        if (target is not null && ReferenceEquals(target, hoveredTarget))
         {
             var clusterOrigin = new Point(Canvas.GetLeft(centerGuides), Canvas.GetTop(centerGuides));
 
@@ -257,6 +259,15 @@ internal sealed class DockGuideOverlay
         centerGuides.SetHotGuide(
             target.Kind == DockTargetKind.Relative ? target.Side : null,
             target is { Kind: DockTargetKind.Tab, Index: < 0 });
+
+        if (hoveredTarget is not null)
+        {
+            // Sliding a tab along a strip is a reorder: the caret says where it lands, and the
+            // guides would only be in the way.
+            centerGuides.Visibility = target is { Kind: DockTargetKind.Tab, Index: >= 0 }
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
 
         var previewRect = target switch
         {
