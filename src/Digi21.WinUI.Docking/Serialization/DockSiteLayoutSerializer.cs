@@ -215,15 +215,12 @@ public class DockSiteLayoutSerializer
         }
     }
 
-    /// <summary>
-    /// Tells whether a window the loaded layout does not mention stays in the layout instead of
-    /// being closed.
-    /// </summary>
-    /// <remarks>
-    /// A window the user cannot close is not one a layout file gets to close either: there would
-    /// be no way to bring it back from the interface, and saving the layout on the way out would
-    /// make that permanent.
-    /// </remarks>
+    // Tells whether a window the loaded layout does not mention stays in the layout instead of
+    // being closed.
+    //
+    // A window the user cannot close is not one a layout file gets to close either: there would be
+    // no way to bring it back from the interface, and saving the layout on the way out would make
+    // that permanent.
     internal static bool KeepsUnresolvedWindowOpen(UnresolvedWindowBehavior behavior, bool canClose)
     {
         return behavior == UnresolvedWindowBehavior.DockLeft || !canClose;
@@ -376,7 +373,7 @@ public class DockSiteLayoutSerializer
         site.NotifyLayoutChanged(LayoutChangeKind.LayoutLoaded);
     }
 
-    /// <summary>Enumerates every window the dock site knows about, open or closed.</summary>
+    // Enumerates every window the dock site knows about, open or closed.
     private static List<DockingWindow> KnownWindows(DockSite site)
     {
         var windows = new List<DockingWindow>(site.ToolWindows.Count + site.Documents.Count);
@@ -385,11 +382,9 @@ public class DockSiteLayoutSerializer
         return windows;
     }
 
-    /// <summary>
-    /// Puts a window the loaded layout does not mention back into the layout, for
-    /// <see cref="UnresolvedWindowBehavior.DockLeft"/>: documents reopen in the document area,
-    /// tool windows dock to the left edge.
-    /// </summary>
+    // Puts a window the loaded layout does not mention back into the layout, for
+    // UnresolvedWindowBehavior.DockLeft: documents reopen in the document area, tool windows dock
+    // to the left edge.
     private static void KeepOpen(DockSite site, DockingWindow window)
     {
         if (window is DocumentWindow document && site.DocumentHost is { } host)
@@ -550,13 +545,11 @@ public class DockSiteLayoutSerializer
         return null;
     }
 
-    /// <summary>
-    /// Converts a live restore-sibling element into a stable reference for the XML:
-    /// "Workspace:n" and "DocumentHost:n" for the n-th of those in document order, "Window:id"
-    /// for a tool window container and "Document:id" for a document group. Split containers (and
-    /// elements no longer in this site) yield no reference, so pinning back falls to the group's
-    /// edge, same as when the sibling disappears at runtime.
-    /// </summary>
+    // Converts a live restore-sibling element into a stable reference for the XML: "Workspace:n"
+    // and "DocumentHost:n" for the n-th of those in document order, "Window:id" for a tool window
+    // container and "Document:id" for a document group. Split containers (and elements no longer in
+    // this site) yield no reference, so pinning back falls to the group's edge, same as when the
+    // sibling disappears at runtime.
     private static string? CaptureSiblingReference(DockSite site, FrameworkElement? sibling)
     {
         if (sibling is null || !ReferenceEquals(sibling.FindAncestor<DockSite>(), site))
@@ -604,7 +597,7 @@ public class DockSiteLayoutSerializer
         return -1;
     }
 
-    /// <summary>Resolves a serialized restore-sibling reference against the rebuilt layout tree.</summary>
+    // Resolves a serialized restore-sibling reference against the rebuilt layout tree.
     private static FrameworkElement? ResolveSiblingReference(DockSite site, string? reference, WindowIndex index)
     {
         if (reference is null)
@@ -648,24 +641,17 @@ public class DockSiteLayoutSerializer
         }
     }
 
-    /// <summary>
-    /// Rebuilds a dock site's layout tree out of the elements it is already made of, instead of
-    /// from scratch.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Split containers and panes are interchangeable, so they are handed out by position and by
-    /// the windows they hold rather than recreated; workspaces and document areas are declared by
-    /// the application and must be kept. An element is only ever taken out of its old parent when
-    /// it is going somewhere else, which is what makes reloading an unchanged layout move nothing
-    /// at all.
-    /// </para>
-    /// <para>
-    /// Where things currently are is tracked here rather than read back from the XAML tree: an
-    /// element that has just been moved has no visual parent until the next layout pass, and the
-    /// rebuild does all its work inside one.
-    /// </para>
-    /// </remarks>
+    // Rebuilds a dock site's layout tree out of the elements it is already made of, instead of from
+    // scratch.
+    //
+    // Split containers and panes are interchangeable, so they are handed out by position and by the
+    // windows they hold rather than recreated; workspaces and document areas are declared by the
+    // application and must be kept. An element is only ever taken out of its old parent when it is
+    // going somewhere else, which is what makes reloading an unchanged layout move nothing at all.
+    //
+    // Where things currently are is tracked here rather than read back from the XAML tree: an
+    // element that has just been moved has no visual parent until the next layout pass, and the
+    // rebuild does all its work inside one.
     private sealed class Rebuild
     {
         private readonly DockSite site;
@@ -681,16 +667,14 @@ public class DockSiteLayoutSerializer
             Collect(site, site.Child);
         }
 
-        /// <summary>Takes the next reusable workspace, or nothing when they are all spoken for.</summary>
+        // Takes the next reusable workspace, or nothing when they are all spoken for.
         internal Workspace? TakeWorkspace() => workspaces.Count > 0 ? workspaces.Dequeue() : null;
 
-        /// <summary>Takes the next reusable document area, or nothing when they are all spoken for.</summary>
+        // Takes the next reusable document area, or nothing when they are all spoken for.
         internal DocumentHost? TakeDocumentHost() => documentHosts.Count > 0 ? documentHosts.Dequeue() : null;
 
-        /// <summary>
-        /// Takes a split container to hold the given panes: one of the existing ones, unless it
-        /// sits inside a pane it would have to hold, which would make it its own ancestor.
-        /// </summary>
+        // Takes a split container to hold the given panes: one of the existing ones, unless it sits
+        // inside a pane it would have to hold, which would make it its own ancestor.
         internal SplitContainer TakeSplit(List<UIElement> children)
         {
             while (splits.Count > 0)
@@ -705,10 +689,8 @@ public class DockSiteLayoutSerializer
             return new SplitContainer();
         }
 
-        /// <summary>
-        /// Takes the pane that holds the given windows, so windows that stay together keep the
-        /// pane they are in, or a new one when they come from panes already in use.
-        /// </summary>
+        // Takes the pane that holds the given windows, so windows that stay together keep the pane
+        // they are in, or a new one when they come from panes already in use.
         internal DockingWindowContainer TakeContainer<T>(List<DockingWindow> windows)
             where T : DockingWindowContainer, new()
         {
@@ -725,7 +707,7 @@ public class DockSiteLayoutSerializer
             return created;
         }
 
-        /// <summary>Makes the tabs of a pane match the given windows, moving only what has to move.</summary>
+        // Makes the tabs of a pane match the given windows, moving only what has to move.
         internal static void SetItems(DockingWindowContainer container, List<DockingWindow> windows)
         {
             if (container.Items.SequenceEqual(windows))
@@ -759,7 +741,7 @@ public class DockSiteLayoutSerializer
             }
         }
 
-        /// <summary>Makes the panes of a split container match the given children, in order.</summary>
+        // Makes the panes of a split container match the given children, in order.
         internal void SetPanes(SplitContainer split, List<UIElement> children)
         {
             var panes = split.GetPanes();
@@ -802,7 +784,7 @@ public class DockSiteLayoutSerializer
             }
         }
 
-        /// <summary>Makes a document area hold the given tree.</summary>
+        // Makes a document area hold the given tree.
         internal void SetHostChild(DocumentHost host, UIElement? child)
         {
             if (!ReferenceEquals(host.Child, child))
@@ -818,7 +800,7 @@ public class DockSiteLayoutSerializer
             }
         }
 
-        /// <summary>Takes an element out of wherever it currently is.</summary>
+        // Takes an element out of wherever it currently is.
         internal void Detach(UIElement? node)
         {
             if (node is null || !parents.Remove(node, out var parent))
@@ -842,14 +824,11 @@ public class DockSiteLayoutSerializer
             }
         }
 
-        /// <summary>
-        /// Puts back the workspaces and document areas the loaded layout says nothing about.
-        /// </summary>
-        /// <remarks>
-        /// They are declared by the application, not by the layout, and they carry its main
-        /// content. Dropping them would empty the window with no way of getting them back, and
-        /// saving the layout on the way out would make that permanent.
-        /// </remarks>
+        // Puts back the workspaces and document areas the loaded layout says nothing about.
+        //
+        // They are declared by the application, not by the layout, and they carry its main content.
+        // Dropping them would empty the window with no way of getting them back, and saving the
+        // layout on the way out would make that permanent.
         internal UIElement? KeepUnmentionedElements(UIElement? root)
         {
             foreach (var element in Unmentioned())
@@ -889,7 +868,8 @@ public class DockSiteLayoutSerializer
             }
         }
 
-        /// <summary>Maps a pane position to a position in a split container's children, which also hold its splitters.</summary>
+        // Maps a pane position to a position in a split container's children, which also hold its
+        // splitters.
         private static int PanePosition(SplitContainer split, int paneIndex)
         {
             var panes = 0;
@@ -962,7 +942,7 @@ public class DockSiteLayoutSerializer
         }
     }
 
-    /// <summary>The tool windows and documents a load can match serialized ids against.</summary>
+    // The tool windows and documents a load can match serialized ids against.
     private sealed class WindowIndex
     {
         internal Dictionary<string, ToolWindow> ToolWindows { get; } = [];
@@ -970,10 +950,8 @@ public class DockSiteLayoutSerializer
         internal Dictionary<string, DocumentWindow> Documents { get; } = [];
     }
 
-    /// <summary>
-    /// The elements of a layout that are declared by the application and reused across a load
-    /// instead of being rebuilt: they are matched by their position in document order.
-    /// </summary>
+    // The elements of a layout that are declared by the application and reused across a load
+    // instead of being rebuilt: they are matched by their position in document order.
     private sealed class ReusableElements
     {
         internal ReusableElements(UIElement? root)

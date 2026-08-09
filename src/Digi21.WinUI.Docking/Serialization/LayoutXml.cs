@@ -6,22 +6,18 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace Digi21.WinUI.Docking.Serialization;
 
-/// <summary>
-/// Reads and writes the versioned XML layout format. Implemented with explicit
-/// XmlWriter/XLinq code (no reflection-based serialization) so it is trimming-friendly
-/// and the schema cannot drift by accident.
-/// </summary>
+// Reads and writes the versioned XML layout format. Implemented with explicit XmlWriter/XLinq code
+// (no reflection-based serialization) so it is trimming-friendly and the schema cannot drift by
+// accident.
 internal static class LayoutXml
 {
     internal const string RootElementName = "DockSiteLayout";
 
-    /// <summary>
-    /// The format version written by this library. Version 3 added the document area
-    /// (<c>DocumentHost</c> and <c>DocumentContainer</c> nodes); version 2 replaced the flat
-    /// window list of a floating window with a layout tree, so windows docked inside it are
-    /// preserved; version 1 documents are still read, their window list becoming a single
-    /// container. Older versions are read unchanged, they simply have no document area.
-    /// </summary>
+    // The format version written by this library. Version 3 added the document area (DocumentHost
+    // and DocumentContainer nodes); version 2 replaced the flat window list of a floating window
+    // with a layout tree, so windows docked inside it are preserved; version 1 documents are still
+    // read, their window list becoming a single container. Older versions are read unchanged, they
+    // simply have no document area.
     internal const int CurrentVersion = 3;
 
     internal static void Write(Stream stream, LayoutDocument layout)
@@ -198,11 +194,9 @@ internal static class LayoutXml
         return layout;
     }
 
-    /// <summary>
-    /// Reads the layout tree of a floating window. Version 1 wrote the hosted windows as a flat
-    /// list, which is the same thing a floating window with a single pane holds, so it is read
-    /// back as one container.
-    /// </summary>
+    // Reads the layout tree of a floating window. Version 1 wrote the hosted windows as a flat
+    // list, which is the same thing a floating window with a single pane holds, so it is read back
+    // as one container.
     private static LayoutNode? ReadFloatingRoot(XElement element)
     {
         foreach (var child in element.Elements())

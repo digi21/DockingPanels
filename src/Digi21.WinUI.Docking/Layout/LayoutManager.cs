@@ -4,35 +4,29 @@ using Windows.Graphics;
 
 namespace Digi21.WinUI.Docking;
 
-/// <summary>
-/// Centralizes all mutations of the docking layout tree so structural invariants are kept in
-/// one place: containers are removed when they become empty, split containers with a single
-/// remaining pane are replaced by that pane, and elements are always detached from their old
-/// parent before being attached elsewhere.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Every operation works against an <see cref="IDockSurface"/> or an <see cref="ILayoutHost"/>
-/// rather than against the dock site, so the very same code docks a window into the site, into a
-/// floating window and into the document area. The host an operation acts on is usually derived
-/// from the element it is given, which keeps callers from having to know where a container lives.
-/// </para>
-/// <para>
-/// Where an element sits is answered by <see cref="LayoutTree.Locate(DockSite, UIElement)"/>,
-/// which walks the layout trees themselves. Walking the visual tree instead only works between
-/// layout passes: a node that has just been moved has no visual parent until the next pass, so
-/// the second of two mutations made in a single pass would navigate a tree it cannot see.
-/// </para>
-/// </remarks>
+// Centralizes all mutations of the docking layout tree so structural invariants are kept in one
+// place: containers are removed when they become empty, split containers with a single remaining
+// pane are replaced by that pane, and elements are always detached from their old parent before
+// being attached elsewhere.
+//
+// Every operation works against an IDockSurface or an ILayoutHost rather than against the dock
+// site, so the very same code docks a window into the site, into a floating window and into the
+// document area. The host an operation acts on is usually derived from the element it is given,
+// which keeps callers from having to know where a container lives.
+//
+// Where an element sits is answered by LayoutTree.Locate(DockSite, UIElement), which walks the
+// layout trees themselves. Walking the visual tree instead only works between layout passes: a node
+// that has just been moved has no visual parent until the next pass, so the second of two mutations
+// made in a single pass would navigate a tree it cannot see.
 internal static class LayoutManager
 {
-    /// <summary>Docks a window as a new pane at an edge of the whole dock site.</summary>
+    // Docks a window as a new pane at an edge of the whole dock site.
     internal static void DockToSide(DockSite site, DockingWindow window, DockSide side)
     {
         DockToSide((IDockSurface)site, window, side);
     }
 
-    /// <summary>Docks a window as a new pane at an edge of a docking surface.</summary>
+    // Docks a window as a new pane at an edge of a docking surface.
     internal static void DockToSide(IDockSurface surface, DockingWindow window, DockSide side)
     {
         var site = surface.Site;
@@ -45,7 +39,7 @@ internal static class LayoutManager
         FinishDock(surface, window, wasOpen);
     }
 
-    /// <summary>Inserts an existing node as a new pane at an edge of a layout host.</summary>
+    // Inserts an existing node as a new pane at an edge of a layout host.
     private static void DockNodeToSide(DockSite site, ILayoutHost host, FrameworkElement newNode, DockSide side)
     {
         var orientation = side is DockSide.Left or DockSide.Right ? Orientation.Horizontal : Orientation.Vertical;
@@ -91,7 +85,7 @@ internal static class LayoutManager
         }
     }
 
-    /// <summary>Docks a window as a new pane beside an existing layout node (container or workspace).</summary>
+    // Docks a window as a new pane beside an existing layout node (container or workspace).
     internal static void DockRelativeTo(DockSite site, DockingWindow window, FrameworkElement targetNode, DockSide side)
     {
         if (window.Container is { } own && ReferenceEquals(targetNode, own) && own.Items.Count == 1)
@@ -110,7 +104,7 @@ internal static class LayoutManager
         FinishDock(surface, window, wasOpen);
     }
 
-    /// <summary>Inserts a node as a new pane beside an existing layout node.</summary>
+    // Inserts a node as a new pane beside an existing layout node.
     private static void InsertRelativeTo(DockSite site, FrameworkElement newNode, FrameworkElement targetNode, DockSide side)
     {
         var orientation = side is DockSide.Left or DockSide.Right ? Orientation.Horizontal : Orientation.Vertical;
@@ -149,11 +143,15 @@ internal static class LayoutManager
         }
     }
 
-    /// <summary>Attaches a window as a new tab of an existing container.</summary>
-    /// <param name="site">The dock site the window belongs to.</param>
-    /// <param name="window">The window to attach.</param>
-    /// <param name="target">The container that receives the tab.</param>
-    /// <param name="index">The tab position, or -1 to append at the end.</param>
+    // Attaches a window as a new tab of an existing container.
+    //
+    // site: The dock site the window belongs to.
+    //
+    // window: The window to attach.
+    //
+    // target: The container that receives the tab.
+    //
+    // index: The tab position, or -1 to append at the end.
     internal static void AttachAsTab(DockSite site, DockingWindow window, DockingWindowContainer target, int index = -1)
     {
         if (ReferenceEquals(target, window.Container))
@@ -170,7 +168,7 @@ internal static class LayoutManager
         FinishDock(surface, window, wasOpen);
     }
 
-    /// <summary>Moves a tab to another position inside its own container.</summary>
+    // Moves a tab to another position inside its own container.
     private static void Reorder(DockingWindowContainer container, DockingWindow window, int index)
     {
         var from = container.Items.IndexOf(window);
@@ -199,16 +197,15 @@ internal static class LayoutManager
         return index < 0 ? container.Items.Count : Math.Clamp(index, 0, container.Items.Count);
     }
 
-    /// <summary>Creates the kind of container a window is hosted in: a tab group for documents, a pane for tool windows.</summary>
+    // Creates the kind of container a window is hosted in: a tab group for documents, a pane for
+    // tool windows.
     private static DockingWindowContainer NewContainerFor(DockingWindow window)
     {
         return window is DocumentWindow ? new DocumentContainer() : new ToolWindowContainer();
     }
 
-    /// <summary>
-    /// Opens a document as a tab of the document area's active group, creating the first group
-    /// when the area is empty.
-    /// </summary>
+    // Opens a document as a tab of the document area's active group, creating the first group when
+    // the area is empty.
     internal static void OpenDocument(DocumentHost host, DocumentWindow document)
     {
         // The document area does not know its dock site: it is found through the tree it hangs
@@ -216,7 +213,6 @@ internal static class LayoutManager
         OpenDocument(host.FindSurface()?.Site ?? document.DockSite, host, document);
     }
 
-    /// <inheritdoc cref="OpenDocument(DocumentHost, DocumentWindow)"/>
     internal static void OpenDocument(DockSite? site, DocumentHost host, DocumentWindow document)
     {
         if (site is null || LayoutTree.Locate(site, host)?.Surface is not { } surface)
@@ -239,10 +235,8 @@ internal static class LayoutManager
         FinishDock(surface, document, wasOpen);
     }
 
-    /// <summary>
-    /// Removes the window from its current container as part of a move, without raising
-    /// closed events, and collapses the abandoned part of the tree.
-    /// </summary>
+    // Removes the window from its current container as part of a move, without raising closed
+    // events, and collapses the abandoned part of the tree.
     private static void Detach(DockSite site, DockingWindow window)
     {
         window.IsRelocating = window.IsOpen;
@@ -282,7 +276,7 @@ internal static class LayoutManager
         window.Activate();
     }
 
-    /// <summary>Collapses a container and all its windows to the nearest auto-hide edge.</summary>
+    // Collapses a container and all its windows to the nearest auto-hide edge.
     internal static void AutoHideContainer(DockSite site, DockingWindowContainer container)
     {
         var windows = container.Items.OfType<ToolWindow>().ToList();
@@ -351,7 +345,7 @@ internal static class LayoutManager
         site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
     }
 
-    /// <summary>Pins an auto-hide group back into the layout at the edge it collapsed from.</summary>
+    // Pins an auto-hide group back into the layout at the edge it collapsed from.
     internal static void DockAutoHideGroup(DockSite site, AutoHideGroup group)
     {
         site.RemoveAutoHideGroup(group);
@@ -362,10 +356,8 @@ internal static class LayoutManager
         group.Windows.FirstOrDefault()?.Activate();
     }
 
-    /// <summary>
-    /// Captures where a container sits in the layout tree, so it can be put back there after
-    /// being auto-hidden or floated out.
-    /// </summary>
+    // Captures where a container sits in the layout tree, so it can be put back there after being
+    // auto-hidden or floated out.
     internal static DockRestoreHint CaptureRestoreHint(DockSite site, DockingWindowContainer container, DockSide fallbackSide)
     {
         FrameworkElement? sibling = null;
@@ -394,11 +386,9 @@ internal static class LayoutManager
         return new DockRestoreHint(container, sibling, side, SplitContainer.GetEffectiveRelativeSize(container));
     }
 
-    /// <summary>
-    /// Puts windows back where a restore hint says they came from: into their original
-    /// container when it is still part of the layout, otherwise into a new pane rebuilt at
-    /// the remembered position.
-    /// </summary>
+    // Puts windows back where a restore hint says they came from: into their original container
+    // when it is still part of the layout, otherwise into a new pane rebuilt at the remembered
+    // position.
     internal static void RestoreWindows(
         DockSite site,
         IReadOnlyList<DockingWindow> windows,
@@ -422,11 +412,9 @@ internal static class LayoutManager
         RestoreNode(site, container, hint, fallbackEdge);
     }
 
-    /// <summary>
-    /// Puts a layout node back where a restore hint says it was. Restoring next to the original
-    /// neighbor only works while that neighbor is still part of this dock site's layout;
-    /// otherwise the node docks at the given fallback edge of the host it belongs in.
-    /// </summary>
+    // Puts a layout node back where a restore hint says it was. Restoring next to the original
+    // neighbor only works while that neighbor is still part of this dock site's layout; otherwise
+    // the node docks at the given fallback edge of the host it belongs in.
     private static void RestoreNode(
         DockSite site,
         FrameworkElement node,
@@ -447,10 +435,8 @@ internal static class LayoutManager
         }
     }
 
-    /// <summary>
-    /// Picks where a node lands when its remembered position is gone: documents go back to the
-    /// document area they belong to, everything else to an edge of the dock site.
-    /// </summary>
+    // Picks where a node lands when its remembered position is gone: documents go back to the
+    // document area they belong to, everything else to an edge of the dock site.
     private static ILayoutHost FallbackHost(DockSite site, FrameworkElement node)
     {
         var windows = LayoutTree.Windows(node).ToList();
@@ -464,10 +450,8 @@ internal static class LayoutManager
         return site;
     }
 
-    /// <summary>
-    /// Floats a window out of the layout into its own top-level window, remembering where it
-    /// was docked so it can be sent back to the same place.
-    /// </summary>
+    // Floats a window out of the layout into its own top-level window, remembering where it was
+    // docked so it can be sent back to the same place.
     internal static void FloatWindow(DockSite site, DockingWindow window, RectInt32 bounds)
     {
         var hint = window.Container is { } previous ? CaptureRestoreHint(site, previous, DockSide.Left) : null;
@@ -490,19 +474,15 @@ internal static class LayoutManager
         window.Activate();
     }
 
-    /// <summary>
-    /// Docks a whole floating window back into the dock site at the given target, closing it.
-    /// The windows keep their panes, their tab order and their content.
-    /// </summary>
+    // Docks a whole floating window back into the dock site at the given target, closing it. The
+    // windows keep their panes, their tab order and their content.
     internal static void DockFloatingHost(DockSite site, FloatingWindowHost host, DockTarget target)
     {
         DockFloatingHost(site, host, target, site);
     }
 
-    /// <summary>
-    /// Docks a whole floating window into a docking surface (the dock site or another floating
-    /// window) at the given target, closing it.
-    /// </summary>
+    // Docks a whole floating window into a docking surface (the dock site or another floating
+    // window) at the given target, closing it.
     internal static void DockFloatingHost(
         DockSite site,
         FloatingWindowHost host,
@@ -561,11 +541,9 @@ internal static class LayoutManager
         windows[0].Activate();
     }
 
-    /// <summary>
-    /// Sends a floating window's tree back where it was floated from: a single pane rejoins the
-    /// container it left when that container is still there, and a tree of panes is put back as a
-    /// whole next to the neighbor it sat beside.
-    /// </summary>
+    // Sends a floating window's tree back where it was floated from: a single pane rejoins the
+    // container it left when that container is still there, and a tree of panes is put back as a
+    // whole next to the neighbor it sat beside.
     private static void RestoreHome(
         DockSite site,
         FrameworkElement tree,
@@ -581,7 +559,7 @@ internal static class LayoutManager
         RestoreNode(site, tree, hint, DockSide.Left);
     }
 
-    /// <summary>Docks a single window at a resolved drop target of a surface.</summary>
+    // Docks a single window at a resolved drop target of a surface.
     internal static void DockAtTarget(IDockSurface surface, DockingWindow window, DockTarget target)
     {
         if (surface.IsFloating && target.Kind != DockTargetKind.Tab && IsLoneWindowOf(surface, window))
@@ -608,14 +586,14 @@ internal static class LayoutManager
         }
     }
 
-    /// <summary>Tells whether the given window is all a surface holds.</summary>
+    // Tells whether the given window is all a surface holds.
     private static bool IsLoneWindowOf(IDockSurface surface, DockingWindow window)
     {
         var windows = LayoutTree.Windows(surface.LayoutChild).ToList();
         return windows.Count == 1 && ReferenceEquals(windows[0], window);
     }
 
-    /// <summary>Moves windows into a container as part of a relocation, keeping them open.</summary>
+    // Moves windows into a container as part of a relocation, keeping them open.
     private static void MoveWindows(
         DockSite site,
         IReadOnlyList<DockingWindow> windows,
@@ -634,12 +612,10 @@ internal static class LayoutManager
         }
     }
 
-    /// <summary>
-    /// Picks the auto-hide edge for an element from its position in the layout tree, like
-    /// Visual Studio: the orientation of the parent split decides the axis, and the pane's
-    /// position within it decides the side. Geometry alone is ambiguous, since a pane can
-    /// touch two dock site edges at once (e.g. a full-width bottom pane also touches the right edge).
-    /// </summary>
+    // Picks the auto-hide edge for an element from its position in the layout tree, like Visual
+    // Studio: the orientation of the parent split decides the axis, and the pane's position within
+    // it decides the side. Geometry alone is ambiguous, since a pane can touch two dock site edges
+    // at once (e.g. a full-width bottom pane also touches the right edge).
     private static DockSide NearestEdge(DockSite site, FrameworkElement element)
     {
         if (LayoutTree.Locate(site, element) is not { Split: { } parent })
@@ -653,13 +629,14 @@ internal static class LayoutManager
         return index < 0 ? DockSide.Left : EdgeOfPane(parent.Orientation, index, panes.Count);
     }
 
-    /// <summary>
-    /// Picks the edge a pane collapses to from where it sits among its siblings: the closer half
-    /// of the split it belongs to decides the side.
-    /// </summary>
-    /// <param name="orientation">The orientation of the split holding the pane.</param>
-    /// <param name="index">The position of the pane among the panes of that split.</param>
-    /// <param name="count">How many panes the split holds.</param>
+    // Picks the edge a pane collapses to from where it sits among its siblings: the closer half of
+    // the split it belongs to decides the side.
+    //
+    // orientation: The orientation of the split holding the pane.
+    //
+    // index: The position of the pane among the panes of that split.
+    //
+    // count: How many panes the split holds.
     internal static DockSide EdgeOfPane(Orientation orientation, int index, int count)
     {
         var leading = index < count - index - 1;
@@ -669,7 +646,7 @@ internal static class LayoutManager
             : (leading ? DockSide.Left : DockSide.Right);
     }
 
-    /// <summary>Removes a window from its container and collapses the tree if needed.</summary>
+    // Removes a window from its container and collapses the tree if needed.
     internal static void RemoveWindow(DockingWindow window)
     {
         if (window is ToolWindow tool && tool.State == DockingWindowState.AutoHide
@@ -712,7 +689,7 @@ internal static class LayoutManager
         surface?.OnLayoutMutated();
     }
 
-    /// <summary>Removes an element from its parent (split container or layout host).</summary>
+    // Removes an element from its parent (split container or layout host).
     private static void RemoveFromParent(DockSite site, FrameworkElement element)
     {
         if (LayoutTree.Locate(site, element) is not { } location)
@@ -731,10 +708,8 @@ internal static class LayoutManager
         }
     }
 
-    /// <summary>
-    /// Collapses a split container that no longer needs to exist: an empty one is removed and
-    /// one with a single remaining pane is replaced by that pane, which inherits its share of space.
-    /// </summary>
+    // Collapses a split container that no longer needs to exist: an empty one is removed and one
+    // with a single remaining pane is replaced by that pane, which inherits its share of space.
     private static void CollapseSplit(DockSite site, SplitContainer split)
     {
         var panes = split.GetPanes();
@@ -755,7 +730,7 @@ internal static class LayoutManager
         ReplaceInParent(site, split, lone);
     }
 
-    /// <summary>Replaces an element with another one in its parent, keeping its position.</summary>
+    // Replaces an element with another one in its parent, keeping its position.
     private static void ReplaceInParent(DockSite site, FrameworkElement old, UIElement replacement)
     {
         if (ReferenceEquals(old, replacement) || LayoutTree.Locate(site, old) is not { } location)
@@ -775,22 +750,18 @@ internal static class LayoutManager
         }
     }
 
-    /// <summary>
-    /// Inserts a node as a child of a split container, telling the elements it carries that they
-    /// have moved.
-    /// </summary>
+    // Inserts a node as a child of a split container, telling the elements it carries that they
+    // have moved.
     private static void InsertChild(DockSite site, SplitContainer split, int index, UIElement node)
     {
         split.Children.Insert(Math.Clamp(index, 0, split.Children.Count), node);
         site.NotifyRelocated(node);
     }
 
-    /// <summary>
-    /// Makes a node the root of a host's layout tree, telling the elements it carries that they
-    /// have moved. Putting back the node that is already there is a no-op: reassigning it would
-    /// take it out of the XAML tree and put it back within the same layout pass, which is exactly
-    /// what the notification exists to compensate for.
-    /// </summary>
+    // Makes a node the root of a host's layout tree, telling the elements it carries that they have
+    // moved. Putting back the node that is already there is a no-op: reassigning it would take it
+    // out of the XAML tree and put it back within the same layout pass, which is exactly what the
+    // notification exists to compensate for.
     private static void SetLayoutChild(DockSite site, ILayoutHost host, UIElement? node)
     {
         if (ReferenceEquals(host.LayoutChild, node))

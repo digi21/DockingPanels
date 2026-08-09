@@ -25,7 +25,7 @@ public partial class AutoHideFlyout : Control
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
     }
 
-    /// <summary>Gets the window currently shown by the flyout, if any.</summary>
+    // Gets the window currently shown by the flyout, if any.
     internal ToolWindow? Window => window;
 
     /// <inheritdoc />
@@ -47,7 +47,7 @@ public partial class AutoHideFlyout : Control
         titleBar = GetTemplateChild("PART_TitleBar") as ToolWindowTitleBar;
     }
 
-    /// <summary>Shows the given auto-hidden window with the given explicit size.</summary>
+    // Shows the given auto-hidden window with the given explicit size.
     internal void Show(ToolWindow newWindow, double width, double height)
     {
         ApplyTemplate();
@@ -66,7 +66,7 @@ public partial class AutoHideFlyout : Control
         Height = height;
     }
 
-    /// <summary>Releases the hosted window so it can be re-docked or shown elsewhere.</summary>
+    // Releases the hosted window so it can be re-docked or shown elsewhere.
     internal void Release()
     {
         if (window is not null)

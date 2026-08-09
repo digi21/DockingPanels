@@ -61,15 +61,12 @@ public partial class DockGuidePanel : Control
 
     internal DockGuide? BottomGuide { get; private set; }
 
-    /// <summary>
-    /// Gets a guide's bounds within the cluster, or <see cref="Rect.Empty"/> when that guide is
-    /// hidden or the cluster has not been laid out yet. The center guide is the one with no side.
-    /// </summary>
-    /// <remarks>
-    /// The drag code hit-tests the guides by geometry rather than by pointer routing, because the
-    /// guides sit in a hit-test-invisible overlay. Measuring the elements instead of assuming the
-    /// sizes of the default style is what keeps a retemplated cluster clickable where it is drawn.
-    /// </remarks>
+    // Gets a guide's bounds within the cluster, or Rect.Empty when that guide is hidden or the
+    // cluster has not been laid out yet. The center guide is the one with no side.
+    //
+    // The drag code hit-tests the guides by geometry rather than by pointer routing, because the
+    // guides sit in a hit-test-invisible overlay. Measuring the elements instead of assuming the
+    // sizes of the default style is what keeps a retemplated cluster clickable where it is drawn.
     internal Rect GuideBounds(DockSide? side)
     {
         var guide = side switch

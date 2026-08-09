@@ -105,6 +105,10 @@ Since `0.1.0-dev.2`:
 - Reloading a layout rebuilt the whole tree even when nothing had changed. It is now rebuilt out
   of the elements it is already made of, so an unchanged layout moves nothing.
 - A dock site taken out of the tree left a `Closing` handler on the window hosting it.
+- The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
+  `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
+  compiler writes an entry for every `///` comment whatever its accessibility. Internal comments are
+  plain `//` ones now, and the `.xml` documents the public surface only.
 
 ### Requirements
 

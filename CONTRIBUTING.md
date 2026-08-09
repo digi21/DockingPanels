@@ -47,7 +47,9 @@ older format versions: a layout saved by an earlier version must still load.
 missing XML documentation on public members. Beyond that:
 
 - Public types and members need XML documentation that says what they are for, not what they are
-  called.
+  called. Everything else uses plain `//` comments: the compiler writes a `<member>` entry for
+  every `///` comment whatever its accessibility, so a `///` on an internal member ships in the
+  package's `.xml` and reads as API that does not exist.
 - Comments explain *why*. The docking code is full of decisions that look arbitrary until you know
   the constraint behind them (a WinUI quirk, an invariant of the layout tree), and those are worth
   a sentence. Comments restating the code are not.

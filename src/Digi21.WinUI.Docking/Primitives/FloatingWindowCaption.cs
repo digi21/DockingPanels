@@ -40,7 +40,7 @@ public partial class FloatingWindowCaption : Control
         set => SetValue(TitleProperty, value);
     }
 
-    /// <summary>Gets or sets the floating window this caption belongs to.</summary>
+    // Gets or sets the floating window this caption belongs to.
     internal FloatingWindowHost? Host { get; set; }
 
     /// <inheritdoc />

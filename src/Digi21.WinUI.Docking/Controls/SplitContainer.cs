@@ -16,12 +16,10 @@ public partial class SplitContainer : Panel
 
     private static double? splitterThickness;
 
-    /// <summary>
-    /// How much room a splitter takes between two panes. A splitter is sized by the panel that
-    /// arranges it rather than by a template of its own, so the value is read from the resources
-    /// (<c>DockingSplitterThickness</c>) instead of being fixed here. It is resolved once, on the
-    /// first layout pass, which is long after the application's resources are in place.
-    /// </summary>
+    // How much room a splitter takes between two panes. A splitter is sized by the panel that
+    // arranges it rather than by a template of its own, so the value is read from the resources
+    // (DockingSplitterThickness) instead of being fixed here. It is resolved once, on the first
+    // layout pass, which is long after the application's resources are in place.
     internal static double SplitterThickness =>
         splitterThickness ??= DockingThemeResources.Value("DockingSplitterThickness", 6.0);
 
@@ -42,9 +40,7 @@ public partial class SplitContainer : Panel
         set => SetValue(OrientationProperty, value);
     }
 
-    /// <summary>
-    /// Gets the children that take part in the split layout, excluding the generated splitters.
-    /// </summary>
+    // Gets the children that take part in the split layout, excluding the generated splitters.
     internal List<UIElement> GetPanes()
     {
         var panes = new List<UIElement>(Children.Count);
@@ -78,11 +74,9 @@ public partial class SplitContainer : Panel
         InvalidateMeasure();
     }
 
-    /// <summary>
-    /// Keeps exactly one generated <see cref="DockSplitter"/> per pair of adjacent panes.
-    /// Splitters are appended at the end of the children collection (so they stay on top)
-    /// and are positioned between panes during arrange.
-    /// </summary>
+    // Keeps exactly one generated DockSplitter per pair of adjacent panes. Splitters are appended
+    // at the end of the children collection (so they stay on top) and are positioned between panes
+    // during arrange.
     private void ReconcileSplitters()
     {
         var paneCount = 0;
@@ -212,9 +206,7 @@ public partial class SplitContainer : Panel
         return finalSize;
     }
 
-    /// <summary>
-    /// Distributes the available main-axis size among panes proportionally to their relative sizes.
-    /// </summary>
+    // Distributes the available main-axis size among panes proportionally to their relative sizes.
     private static double[] ComputePaneSizes(List<UIElement> panes, double mainSize)
     {
         var sizes = new double[panes.Count];

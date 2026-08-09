@@ -5,19 +5,15 @@ using Windows.Graphics;
 
 namespace Digi21.WinUI.Docking;
 
-/// <summary>
-/// A top-level window hosting tool windows floated out of a <see cref="DockSite"/>. It holds a
-/// layout tree of its own, so windows can be docked, split and tabbed inside it exactly as they
-/// are inside the dock site; the elements (with their content and state) travel unchanged
-/// between both.
-/// </summary>
-/// <remarks>
-/// The window deliberately has no system title bar: with a single pane the pane's own title bar
-/// acts as the caption, which is what allows dragging the floating window back into the dock site
-/// with the same dock guides as an ordinary re-dock. Once it holds several panes, that role moves
-/// to a <see cref="FloatingWindowCaption"/> shown above them. The resize border is kept, so the
-/// window can still be resized and moved across monitors like any other window.
-/// </remarks>
+// A top-level window hosting tool windows floated out of a DockSite. It holds a layout tree of its
+// own, so windows can be docked, split and tabbed inside it exactly as they are inside the dock
+// site; the elements (with their content and state) travel unchanged between both.
+//
+// The window deliberately has no system title bar: with a single pane the pane's own title bar acts
+// as the caption, which is what allows dragging the floating window back into the dock site with
+// the same dock guides as an ordinary re-dock. Once it holds several panes, that role moves to a
+// FloatingWindowCaption shown above them. The resize border is kept, so the window can still be
+// resized and moved across monitors like any other window.
 internal sealed partial class FloatingWindowHost
 {
     private readonly Window window;
@@ -59,11 +55,9 @@ internal sealed partial class FloatingWindowHost
         window.Activate();
     }
 
-    /// <summary>
-    /// Picks the size a container should get when it floats: the size it has while docked,
-    /// kept within bounds that stay usable as a window (a wide, shallow bottom pane would
-    /// otherwise float as an unwieldy letterbox).
-    /// </summary>
+    // Picks the size a container should get when it floats: the size it has while docked, kept
+    // within bounds that stay usable as a window (a wide, shallow bottom pane would otherwise float
+    // as an unwieldy letterbox).
     internal static (double Width, double Height) PreferredSize(FrameworkElement? element)
     {
         return (Clamp(element?.ActualWidth, 380, 280, 640), Clamp(element?.ActualHeight, 300, 220, 480));
@@ -76,11 +70,8 @@ internal sealed partial class FloatingWindowHost
         }
     }
 
-    /// <summary>
-    /// Keeps window bounds inside a monitor that actually exists: a layout saved on a
-    /// multi-monitor setup can name coordinates that are off-screen when it is restored on a
-    /// different one.
-    /// </summary>
+    // Keeps window bounds inside a monitor that actually exists: a layout saved on a multi-monitor
+    // setup can name coordinates that are off-screen when it is restored on a different one.
     internal static RectInt32 ClampToDisplay(RectInt32 bounds)
     {
         var area = DisplayArea.GetFromRect(bounds, DisplayAreaFallback.Nearest);
@@ -100,38 +91,36 @@ internal sealed partial class FloatingWindowHost
             height);
     }
 
-    /// <summary>Gets the dock site the floating window belongs to.</summary>
+    // Gets the dock site the floating window belongs to.
     internal DockSite Site { get; }
 
-    /// <summary>Gets the docking surface of this window, the drop target of drags over it.</summary>
+    // Gets the docking surface of this window, the drop target of drags over it.
     internal IDockSurface Surface => root;
 
-    /// <summary>Gets or sets the root of the layout tree hosted by this window.</summary>
+    // Gets or sets the root of the layout tree hosted by this window.
     internal UIElement? LayoutChild
     {
         get => root.Child;
         set => ((IDockSurface)root).LayoutChild = value;
     }
 
-    /// <summary>Gets the element that sizes a re-dock of this window, and the drag ghost's title.</summary>
+    // Gets the element that sizes a re-dock of this window, and the drag ghost's title.
     internal FrameworkElement? LayoutElement => root.Child as FrameworkElement;
 
-    /// <summary>
-    /// Gets the container of a window hosting a single pane, or <see langword="null"/> when
-    /// windows have been docked inside it and it holds a tree of panes.
-    /// </summary>
+    // Gets the container of a window hosting a single pane, or null when windows have been docked
+    // inside it and it holds a tree of panes.
     internal DockingWindowContainer? SinglePane => root.Child as DockingWindowContainer;
 
-    /// <summary>Gets the windows hosted by this window, across all its panes.</summary>
+    // Gets the windows hosted by this window, across all its panes.
     internal IEnumerable<DockingWindow> Windows => LayoutTree.Windows(root.Child);
 
-    /// <summary>Gets the window handle, used to tell what a drop landed on.</summary>
+    // Gets the window handle, used to tell what a drop landed on.
     internal IntPtr Handle { get; }
 
-    /// <summary>Gets or sets where the group re-docks when it is pinned back into the layout.</summary>
+    // Gets or sets where the group re-docks when it is pinned back into the layout.
     internal DockRestoreHint? RestoreHint { get; set; }
 
-    /// <summary>Gets the window bounds in screen pixels.</summary>
+    // Gets the window bounds in screen pixels.
     internal RectInt32 Bounds
     {
         get
@@ -142,19 +131,17 @@ internal sealed partial class FloatingWindowHost
         }
     }
 
-    /// <summary>Moves the window to the given screen position, keeping its size.</summary>
+    // Moves the window to the given screen position, keeping its size.
     internal void MoveTo(PointInt32 position) => window.AppWindow.Move(position);
 
-    /// <summary>Brings the floating window to the front.</summary>
+    // Brings the floating window to the front.
     internal void Activate() => window.Activate();
 
-    /// <summary>Docks every window of this floating window back where it was floated from.</summary>
+    // Docks every window of this floating window back where it was floated from.
     internal void DockHome() => LayoutManager.DockFloatingHost(Site, this, DockTarget.Home);
 
-    /// <summary>
-    /// Releases the layout tree and closes the window without touching the hosted tool windows,
-    /// so they can be docked back into the site or moved to another floating window.
-    /// </summary>
+    // Releases the layout tree and closes the window without touching the hosted tool windows, so
+    // they can be docked back into the site or moved to another floating window.
     internal void ReleaseAndClose()
     {
         Detach();
@@ -162,10 +149,8 @@ internal sealed partial class FloatingWindowHost
         CloseWindow();
     }
 
-    /// <summary>
-    /// Closes the floating window as if the user had closed it: every hosted tool window is
-    /// closed through the normal cancelable path. Returns whether the window actually closed.
-    /// </summary>
+    // Closes the floating window as if the user had closed it: every hosted tool window is closed
+    // through the normal cancelable path. Returns whether the window actually closed.
     internal bool CloseHostedWindows()
     {
         foreach (var hosted in Windows.ToList())
@@ -182,11 +167,9 @@ internal sealed partial class FloatingWindowHost
         return true;
     }
 
-    /// <summary>
-    /// Brings the host back in step with its layout tree after a mutation: keeps track of the
-    /// containers inside it, marks their windows as floating, updates the caption and closes the
-    /// window once nothing is left in it.
-    /// </summary>
+    // Brings the host back in step with its layout tree after a mutation: keeps track of the
+    // containers inside it, marks their windows as floating, updates the caption and closes the
+    // window once nothing is left in it.
     internal void SyncWithLayout()
     {
         if (closingSelf)
@@ -240,7 +223,7 @@ internal sealed partial class FloatingWindowHost
         }
     }
 
-    /// <summary>Picks the window whose title names the whole floating window.</summary>
+    // Picks the window whose title names the whole floating window.
     private DockingWindow? PrimaryWindow(List<DockingWindowContainer> containers)
     {
         if (Site.ActiveWindow is { } active && containers.Any(c => c.Items.Contains(active)))

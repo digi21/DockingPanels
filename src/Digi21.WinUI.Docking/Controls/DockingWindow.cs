@@ -156,26 +156,19 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     /// <summary>Gets the container that currently hosts this window, or <see langword="null"/> when closed.</summary>
     public DockingWindowContainer? Container { get; internal set; }
 
-    /// <summary>
-    /// Gets the dock site this window belongs to, or <see langword="null"/> while it is not part
-    /// of one.
-    /// </summary>
-    /// <remarks>
-    /// Resolved from the tree on demand rather than only in <see cref="FrameworkElement.Loaded"/>:
-    /// a dock site's own <c>Loaded</c> is raised before that of the windows it contains, so an
-    /// application setting up its layout from there would otherwise find no site here and see its
-    /// calls do nothing.
-    /// </remarks>
+    // Gets the dock site this window belongs to, or null while it is not part of one.
+    //
+    // Resolved from the tree on demand rather than only in FrameworkElement.Loaded: a dock site's
+    // own Loaded is raised before that of the windows it contains, so an application setting up its
+    // layout from there would otherwise find no site here and see its calls do nothing.
     internal DockSite? DockSite
     {
         get => dockSite ??= this.FindSurface()?.Site;
         set => dockSite = value;
     }
 
-    /// <summary>
-    /// Gets or sets a value indicating whether the window is being moved to a new docking
-    /// position. While set, attach/detach notifications do not raise opened/closed events.
-    /// </summary>
+    // Gets or sets a value indicating whether the window is being moved to a new docking position.
+    // While set, attach/detach notifications do not raise opened/closed events.
     internal bool IsRelocating { get; set; }
 
     /// <summary>
@@ -255,15 +248,12 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
         });
     }
 
-    /// <summary>
-    /// Runs a layout operation now, or as soon as this window becomes part of a dock site.
-    /// </summary>
-    /// <remarks>
-    /// Applications set up their initial layout from the point they have one, which is typically
-    /// the dock site's <c>Loaded</c>. A window declared in XAML is not yet attached to its site at
-    /// that moment, and dropping the call there would leave the panel where it was with nothing to
-    /// show for it; deferring means the operation still happens, one moment later.
-    /// </remarks>
+    // Runs a layout operation now, or as soon as this window becomes part of a dock site.
+    //
+    // Applications set up their initial layout from the point they have one, which is typically the
+    // dock site's Loaded. A window declared in XAML is not yet attached to its site at that moment,
+    // and dropping the call there would leave the panel where it was with nothing to show for it;
+    // deferring means the operation still happens, one moment later.
     private void WhenPartOfADockSite(Action operation)
     {
         if (DockSite is not null)
@@ -296,7 +286,7 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
         site?.NotifyWindowClosed(this);
     }
 
-    /// <summary>Called by the container when this window is added to it.</summary>
+    // Called by the container when this window is added to it.
     internal void NotifyAttached()
     {
         IsOpen = true;
@@ -319,7 +309,7 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
         }
     }
 
-    /// <summary>Called by the container when this window is removed from it.</summary>
+    // Called by the container when this window is removed from it.
     internal void NotifyDetached()
     {
         if (IsRelocating)
