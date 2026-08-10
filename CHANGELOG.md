@@ -155,6 +155,14 @@ Since `0.1.0-dev.2`:
   operation now owns the announcement and makes it once, after the window's state has settled;
   the container's own notification remains for windows added to `Items` directly or declared in
   XAML.
+- A `ToolWindowResolving` or `DocumentResolving` handler that threw left every open window marked
+  as relocating, which silently suppressed its opened and closed events from then on. The load now
+  clears the marks whatever happens; the application still sees its own exception.
+- A floating or auto-hidden window closed by a loaded layout that did not mention it kept reporting
+  its old state, leaving `Activate()` a silent dead end (an auto-hidden state with no group behind
+  it) and `Float()` blocked. Windows closed by a load now report `Docked`, as windows closed any
+  other way already did. `Activate()` also does nothing on a closed window now, instead of marking
+  it active without a layout to show it in.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
   compiler writes an entry for every `///` comment whatever its accessibility. Internal comments are

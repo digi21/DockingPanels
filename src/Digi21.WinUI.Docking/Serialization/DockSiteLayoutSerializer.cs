@@ -252,6 +252,26 @@ public class DockSiteLayoutSerializer
             window.IsRelocating = window.IsOpen;
         }
 
+        try
+        {
+            ApplyCore(site, layout, index, rebuild);
+        }
+        finally
+        {
+            // The load calls back into the application (the resolving events); one that throws
+            // must not leave windows marked as relocating, since the mark suppresses their opened
+            // and closed events and nothing else would ever clear it. The tree itself is not
+            // rolled back — the application sees its own exception and a partial layout, but the
+            // windows keep working.
+            foreach (var window in KnownWindows(site))
+            {
+                window.IsRelocating = false;
+            }
+        }
+    }
+
+    private void ApplyCore(DockSite site, LayoutDocument layout, WindowIndex index, Rebuild rebuild)
+    {
         // Hide the flyout, drop existing auto-hide groups and close the floating windows
         // before touching the tree, so every window they host is released and reusable.
         site.ClearAutoHideGroups();
@@ -366,8 +386,12 @@ public class DockSiteLayoutSerializer
                 }
                 else
                 {
+                    // Closed windows report Docked whatever they were, matching RemoveWindow: a
+                    // stale Floating or AutoHide would make Activate and Float dead ends when the
+                    // window is reopened later.
                     window.IsOpen = false;
                     window.IsSelected = false;
+                    window.State = DockingWindowState.Docked;
                 }
             }
             else
