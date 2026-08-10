@@ -142,6 +142,13 @@ Since `0.1.0-dev.2`:
   closes: to the dock site's window, or to the destination floating window when it is docked into
   another one. Closing a floating window with Alt+F4 keeps the application in front too.
 - A dock site taken out of the tree left a `Closing` handler on the window hosting it.
+- Loading a layout while a floating window held more than one pane killed the application, even
+  when the loaded layout was the very one just saved. The load reuses the elements the layout is
+  already made of, but its map of who holds what only covered the dock site's own tree: closing a
+  floating window unparents just the root of its tree, so a pane reused out of a floating split was
+  inserted at its new place still attached to the old one, and WinUI rejected it with the
+  double-parent `COMException` (0x800F1000) as a stowed exception no handler sees. The rebuild now
+  tracks the floating trees too, and releases their elements like any other.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
   compiler writes an entry for every `///` comment whatever its accessibility. Internal comments are
