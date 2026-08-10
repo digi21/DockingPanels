@@ -21,7 +21,10 @@ internal sealed partial class FloatingWindowHost
     private readonly Dictionary<DockingWindowContainer, long> trackedContainers = [];
     private bool closingSelf;
 
-    internal FloatingWindowHost(DockSite site, UIElement content, RectInt32 bounds)
+    // activate: whether the new window takes the focus. Floating a window interactively wants it;
+    // a layout load restoring several floating windows must not have each steal the foreground
+    // from the window the user is working in.
+    internal FloatingWindowHost(DockSite site, UIElement content, RectInt32 bounds, bool activate = true)
     {
         Site = site;
         root = new FloatingWindowRoot(site, this) { RequestedTheme = site.ActualTheme };
@@ -52,7 +55,11 @@ internal sealed partial class FloatingWindowHost
 
         root.Child = content;
         SyncWithLayout();
-        window.Activate();
+
+        if (activate)
+        {
+            window.Activate();
+        }
     }
 
     // Picks the size a container should get when it floats: the size it has while docked, kept

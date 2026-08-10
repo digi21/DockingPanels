@@ -178,6 +178,10 @@ Since `0.1.0-dev.2`:
   put it back, raising `Loaded`, `Unloaded` and a spurious `Relocated` — the very signal that tells
   content with a life cycle of its own to rebuild — for a window that never moved. Showing the
   window the flyout is already showing now just activates it.
+- Loading a layout activated every floating window it restored, one after another, leaving the
+  foreground on whichever came last instead of on the window the user was working in. Restored
+  floating windows now open without taking the focus; floating a window interactively still
+  activates it.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
   compiler writes an entry for every `///` comment whatever its accessibility. Internal comments are
