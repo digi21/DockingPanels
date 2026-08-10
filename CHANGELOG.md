@@ -123,6 +123,18 @@ Since `0.1.0-dev.2`:
   answering, and a load reports every element it moved through `Relocated` — including the new root
   of the tree and the content it puts into a floating window. Reordering tabs within one pane
   leaves them where they are and reports nothing.
+- Dragging a window out of its auto-hide flyout killed the application. An auto-hidden window has
+  no container — it belongs to an auto-hide group, and the flyout hosts it while it is shown — so
+  the detach step of a relocation, which only knew how to take a window out of a container, did
+  nothing and left it parented to the flyout. Adding it to its new pane then failed with the
+  double-parent `COMException` (0x800F1000), which WinUI turns into a stowed exception that
+  `Application.UnhandledException` never sees. A relocation now releases an auto-hidden window from
+  its group and its flyout first, so it can be floated, docked or tabbed straight out of the
+  flyout, and floating one keeps the way home it had before it was unpinned.
+- A window kept reporting the state it had before a move once it was docked: auto-hidden when it was
+  dragged out of its flyout onto a dock guide, or floating when it was a tab dragged out of a
+  floating window that held more than one. Docking a window into a floating window still leaves it
+  floating, which is what it is.
 - A dock site taken out of the tree left a `Closing` handler on the window hosting it.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
