@@ -92,6 +92,28 @@ internal static class ScreenInterop
         }
     }
 
+    // Hands the foreground over to the window hosting the given element, and does nothing unless
+    // the given window is the one currently holding it.
+    //
+    // Closing the foreground window leaves Windows to choose its successor, and it does not
+    // reliably choose the owner: docking a floating window back sends the whole application behind
+    // whatever else was on screen, as if the user had clicked another program. Handing the
+    // foreground over explicitly, while the window that is about to close still holds it, is what
+    // keeps the application in front (and what makes the call allowed in the first place: only the
+    // process owning the foreground may set it).
+    internal static void HandOverForeground(IntPtr closing, FrameworkElement element)
+    {
+        if (closing == IntPtr.Zero || GetForegroundWindow() != closing)
+        {
+            return;
+        }
+
+        if (GetWindowHandle(element) is { } successor)
+        {
+            SetForegroundWindow(successor);
+        }
+    }
+
     // Gets the window handle backing the element's XAML island, if there is one.
     internal static IntPtr? GetWindowHandle(FrameworkElement element)
     {
@@ -125,6 +147,12 @@ internal static class ScreenInterop
 
     [DllImport("user32.dll")]
     private static extern IntPtr WindowFromPoint(NativePoint point);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);

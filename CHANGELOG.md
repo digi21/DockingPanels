@@ -135,6 +135,12 @@ Since `0.1.0-dev.2`:
   dragged out of its flyout onto a dock guide, or floating when it was a tab dragged out of a
   floating window that held more than one. Docking a window into a floating window still leaves it
   floating, which is what it is.
+- Docking a floating window back into the layout sent the whole application behind whatever else
+  was on screen, as if the user had clicked another program. A floating window holds the foreground
+  when it is dropped, and Windows picks the successor of a destroyed foreground window by z-order
+  instead of handing it to the owner. A floating window now passes the foreground on before it
+  closes: to the dock site's window, or to the destination floating window when it is docked into
+  another one. Closing a floating window with Alt+F4 keeps the application in front too.
 - A dock site taken out of the tree left a `Closing` handler on the window hosting it.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
