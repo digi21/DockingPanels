@@ -671,6 +671,16 @@ public class DockSiteLayoutSerializer
         {
             this.site = site;
             Collect(site, site.Child);
+
+            // Floating windows hold layout trees of their own, and a load reuses their elements
+            // exactly as it reuses the main tree's. Closing the hosts only unparents each tree's
+            // root, so anything below it — the panes of a floating split — keeps its old parent;
+            // without these entries Detach would not know how to release such an element, and
+            // inserting it elsewhere would fail with the double-parent COMException (0x800F1000).
+            foreach (var floatingHost in site.FloatingHosts)
+            {
+                Collect(floatingHost.Surface, floatingHost.LayoutChild);
+            }
         }
 
         // Takes the next reusable workspace, or nothing when they are all spoken for.
@@ -835,6 +845,10 @@ public class DockSiteLayoutSerializer
 
                 case DockSite dockSite when ReferenceEquals(dockSite.Child, node):
                     dockSite.Child = null;
+                    break;
+
+                case FloatingWindowRoot floating when ReferenceEquals(floating.Child, node):
+                    floating.Child = null;
                     break;
             }
         }
