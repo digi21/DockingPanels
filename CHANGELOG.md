@@ -174,6 +174,10 @@ Since `0.1.0-dev.2`:
   different window — closing a hidden window from a menu while another group's flyout was open took
   the open panel away with it. The flyout now closes only when it is showing the very window that
   is leaving.
+- Every click on an open flyout's tab or title bar took the shown window out of the XAML tree and
+  put it back, raising `Loaded`, `Unloaded` and a spurious `Relocated` — the very signal that tells
+  content with a life cycle of its own to rebuild — for a window that never moved. Showing the
+  window the flyout is already showing now just activates it.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
   compiler writes an entry for every `///` comment whatever its accessibility. Internal comments are
