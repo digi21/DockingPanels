@@ -173,10 +173,16 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
 
     /// <summary>
     /// Selects the window in its container and makes it the active window of its dock site.
-    /// If the window is auto-hidden, its flyout is opened.
+    /// If the window is auto-hidden, its flyout is opened. Does nothing while the window is
+    /// closed.
     /// </summary>
     public void Activate()
     {
+        if (!IsOpen)
+        {
+            return;
+        }
+
         if (this is ToolWindow tool && State == DockingWindowState.AutoHide)
         {
             DockSite?.ShowAutoHideFlyout(tool);
