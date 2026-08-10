@@ -349,7 +349,7 @@ public class DockSiteLayoutSerializer
             // for the ones docked inside it.
             var bounds = FloatingWindowHost.ClampToDisplay(
                 new RectInt32(floatingNode.X, floatingNode.Y, floatingNode.Width, floatingNode.Height));
-            var host = new FloatingWindowHost(site, floatingContent, bounds);
+            var host = new FloatingWindowHost(site, floatingContent, bounds, activate: false);
             site.NotifyRelocated(floatingContent);
 
             var restoreContainer = ResolveSiblingReference(site, floatingNode.RestoreContainer, index) as DockingWindowContainer;
