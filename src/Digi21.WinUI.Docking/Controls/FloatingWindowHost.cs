@@ -142,11 +142,14 @@ internal sealed partial class FloatingWindowHost
 
     // Releases the layout tree and closes the window without touching the hosted tool windows, so
     // they can be docked back into the site or moved to another floating window.
-    internal void ReleaseAndClose()
+    //
+    // successor: the element whose window takes the foreground when this one had it, which is the
+    // surface the tree is moving to. Defaults to the dock site's window.
+    internal void ReleaseAndClose(FrameworkElement? successor = null)
     {
         Detach();
         root.Child = null;
-        CloseWindow();
+        CloseWindow(successor);
     }
 
     // Closes the floating window as if the user had closed it: every hosted tool window is closed
@@ -264,10 +267,15 @@ internal sealed partial class FloatingWindowHost
         e.Cancel = !CloseHostedWindows();
     }
 
-    private void CloseWindow()
+    private void CloseWindow(FrameworkElement? successor = null)
     {
         closingSelf = true;
         Site.RemoveFloatingHost(this);
+
+        // This window is about to be destroyed: pass the foreground on before it goes, or the
+        // application ends up behind the one that was underneath it.
+        ScreenInterop.HandOverForeground(Handle, successor ?? Site);
+
         window.Close();
     }
 

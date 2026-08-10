@@ -543,8 +543,9 @@ internal static class LayoutManager
         var hint = host.RestoreHint;
 
         // Releases the tree from the floating window and closes it, leaving the tree parentless
-        // and ready to be plugged into the destination.
-        host.ReleaseAndClose();
+        // and ready to be plugged into the destination, which is also where the foreground goes:
+        // the window holding it is the one being closed.
+        host.ReleaseAndClose(surface.Root);
 
         foreach (var window in windows)
         {
