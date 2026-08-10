@@ -149,6 +149,12 @@ Since `0.1.0-dev.2`:
   inserted at its new place still attached to the old one, and WinUI rejected it with the
   double-parent `COMException` (0x800F1000) as a stowed exception no handler sees. The rebuild now
   tracks the floating trees too, and releases their elements like any other.
+- Opening a window through a docking operation raised `WindowOpened` (and its `LayoutChanged`
+  companion) twice: once from the operation and once more from the container the window landed in —
+  immediately when the window had been open before, or on its `Loaded` when it was new. The
+  operation now owns the announcement and makes it once, after the window's state has settled;
+  the container's own notification remains for windows added to `Items` directly or declared in
+  XAML.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
   compiler writes an entry for every `///` comment whatever its accessibility. Internal comments are

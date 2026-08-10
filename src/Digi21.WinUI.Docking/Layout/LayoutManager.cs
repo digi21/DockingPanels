@@ -239,7 +239,11 @@ internal static class LayoutManager
     // events, and collapses the abandoned part of the tree.
     private static void Detach(DockSite site, DockingWindow window)
     {
-        window.IsRelocating = window.IsOpen;
+        // Marked as relocating even when the window was closed: otherwise attaching it would
+        // announce the opening from inside the container, mid-move, and the operation announces
+        // it again once the window is in place. The operation is the single owner of that
+        // notification; the container's own stays for windows added to Items directly.
+        window.IsRelocating = true;
 
         if (DetachFromAutoHide(site, window))
         {
@@ -291,7 +295,6 @@ internal static class LayoutManager
     private static void FinishDock(IDockSurface surface, DockingWindow window, bool wasOpen)
     {
         var site = surface.Site;
-        var wasRelocating = window.IsRelocating;
         window.IsRelocating = false;
         window.DockSite = site;
 
@@ -304,7 +307,7 @@ internal static class LayoutManager
         site.NotifyRelocated(window);
         surface.OnLayoutMutated();
 
-        if (wasRelocating || wasOpen)
+        if (wasOpen)
         {
             site.NotifyLayoutChanged(LayoutChangeKind.WindowDocked);
         }
@@ -500,6 +503,7 @@ internal static class LayoutManager
             ? CaptureRestoreHint(site, previous, DockSide.Left)
             : site.FindAutoHideGroup(window)?.RestoreHint;
 
+        var wasOpen = window.IsOpen;
         Detach(site, window);
 
         var container = NewContainerFor(window);
@@ -513,6 +517,13 @@ internal static class LayoutManager
         var host = new FloatingWindowHost(site, container, bounds) { RestoreHint = hint };
         site.AddFloatingHost(host);
         site.NotifyRelocated(window);
+
+        // Floating also reopens closed windows, and the operation owns the announcement (see
+        // Detach); this path bypasses FinishDock, so it announces here, with the state settled.
+        if (!wasOpen)
+        {
+            site.NotifyWindowOpened(window);
+        }
 
         site.NotifyLayoutChanged(LayoutChangeKind.WindowFloated);
         window.Activate();
