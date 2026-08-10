@@ -121,14 +121,35 @@ public partial class DockSite : Control, IDockSurface
 
     // Closes the floating windows and lets go of the owner, so that a dock site taken out of the
     // tree leaves nothing of itself behind on a window that outlives it.
+    //
+    // A dock site moved within the tree arrives here too, after the Loaded of its new place has
+    // already run (WinUI queues Unloaded), and that Loaded could not hook anything because the old
+    // hook was still in place. Tearing down unconditionally would therefore close the floating
+    // windows of a site that is still showing and drop the owner hook with no Loaded left to
+    // restore it — floating windows opened afterwards would outlive the owner's Closing and crash
+    // its teardown. IsLoaded tells the two apart: it is false for a site that actually left.
     private void ReleaseOwnerWindow()
     {
+        if (IsLoaded && ownerWindow is not null
+            && XamlRoot?.ContentIslandEnvironment is { } environment
+            && ownerWindow.Id.Value == environment.AppWindowId.Value)
+        {
+            // Moved within the same window: the hook and the floating windows still hold.
+            return;
+        }
+
         CloseFloatingWindows();
 
         if (ownerWindow is not null)
         {
             ownerWindow.Closing -= OnOwnerWindowClosing;
             ownerWindow = null;
+        }
+
+        // Moved into another top-level window: watch that one from now on.
+        if (IsLoaded)
+        {
+            HookOwnerWindow();
         }
     }
 

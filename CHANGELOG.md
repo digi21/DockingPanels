@@ -163,6 +163,13 @@ Since `0.1.0-dev.2`:
   it) and `Float()` blocked. Windows closed by a load now report `Docked`, as windows closed any
   other way already did. `Activate()` also does nothing on a closed window now, instead of marking
   it active without a layout to show it in.
+- Moving a `DockSite` to another place in the application's tree silently closed all its floating
+  windows and, worse, stopped watching the window hosting it for good: WinUI raises the `Loaded` of
+  the new place before the queued `Unloaded` of the old one, so the teardown ran after the setup
+  and nothing came after to hook again. Floating windows opened after such a move would outlive the
+  owner's `Closing` and crash its teardown. A moved dock site now keeps its floating windows and
+  its hook (or re-hooks when the move crossed into another top-level window); only a site that
+  actually left the tree tears down.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
   compiler writes an entry for every `///` comment whatever its accessibility. Internal comments are
