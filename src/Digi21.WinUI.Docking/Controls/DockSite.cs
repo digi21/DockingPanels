@@ -559,6 +559,16 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
+    // Hides the auto-hide flyout when it is the one showing the given window, and leaves it alone
+    // when it is closed or showing some other window.
+    internal void HideAutoHideFlyoutFor(ToolWindow window)
+    {
+        if (autoHideFlyout?.Window is { } shown && ReferenceEquals(shown, window))
+        {
+            HideAutoHideFlyout();
+        }
+    }
+
     // Hides the auto-hide flyout if it is open.
     internal void HideAutoHideFlyout()
     {
