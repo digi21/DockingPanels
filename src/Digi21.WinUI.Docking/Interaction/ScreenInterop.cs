@@ -114,6 +114,18 @@ internal static class ScreenInterop
         }
     }
 
+    // Brings the top-level window hosting the given element to the foreground. Windows only honors
+    // the call from the process that already owns the foreground, which is exactly the case this
+    // exists for: activating a docked window while a floating window of the application has the
+    // focus should surface the main window, the same way activating a floating window surfaces it.
+    internal static void BringToForeground(FrameworkElement element)
+    {
+        if (GetWindowHandle(element) is { } hwnd && GetForegroundWindow() != hwnd)
+        {
+            SetForegroundWindow(hwnd);
+        }
+    }
+
     // Gets the window handle backing the element's XAML island, if there is one.
     internal static IntPtr? GetWindowHandle(FrameworkElement element)
     {

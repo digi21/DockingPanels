@@ -185,7 +185,13 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
 
         if (this is ToolWindow tool && State == DockingWindowState.AutoHide)
         {
-            DockSite?.ShowAutoHideFlyout(tool);
+            if (DockSite is { } site)
+            {
+                // The flyout opens in the dock site's window, which may sit behind a floating one.
+                ScreenInterop.BringToForeground(site);
+                site.ShowAutoHideFlyout(tool);
+            }
+
             return;
         }
 
@@ -194,6 +200,12 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
         if (State == DockingWindowState.Floating)
         {
             DockSite?.FindFloatingHost(this)?.Activate();
+        }
+        else if (DockSite is { } dockedSite)
+        {
+            // A docked window can be activated while a floating window of the application holds
+            // the foreground; its window has to come forward then, as a floating window's does.
+            ScreenInterop.BringToForeground(dockedSite);
         }
 
         DockSite?.SetActiveWindow(this);

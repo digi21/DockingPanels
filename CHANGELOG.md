@@ -182,6 +182,9 @@ Since `0.1.0-dev.2`:
   foreground on whichever came last instead of on the window the user was working in. Restored
   floating windows now open without taking the focus; floating a window interactively still
   activates it.
+- `Activate()` on a docked or auto-hidden window left the application's main window behind a
+  floating one that held the focus: only floating windows brought their top-level window forward.
+  Activating any window now surfaces the window that shows it.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
   compiler writes an entry for every `///` comment whatever its accessibility. Internal comments are

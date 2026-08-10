@@ -99,6 +99,11 @@ public partial class DockSite : Control, IDockSurface
         GotFocus += OnAnyDescendantGotFocus;
         Loaded += (_, _) => HookOwnerWindow();
         Unloaded += (_, _) => ReleaseOwnerWindow();
+
+        // Registered once here rather than in OnApplyTemplate, which runs again every time the
+        // template is re-applied and would stack the handler up; handledEventsToo, because
+        // dismissing the flyout must see presses a control inside the layout already handled.
+        AddHandler(PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnDismissPointerPressed), true);
     }
 
     // Watches the window hosting this dock site so its floating windows are closed while it is
@@ -274,7 +279,6 @@ public partial class DockSite : Control, IDockSurface
         }
 
         RefreshAutoHideStrips();
-        AddHandler(PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnDismissPointerPressed), true);
 
         if (GetTemplateChild("PART_DockPreview") is Rectangle preview
             && GetTemplateChild("PART_CenterGuides") is DockGuidePanel centerGuides

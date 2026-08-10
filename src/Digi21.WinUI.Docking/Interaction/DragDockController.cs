@@ -366,6 +366,9 @@ internal sealed partial class DragDockController
         FloatingWindowHost host,
         bool movesTheHost)
     {
+        // Best-effort: unlike the docked drag, this gesture is driven by the poll timer, which
+        // sees the button release even when the capture failed or the release happens over
+        // another window, so a failed capture does not call the drag off.
         sourceElement.CapturePointer(e.Pointer);
 
         draggedWindow = window;
