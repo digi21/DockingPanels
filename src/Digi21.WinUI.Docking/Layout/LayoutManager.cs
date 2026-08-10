@@ -276,8 +276,11 @@ internal static class LayoutManager
             return false;
         }
 
-        // Releases the window from the flyout's content host when the flyout is the one showing it.
-        site.HideAutoHideFlyout();
+        // Releases the window from the flyout's content host when the flyout is the one showing
+        // it. A flyout showing some other window — even one of another group — stays open: the
+        // detach has nothing to release there, and closing it would take the panel the user is
+        // looking at away because an unrelated window moved.
+        site.HideAutoHideFlyoutFor(tool);
 
         group.Windows.Remove(tool);
         if (group.Windows.Count == 0)

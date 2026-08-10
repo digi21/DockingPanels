@@ -170,6 +170,10 @@ Since `0.1.0-dev.2`:
   owner's `Closing` and crash its teardown. A moved dock site now keeps its floating windows and
   its hook (or re-hooks when the move crossed into another top-level window); only a site that
   actually left the tree tears down.
+- Relocating or closing an auto-hidden window snapped the flyout shut even when it was showing a
+  different window — closing a hidden window from a menu while another group's flyout was open took
+  the open panel away with it. The flyout now closes only when it is showing the very window that
+  is leaving.
 - The package's XML documentation described the whole internal machinery — `DockSite.HookOwnerWindow`,
   `LayoutManager`, `DragDockController` and some three hundred more — as if it were API, because the
   compiler writes an entry for every `///` comment whatever its accessibility. Internal comments are
