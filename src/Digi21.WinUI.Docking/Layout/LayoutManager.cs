@@ -241,6 +241,11 @@ internal static class LayoutManager
     {
         window.IsRelocating = window.IsOpen;
 
+        if (DetachFromAutoHide(site, window))
+        {
+            return;
+        }
+
         if (window.Container is { } container)
         {
             var surface = LayoutTree.Locate(site, container)?.Surface;
@@ -254,12 +259,47 @@ internal static class LayoutManager
         }
     }
 
+    // Takes an auto-hidden window out of the auto-hide machinery, and tells whether it was in it.
+    //
+    // An auto-hidden window has no container: it belongs to an auto-hide group, and while its flyout
+    // is open the flyout's own content host is its visual parent. The container path of Detach is
+    // blind to both, so without this a relocation would leave the window parented to the flyout and
+    // attaching it anywhere else would fail with the double-parent COMException (0x800F1000).
+    private static bool DetachFromAutoHide(DockSite site, DockingWindow window)
+    {
+        if (window is not ToolWindow tool || site.FindAutoHideGroup(tool) is not { } group)
+        {
+            return false;
+        }
+
+        // Releases the window from the flyout's content host when the flyout is the one showing it.
+        site.HideAutoHideFlyout();
+
+        group.Windows.Remove(tool);
+        if (group.Windows.Count == 0)
+        {
+            site.RemoveAutoHideGroup(group);
+        }
+        else
+        {
+            site.RefreshAutoHideStrips();
+        }
+
+        return true;
+    }
+
     private static void FinishDock(IDockSurface surface, DockingWindow window, bool wasOpen)
     {
         var site = surface.Site;
         var wasRelocating = window.IsRelocating;
         window.IsRelocating = false;
         window.DockSite = site;
+
+        // Whatever the window was before the move (floating, or auto-hidden and shown in its
+        // flyout), it is docked now. Docking it into a floating window is the exception, and the
+        // host puts the state back from SyncWithLayout when the mutation below reaches it.
+        window.State = DockingWindowState.Docked;
+
         site.RegisterWindow(window);
         site.NotifyRelocated(window);
         surface.OnLayoutMutated();
@@ -454,7 +494,11 @@ internal static class LayoutManager
     // docked so it can be sent back to the same place.
     internal static void FloatWindow(DockSite site, DockingWindow window, RectInt32 bounds)
     {
-        var hint = window.Container is { } previous ? CaptureRestoreHint(site, previous, DockSide.Left) : null;
+        // An auto-hidden window has no container to capture a hint from, but its group already
+        // carries the one taken when it was unpinned: floating it keeps the way home it had.
+        var hint = window.Container is { } previous
+            ? CaptureRestoreHint(site, previous, DockSide.Left)
+            : site.FindAutoHideGroup(window)?.RestoreHint;
 
         Detach(site, window);
 
@@ -649,23 +693,11 @@ internal static class LayoutManager
     // Removes a window from its container and collapses the tree if needed.
     internal static void RemoveWindow(DockingWindow window)
     {
-        if (window is ToolWindow tool && tool.State == DockingWindowState.AutoHide
-            && tool.DockSite is { } autoHideSite && autoHideSite.FindAutoHideGroup(tool) is { } group)
+        if (window.DockSite is { } autoHideSite && DetachFromAutoHide(autoHideSite, window))
         {
-            autoHideSite.HideAutoHideFlyout();
-            group.Windows.Remove(tool);
-            if (group.Windows.Count == 0)
-            {
-                autoHideSite.RemoveAutoHideGroup(group);
-            }
-            else
-            {
-                autoHideSite.RefreshAutoHideStrips();
-            }
-
-            tool.IsOpen = false;
-            tool.IsSelected = false;
-            tool.State = DockingWindowState.Docked;
+            window.IsOpen = false;
+            window.IsSelected = false;
+            window.State = DockingWindowState.Docked;
             return;
         }
 
