@@ -512,6 +512,15 @@ public partial class DockSite : Control, IDockSurface
             return;
         }
 
+        if (ReferenceEquals(autoHideFlyout.Window, window))
+        {
+            // Already showing this window. Re-rooting it would raise Loaded, Unloaded and a
+            // spurious Relocated — the signal that tells content like a WebView2 to rebuild — on
+            // every click of its tab or its title bar, for a window that never moved.
+            SetActiveWindow(window);
+            return;
+        }
+
         // Showing the flyout takes the window out of the auto-hide group and into the flyout's own
         // content host, which is a move like any other as far as its content is concerned.
         autoHideFlyout.Show(window);
