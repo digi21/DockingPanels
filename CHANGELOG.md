@@ -5,9 +5,10 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2026-08-11
+## [1.0.0] - 2026-08-11
 
-First release.
+First release. The API is stable: it took its final shape while the library was being built against
+a real application, and the private `0.1.0-dev.*` packages were where it changed.
 
 ### Added
 
@@ -103,4 +104,4 @@ First release.
 - Windows App SDK 1.8 or later, .NET 8 or later, and Windows 10 version 1809 (build 17763) or
   later.
 
-[0.1.0]: https://github.com/Digi21/DockingPanels/releases/tag/v0.1.0
+[1.0.0]: https://github.com/Digi21/DockingPanels/releases/tag/v1.0.0
