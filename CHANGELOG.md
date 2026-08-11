@@ -90,11 +90,9 @@ is published, the entries below describe what that first release will contain; p
 
 #### Sample
 
-- The `DockingGallery` app carries an **Event Trace** panel: the docking events in the order they
-  actually happen, and the situations that have gone wrong before — restoring a layout, reloading
-  an unchanged one, floating a window, collapsing panes to an edge — as buttons that replay them.
-  Each also runs unattended through the `DOCKPROBE` environment variable, tracing to a file and
-  closing by itself.
+- The `DockingGallery` app carries an **Event Trace** panel: `Loaded`, `Unloaded`, `Relocated`,
+  `LayoutChanged` and the open/close notifications in the order they actually happen, which is the
+  order that matters when hosting content with a life cycle of its own.
 
 ### Fixed
 

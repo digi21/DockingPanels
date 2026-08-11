@@ -12,15 +12,11 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <controls:ItemsRepeater x:Name="ScenarioButtons">
-            <controls:ItemsRepeater.Layout>
-                <controls:UniformGridLayout
-                    ItemsStretch="Fill"
-                    MinColumnSpacing="4"
-                    MinItemWidth="84"
-                    MinRowSpacing="4" />
-            </controls:ItemsRepeater.Layout>
-        </controls:ItemsRepeater>
+        <TextBlock
+            Style="{ThemeResource CaptionTextBlockStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="The docking events as they happen. Relocated, in bold, is the one to hang content with a life cycle of its own off."
+            TextWrapping="Wrap" />
 
         <Border
             Grid.Row="1"
@@ -44,18 +40,10 @@
             </ScrollViewer>
         </Border>
 
-        <StackPanel
+        <Button
             Grid.Row="2"
-            Orientation="Horizontal"
-            Spacing="8">
-            <Button Click="OnClear" Content="Clear" />
-            <TextBlock
-                x:Name="Status"
-                VerticalAlignment="Center"
-                Style="{ThemeResource CaptionTextBlockStyle}"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                TextWrapping="Wrap" />
-        </StackPanel>
+            Click="OnClear"
+            Content="Clear" />
     </Grid>
 
 </UserControl>
