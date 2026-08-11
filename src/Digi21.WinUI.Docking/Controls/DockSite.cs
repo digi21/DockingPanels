@@ -167,6 +167,14 @@ public partial class DockSite : Control, IDockSurface
 
     private void OnOwnerWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
+        // An application that stops the close here, to ask about unsaved work, must not find its
+        // floating windows closed regardless. It gets to decide first: a handler added when the
+        // window was built runs before this one, which the dock site only adds when it loads.
+        if (args.Cancel)
+        {
+            return;
+        }
+
         CloseFloatingWindows();
     }
 
