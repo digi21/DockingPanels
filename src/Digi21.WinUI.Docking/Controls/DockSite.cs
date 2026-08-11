@@ -109,7 +109,14 @@ public partial class DockSite : Control, IDockSurface
     // Watches the window hosting this dock site so its floating windows are closed while it is
     // still alive. They are owned windows, so leaving them to be destroyed together with their
     // owner tears down their XAML islands during the owner's own teardown, which crashes the
-    // process. Nothing for the application to call: the dock site hooks itself when it loads.
+    // process. The dock site hooks itself when it loads, so a close the user asks for needs nothing
+    // from the application.
+    //
+    // Closing only covers that user-initiated close. It does not arrive when the application calls
+    // Window.Close() itself, and neither does anything else a control can reach in time: Destroying
+    // and the owner's WM_DESTROY both land after the owned windows are already going, and XAML
+    // raises no Unloaded on the dock site. Window.Closed is the last usable moment and only the
+    // application holds it, which is why CloseFloatingWindows is public.
     private void HookOwnerWindow()
     {
         if (ownerWindow is not null || XamlRoot?.ContentIslandEnvironment is not { } environment)
@@ -160,6 +167,14 @@ public partial class DockSite : Control, IDockSurface
 
     private void OnOwnerWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
+        // An application that stops the close here, to ask about unsaved work, must not find its
+        // floating windows closed regardless. It gets to decide first: a handler added when the
+        // window was built runs before this one, which the dock site only adds when it loads.
+        if (args.Cancel)
+        {
+            return;
+        }
+
         CloseFloatingWindows();
     }
 
@@ -441,8 +456,28 @@ public partial class DockSite : Control, IDockSurface
         return handle == IntPtr.Zero ? null : floatingHosts.FirstOrDefault(h => h.Handle == handle);
     }
 
-    // Closes every floating window, releasing the tool windows they host.
-    internal void CloseFloatingWindows()
+    /// <summary>
+    /// Closes the floating windows opened from this dock site, releasing the windows they host.
+    /// Those windows stay registered, so a layout load can bring them back.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An application needs this in one case only: when it closes the window hosting the dock site
+    /// from code, as a File &gt; Exit command does. A floating window is owned by that window, and
+    /// leaving it to be destroyed alongside its owner tears down its XAML island during the owner's
+    /// own teardown, which takes the process down with no managed exception to catch.
+    /// </para>
+    /// <para>
+    /// A close the user asks for — the caption button, Alt+F4 — is handled by the dock site itself.
+    /// A close the application asks for is not: WinUI raises no event on <c>AppWindow</c> for it,
+    /// and a control has no supported way of reaching the <c>Window</c> that would raise
+    /// <c>Closed</c>. Hence this call, from the window's own handler:
+    /// </para>
+    /// <code>
+    /// Closed += (_, _) => DockSite.CloseFloatingWindows();
+    /// </code>
+    /// </remarks>
+    public void CloseFloatingWindows()
     {
         foreach (var host in floatingHosts.ToList())
         {

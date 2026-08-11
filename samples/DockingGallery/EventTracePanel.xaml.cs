@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Text;
 using Digi21.WinUI.Docking;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -27,19 +26,16 @@ public sealed class TraceEntry
 }
 
 /// <summary>
-/// Live trace of the docking events, with the scenarios that reproduce the ordering bugs found so
-/// far. Four of the five bugs fixed in this library were only visible in a running application, and
-/// every one of them was a question about the order of Loaded, Unloaded and Relocated.
+/// Live trace of the docking events in the order they actually happen, which is what an application
+/// hosting content with a life cycle of its own — a swap chain, a video, a map — has to build
+/// against. WinUI raises <c>Loaded</c> before <c>Unloaded</c> for a window that merely moves, so the
+/// last event such content sees is the unload one; <c>Relocated</c> is the library's answer to that
+/// and stands out in the trace.
 /// </summary>
 public sealed partial class EventTracePanel : UserControl
 {
     private readonly List<Action> detach = [];
-    private readonly StringBuilder logFile = new();
     private readonly DateTime start = DateTime.Now;
-
-    private DockSite site = null!;
-    private Window host = null!;
-    private string? logPath;
 
     /// <summary>Initializes a new instance of the <see cref="EventTracePanel"/> class.</summary>
     public EventTracePanel()
@@ -50,27 +46,19 @@ public sealed partial class EventTracePanel : UserControl
     /// <summary>Gets the lines of the trace, oldest first.</summary>
     public ObservableCollection<TraceEntry> Entries { get; } = [];
 
-    // Starts recording, and runs the scenario named by DOCKPROBE if there is one.
+    // Starts recording.
     //
     // The panel is attached from the main window's constructor so that it is already listening when
     // the dock site raises its own Loaded, which is where the interesting ordering happens and
     // where an application restores its layout.
     internal void Attach(Window window, DockSite dockSite, ToolWindow self)
     {
-        host = window;
-        site = dockSite;
-        // An empty variable is an unset one. A shell that clears it by assigning "" would otherwise
-        // leave an empty path here, and writing to it throws from inside a layout event, which
-        // takes the whole application down.
-        var configured = Environment.GetEnvironmentVariable("DOCKPROBE_LOG");
-        logPath = string.IsNullOrWhiteSpace(configured) ? null : configured;
-
         Subscribe(dockSite);
 
-        // The harness holds a handler on every window it watches, and a handler is a strong
-        // reference from the panel to the window. Left in place it would keep closed windows alive
-        // and turn a real life-cycle leak into a trace that looks healthy, so everything is undone
-        // when the panel's own window closes or the application shuts down.
+        // The panel holds a handler on every window it watches, and a handler is a strong reference
+        // from the panel to the window. Left in place it would keep closed windows alive and turn a
+        // real life-cycle leak into a trace that looks healthy, so everything is undone when the
+        // panel's own window closes or the application shuts down.
         Listen<DockingWindowEventArgs>(
             h => dockSite.WindowClosed += h,
             h => dockSite.WindowClosed -= h,
@@ -84,56 +72,9 @@ public sealed partial class EventTracePanel : UserControl
 
         window.Closed += (_, _) => Detach();
 
-        var scenario = Environment.GetEnvironmentVariable("DOCKPROBE");
-
-        dockSite.Loaded += (_, _) =>
-        {
-            Mark($"DockSite.Loaded — {Describe()}");
-
-            if (Scenarios.Find(scenario) is { } headless)
-            {
-                Run(headless, headless.AutoCloseMs);
-            }
-        };
-
-        ScenarioButtons.ItemsSource = Scenarios.All.Select(Build).ToList();
-        Status.Text = logPath is null
-            ? "Set DOCKPROBE=<scenario> and DOCKPROBE_LOG=<file> to run one at startup, unattended."
-            : $"Writing to {logPath}";
-    }
-
-    private Button Build(Scenario scenario)
-    {
-        var button = new Button
-        {
-            Content = scenario.Name,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-
-        ToolTipService.SetToolTip(button, scenario.Description);
-        button.Click += (_, _) => Run(scenario, autoCloseMs: 0);
-        return button;
-    }
-
-    private void Run(Scenario scenario, int autoCloseMs)
-    {
-        Mark($"=== {scenario.Name}: {scenario.Description} ===");
-
-        // A scenario that reproduces a startup-ordering bug only means what it says when it runs
-        // from the dock site's Loaded. Clicking its button exercises the same calls, one or more
-        // layout passes later, which is precisely the difference the bugs lived in.
-        if (scenario.AtLoaded && autoCloseMs == 0)
-        {
-            Mark($"    (running after load; for the real timing, DOCKPROBE={scenario.Name})");
-        }
-
-        var context = new ScenarioContext(host, site, message => Write($"  {message}"));
-        scenario.Run(context);
-
-        if (autoCloseMs > 0)
-        {
-            context.CloseAfter(autoCloseMs, () => Mark($"closing — {Describe()}"));
-        }
+        // A dock site's own Loaded fires before that of its descendants, which is why this line
+        // comes first and why a window's back-pointer to its site is still null from here.
+        dockSite.Loaded += (_, _) => Write("DockSite.Loaded", emphasized: true);
     }
 
     private void Subscribe(DockSite dockSite)
@@ -153,9 +94,8 @@ public sealed partial class EventTracePanel : UserControl
             h => dockSite.LayoutChanged -= h,
             (_, e) => Write($"  LayoutChanged: {e.Kind}"));
 
-        // Reading the registry is itself the fix for the last bug: a window declared in XAML
-        // registers itself when it loads, which is after the dock site's own Loaded, so the site
-        // has to sweep its trees to answer this from here.
+        // The windows declared in XAML register themselves as they load, which is after the dock
+        // site's own Loaded, so the site sweeps its trees to answer this.
         foreach (var window in dockSite.ToolWindows.Cast<DockingWindow>().Concat(dockSite.Documents))
         {
             Watch(window, Label(window));
@@ -215,21 +155,6 @@ public sealed partial class EventTracePanel : UserControl
         return window.SerializationId ?? window.Title;
     }
 
-    // A one-line summary of where everything is, which is what tells a passing run from a failing
-    // one when the trace alone is ambiguous.
-    private string Describe()
-    {
-        var states = site.ToolWindows.Select(w => $"{w.SerializationId}:{(w.IsOpen ? w.State.ToString() : "closed")}");
-        return $"child={site.Child?.GetType().Name ?? "<null>"}, "
-            + $"tools={site.ToolWindows.Count}, documents={site.Documents.Count} "
-            + $"[{string.Join(", ", states)}]";
-    }
-
-    private void Mark(string message)
-    {
-        Write(message, emphasized: true);
-    }
-
     private void Write(string message, bool emphasized = false)
     {
         var line = $"{(DateTime.Now - start).TotalMilliseconds,7:F0}ms  {message}";
@@ -241,14 +166,6 @@ public sealed partial class EventTracePanel : UserControl
             TraceScroller.UpdateLayout();
             TraceScroller.ChangeView(null, TraceScroller.ScrollableHeight, null, disableAnimation: true);
         });
-
-        if (logPath is null)
-        {
-            return;
-        }
-
-        logFile.AppendLine(line);
-        File.WriteAllText(logPath, logFile.ToString());
     }
 
     private void OnClear(object sender, RoutedEventArgs e)

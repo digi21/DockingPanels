@@ -3,7 +3,7 @@
 [![CI](https://github.com/Digi21/DockingPanels/actions/workflows/ci.yml/badge.svg)](https://github.com/Digi21/DockingPanels/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Digi21.WinUI.Docking.svg)](https://www.nuget.org/packages/Digi21.WinUI.Docking)
 [![NuGet downloads](https://img.shields.io/nuget/dt/Digi21.WinUI.Docking.svg)](https://www.nuget.org/packages/Digi21.WinUI.Docking)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/Digi21/DockingPanels/blob/main/LICENSE)
 
 Docking panels for WinUI 3 applications: dockable tool windows with splitters and tabs, a tabbed
 MDI document area, Visual Studio-style drag-and-drop dock guides, floating windows, auto-hide, and
@@ -142,6 +142,19 @@ dockSite.FloatWindow(outputWindow, new RectInt32(2200, 300, 480, 640));  // expl
 
 outputWindow.Dock();                    // back to the position it was floated from
 ```
+
+**If your application ever closes its window from code** — a File > Exit command, a confirmation
+dialog that decides to quit — close the floating windows first:
+
+```csharp
+Closed += (_, _) => DockSite.CloseFloatingWindows();
+```
+
+They are owned windows, and letting them be destroyed alongside their owner tears down their XAML
+islands during the owner's own teardown, which ends the process with `0xC000027B` and no managed
+exception. The dock site handles the close the *user* asks for by itself; the one the application
+asks for raises no event a control can reach in time, so this one line is yours. It costs nothing
+when there is no floating window open.
 
 ### Auto-hide
 
@@ -285,12 +298,13 @@ into `Application.Resources`, which is the only place WinUI honors theme diction
 ```
 
 The full list of brushes and metrics, and how to retemplate a control, is in
-[docs/theming.md](docs/theming.md).
+[docs/theming.md](https://github.com/Digi21/DockingPanels/blob/main/docs/theming.md).
 
 ## Sample
 
-The [`samples/DockingGallery`](samples/DockingGallery) app in this repository demonstrates all
-features and is the easiest way to try the library: clone the repository and run
+The [`samples/DockingGallery`](https://github.com/Digi21/DockingPanels/tree/main/samples/DockingGallery)
+app demonstrates all features and is the easiest way to try the library: clone
+[the repository](https://github.com/Digi21/DockingPanels) and run
 
 ```
 dotnet build
@@ -299,24 +313,17 @@ dotnet run --project samples/DockingGallery
 
 Its **Event Trace** panel records `Loaded`, `Unloaded`, `Relocated`, `LayoutChanged` and the
 open/close notifications as they happen, which is the order that matters when hosting content with
-a life cycle of its own. The buttons along its top replay the situations that have gone wrong
-before — restoring a layout, reloading an unchanged one, floating a window, collapsing panes to an
-edge — and each one also runs unattended, tracing to a file and closing by itself:
-
-```
-set DOCKPROBE=L1
-set DOCKPROBE_LOG=%TEMP%\trace.log
-dotnet run --project samples/DockingGallery
-```
-
-Scenarios marked as such in their tooltip run from the dock site's `Loaded`, which a button press
-cannot reproduce; those are worth running through `DOCKPROBE`.
+a life cycle of its own: WinUI raises `Loaded` before `Unloaded` for a window that merely moves, so
+the last event that content sees is the unload one. Drag a window between panes, float it, pin it to
+an edge or load a layout, and watch which of those gestures is followed by `Relocated`.
 
 ## Contributing
 
-Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). What changes between
-versions is recorded in [CHANGELOG.md](CHANGELOG.md).
+Issues and pull requests are welcome: see
+[CONTRIBUTING.md](https://github.com/Digi21/DockingPanels/blob/main/CONTRIBUTING.md). What changes
+between versions is recorded in
+[CHANGELOG.md](https://github.com/Digi21/DockingPanels/blob/main/CHANGELOG.md).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/Digi21/DockingPanels/blob/main/LICENSE)

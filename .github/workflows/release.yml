@@ -8,7 +8,8 @@ jobs:
   publish:
     runs-on: windows-latest
     permissions:
-      contents: write
+      contents: write # the GitHub release
+      id-token: write # the OIDC token trusted publishing exchanges for a temporary NuGet key
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,8 +30,17 @@ jobs:
       - name: Pack
         run: dotnet pack src/Digi21.WinUI.Docking/Digi21.WinUI.Docking.csproj -c Release --no-build -o artifacts
 
+      # Trusted publishing: nuget.org exchanges this job's OIDC token for an API key that lasts an
+      # hour and is good for one push, so there is no long-lived secret to store or rotate. It has
+      # to be the step before the push for that hour to mean anything.
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }} # the nuget.org profile name, not the email address
+
       - name: Push to NuGet.org
-        run: dotnet nuget push "artifacts/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2

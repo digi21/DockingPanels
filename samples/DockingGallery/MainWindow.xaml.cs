@@ -29,6 +29,11 @@ public sealed partial class MainWindow : Window
         // dock site raises its own Loaded, which is where the ordering the panel exists to show
         // actually happens.
         Trace.Attach(this, DockSite, EventTrace);
+
+        // Only needed by an application that closes its window from code, which this one does not;
+        // it is here because it costs nothing and is the line that is missed until a File > Exit
+        // command takes the process down with a floating window open.
+        Closed += (_, _) => DockSite.CloseFloatingWindows();
     }
 
     private void OnNewDocument(object sender, RoutedEventArgs e)
