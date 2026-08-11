@@ -3,7 +3,7 @@
 [![CI](https://github.com/Digi21/DockingPanels/actions/workflows/ci.yml/badge.svg)](https://github.com/Digi21/DockingPanels/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Digi21.WinUI.Docking.svg)](https://www.nuget.org/packages/Digi21.WinUI.Docking)
 [![NuGet downloads](https://img.shields.io/nuget/dt/Digi21.WinUI.Docking.svg)](https://www.nuget.org/packages/Digi21.WinUI.Docking)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/Digi21/DockingPanels/blob/main/LICENSE)
 
 Docking panels for WinUI 3 applications: dockable tool windows with splitters and tabs, a tabbed
 MDI document area, Visual Studio-style drag-and-drop dock guides, floating windows, auto-hide, and
@@ -298,12 +298,13 @@ into `Application.Resources`, which is the only place WinUI honors theme diction
 ```
 
 The full list of brushes and metrics, and how to retemplate a control, is in
-[docs/theming.md](docs/theming.md).
+[docs/theming.md](https://github.com/Digi21/DockingPanels/blob/main/docs/theming.md).
 
 ## Sample
 
-The [`samples/DockingGallery`](samples/DockingGallery) app in this repository demonstrates all
-features and is the easiest way to try the library: clone the repository and run
+The [`samples/DockingGallery`](https://github.com/Digi21/DockingPanels/tree/main/samples/DockingGallery)
+app demonstrates all features and is the easiest way to try the library: clone
+[the repository](https://github.com/Digi21/DockingPanels) and run
 
 ```
 dotnet build
@@ -318,9 +319,11 @@ an edge or load a layout, and watch which of those gestures is followed by `Relo
 
 ## Contributing
 
-Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). What changes between
-versions is recorded in [CHANGELOG.md](CHANGELOG.md).
+Issues and pull requests are welcome: see
+[CONTRIBUTING.md](https://github.com/Digi21/DockingPanels/blob/main/CONTRIBUTING.md). What changes
+between versions is recorded in
+[CHANGELOG.md](https://github.com/Digi21/DockingPanels/blob/main/CHANGELOG.md).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/Digi21/DockingPanels/blob/main/LICENSE)
