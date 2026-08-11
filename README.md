@@ -1,3 +1,5 @@
+![Digi21.WinUI.Docking](https://raw.githubusercontent.com/Digi21/DockingPanels/main/icon.png)
+
 # Digi21.WinUI.Docking
 
 [![CI](https://github.com/Digi21/DockingPanels/actions/workflows/ci.yml/badge.svg)](https://github.com/Digi21/DockingPanels/actions/workflows/ci.yml)
