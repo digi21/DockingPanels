@@ -11,6 +11,9 @@ Docking panels for WinUI 3 applications: dockable tool windows with splitters an
 MDI document area, Visual Studio-style drag-and-drop dock guides, floating windows, auto-hide, and
 layout serialization.
 
+![The DockingGallery sample: tool windows around a tabbed document area, split panes, tab strips and
+pin buttons](https://raw.githubusercontent.com/Digi21/DockingPanels/main/assets/gallery.png)
+
 ## Features
 
 - `DockSite` root control hosting a declarative docking layout.
