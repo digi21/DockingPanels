@@ -39,8 +39,19 @@ jobs:
         with:
           user: ${{ secrets.NUGET_USER }} # the nuget.org profile name, not the email address
 
+      # The glob is expanded here rather than handed to dotnet: on Windows, `dotnet nuget push` only
+      # expands a wildcard written with backslashes, and a forward-slash one fails with "File does
+      # not exist" — indistinguishable from a pack step that produced nothing. Listing the files
+      # tells the two apart, and pushing each by full path leaves no wildcard to misread.
       - name: Push to NuGet.org
-        run: dotnet nuget push "artifacts/*.nupkg" --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          $packages = @(Get-ChildItem artifacts\*.nupkg)
+          if ($packages.Count -eq 0) { throw "no .nupkg in artifacts - the pack step produced nothing" }
+          foreach ($package in $packages) {
+            Write-Host "pushing $($package.Name)"
+            dotnet nuget push $package.FullName --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+            if ($LASTEXITCODE -ne 0) { throw "push failed for $($package.Name)" }
+          }
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
