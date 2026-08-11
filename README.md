@@ -143,6 +143,19 @@ dockSite.FloatWindow(outputWindow, new RectInt32(2200, 300, 480, 640));  // expl
 outputWindow.Dock();                    // back to the position it was floated from
 ```
 
+**If your application ever closes its window from code** — a File > Exit command, a confirmation
+dialog that decides to quit — close the floating windows first:
+
+```csharp
+Closed += (_, _) => DockSite.CloseFloatingWindows();
+```
+
+They are owned windows, and letting them be destroyed alongside their owner tears down their XAML
+islands during the owner's own teardown, which ends the process with `0xC000027B` and no managed
+exception. The dock site handles the close the *user* asks for by itself; the one the application
+asks for raises no event a control can reach in time, so this one line is yours. It costs nothing
+when there is no floating window open.
+
 ### Auto-hide
 
 ```csharp

@@ -47,6 +47,11 @@ First release.
   close with it.
 - A floating window is a docking surface of its own: windows dropped on it split it into panes or
   join one of its panes as tabs.
+- `DockSite.CloseFloatingWindows()`, for applications that close their window from code. The dock
+  site closes them by itself when the user closes the window; WinUI raises nothing a control can
+  reach in time when the application calls `Window.Close()`, and floating windows destroyed with
+  their owner take the process down. Call it from the window's `Closed` handler.
+
 #### Auto-hide
 
 - `ToolWindow.AutoHide()` collapses a pane to the nearest dock site edge and `Dock()` pins it back
