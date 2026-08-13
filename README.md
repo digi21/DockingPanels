@@ -301,7 +301,15 @@ into `Application.Resources`, which is the only place WinUI honors theme diction
 ```
 
 The full list of brushes and metrics, and how to retemplate a control, is in
-[docs/theming.md](https://github.com/Digi21/DockingPanels/blob/main/docs/theming.md).
+[the theming guide](https://github.com/Digi21/DockingPanels/blob/main/docs/theming.md).
+
+## Documentation
+
+- [Understanding the docking control tree](https://digi21.github.io/DockingPanels/control-tree.html) —
+  where a docking tree can be hosted, which elements a layout accepts, what the control templates add
+  around them, and the rules the layout system enforces. Six runtime trees for the usual arrangements.
+- [Theming](https://github.com/Digi21/DockingPanels/blob/main/docs/theming.md) — every brush and
+  metric key, and how to retemplate a control.
 
 ## Sample
 

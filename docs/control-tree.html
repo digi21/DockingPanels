@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A guide to the Digi21.WinUI.Docking control tree, from the host window to your application content.">
+<title>Understanding the Docking Control Tree — Digi21.WinUI.Docking</title>
+</head>
+<body>
+
+<div class="shell">
+
+  <aside class="rail" id="rail">
+    <div class="rail-caption">
+      <span class="rail-title">Contents</span>
+      <span class="rail-glyph" aria-hidden="true">⯆</span>
+    </div>
+    <nav class="rail-body" aria-label="Sections">
+      <a href="#surfaces">Where trees are hosted</a>
+      <a href="#grammar">Valid layout elements</a>
+      <a href="#chain">From window to content</a>
+      <a href="#splitters">How split layouts work</a>
+      <a href="#windowshost">How containers preserve windows</a>
+      <a href="#scenarios">Six runtime examples</a>
+      <a href="#primitives">UI elements created for you</a>
+      <a href="#model">Runtime and saved state</a>
+      <a href="#invariants">Rules enforced by the library</a>
+    </nav>
+    <div class="rail-legend">
+      <p class="eyebrow">Legend</p>
+      <ul class="legend">
+        <li><span class="node k-surface">Surface</span> root that hosts a tree</li>
+        <li><span class="node k-layout">Layout element</span> saved in the layout</li>
+        <li><span class="node k-window">Docking window</span> holds application content</li>
+        <li><span class="node k-tpl">Template element</span> created by a control template</li>
+        <li><span class="node k-user">Your content</span> defined in your application</li>
+      </ul>
+    </div>
+  </aside>
+
+  <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Resize contents pane" tabindex="0"><span class="grip" aria-hidden="true"></span></div>
+
+  <main class="doc">
+
+    <header class="masthead">
+      <p class="eyebrow">Digi21.WinUI.Docking &middot; control tree guide</p>
+      <h1>Understanding the Docking Control Tree</h1>
+      <p class="lede">A docking layout consists of a host surface and a tree of layout elements. The tree can contain five element types. Visual elements such as splitters, tabs, title bars and docking guides are created at runtime and are not included in a saved layout.</p>
+      <dl class="facts">
+        <div><dt>Host types</dt><dd>3</dd></div>
+        <div><dt>Valid layout types</dt><dd>5</dd></div>
+        <div><dt>Levels from DockSite to content</dt><dd>7</dd></div>
+        <div><dt>Namespaces</dt><dd>3</dd></div>
+      </dl>
+    </header>
+
+    <!-- ─────────────────────────────────────────── -->
+    <section id="surfaces">
+      <h2>Where a docking tree can be hosted</h2>
+      <p>There are three hosting contexts. You add a <code>DockSite</code> directly to your XAML. The library creates a separate window when content floats. Auto-hidden content appears in a flyout inside the <code>DockSite</code>; the flyout is not a separate window.</p>
+
+      <figure>
+        <svg viewBox="0 0 920 460" role="img" aria-label="The application window holds the DockSite, whose overlay canvas also holds the auto-hide flyout. A floating window is a separate owned Window that holds a FloatingWindowRoot. Collapsed auto-hide windows live in a non-visual AutoHideGroup and are reparented into the flyout when expanded.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path class="svg-head" d="M 0 0 L 10 5 L 0 10 z" />
+            </marker>
+          </defs>
+
+          <!-- app window -->
+          <rect class="svg-shell" x="24" y="44" width="470" height="336" />
+          <text class="svg-cap" x="40" y="68">Window <tspan class="svg-dim">(your app)</tspan></text>
+
+          <rect class="svg-surface" x="48" y="80" width="422" height="284" />
+          <text class="svg-lbl svg-teal" x="62" y="102">DockSite</text>
+
+          <!-- overlay -->
+          <rect class="svg-overlay" x="60" y="112" width="398" height="240" />
+
+          <!-- auto-hide strip -->
+          <rect class="svg-strip" x="62" y="116" width="16" height="232" />
+
+          <!-- layout root -->
+          <rect class="svg-pane" x="86" y="116" width="368" height="232" />
+          <text class="svg-lbl" x="100" y="140">PART_LayoutRoot</text>
+          <text class="svg-sub" x="100" y="158">ContentPresenter &rarr; Child</text>
+          <text class="svg-sub" x="100" y="174">contains the complete layout tree</text>
+
+          <!-- flyout -->
+          <rect class="svg-hot" x="238" y="200" width="200" height="132" />
+          <text class="svg-lbl svg-clay" x="252" y="224">AutoHideFlyout</text>
+          <text class="svg-sub" x="252" y="242">Canvas.Left / Top</text>
+          <text class="svg-sub" x="252" y="258">a child control, not</text>
+          <text class="svg-sub" x="252" y="274">a Popup or Flyout</text>
+
+          <text class="svg-sub" x="447" y="344" text-anchor="end">PART_Overlay &middot; Canvas</text>
+          <text class="svg-sub svg-rot" x="70" y="232" text-anchor="middle" transform="rotate(-90 70 232)">AutoHideTabStrip &times;4</text>
+
+          <!-- floating window -->
+          <rect class="svg-shell" x="566" y="44" width="330" height="186" />
+          <text class="svg-cap" x="582" y="68">Window <tspan class="svg-dim">(owned, no system title bar)</tspan></text>
+          <rect class="svg-surface" x="586" y="80" width="290" height="132" />
+          <text class="svg-lbl svg-teal" x="598" y="100">FloatingWindowRoot</text>
+          <rect class="svg-strip" x="598" y="110" width="266" height="16" />
+          <text class="svg-micro" x="604" y="122">FloatingWindowCaption</text>
+          <rect class="svg-pane" x="598" y="132" width="266" height="66" />
+          <text class="svg-sub" x="610" y="154">PART_LayoutRoot &rarr; Child</text>
+          <text class="svg-sub" x="610" y="172">includes its own docking guides</text>
+
+          <!-- owner arrow -->
+          <line class="svg-arrow" x1="494" y1="130" x2="566" y2="130" marker-end="url(#ar)" />
+          <text class="svg-micro" x="530" y="122" text-anchor="middle">owns HWND</text>
+
+          <!-- auto-hide group -->
+          <rect class="svg-model" x="566" y="286" width="330" height="94" />
+          <text class="svg-lbl" x="582" y="310">AutoHideGroup <tspan class="svg-dim">internal</tspan></text>
+          <text class="svg-sub" x="582" y="330">Edge &middot; Windows[] &middot; Size &middot; Offset</text>
+          <text class="svg-sub" x="582" y="348">Stores collapsed windows outside</text>
+          <text class="svg-sub" x="582" y="364">the visual tree.</text>
+
+          <path class="svg-arrow svg-dash" d="M 566 412 H 338 V 336" marker-end="url(#ar)" />
+          <text class="svg-micro" x="556" y="428" text-anchor="end">when expanded, reparents the ToolWindow into the flyout</text>
+        </svg>
+        <figcaption><code>DockSite</code> and a floating host are associated with native windows. <code>AutoHideFlyout</code> is instead a child of the dock site's overlay canvas. Its size is based on <code>PART_LayoutRoot</code> and cannot exceed 80&nbsp;% of that area.</figcaption>
+      </figure>
+
+      <div class="cols">
+        <div>
+          <p class="eyebrow">Host 1 &middot; DockSite</p>
+          <p>Add <span class="node k-surface">DockSite</span> wherever the docking area should appear in your XAML. It obtains the owning <code>AppWindow</code> through <code>XamlRoot.ContentIslandEnvironment</code>. This allows it to close all floating windows before the application window closes.</p>
+        </div>
+        <div>
+          <p class="eyebrow">Host 2 &middot; floating window</p>
+          <p>When content is undocked, the library creates a <code>FloatingWindowHost</code>. This class wraps a standard <code>Window</code>; it does not inherit from <code>Window</code>. The window contains a <span class="node k-surface">FloatingWindowRoot</span> with its own docking guides, so other content can be docked inside it.</p>
+        </div>
+        <div>
+          <p class="eyebrow">Host 3 &middot; auto-hide flyout</p>
+          <p><span class="node k-tpl">AutoHideFlyout</span> contains a private grid that displays one <code>ToolWindow</code> at a time. Auto-hide is available only in <code>DockSite</code>. Floating windows do not have auto-hide strips or a flyout.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────────────── -->
+    <section id="grammar">
+      <h2>Elements allowed in a layout</h2>
+      <p>Each layout slot contains one element. That element must be a <code>SplitContainer</code>, <code>ToolWindowContainer</code>, <code>DocumentContainer</code>, <code>DocumentHost</code> or <code>Workspace</code>; the serializer throws <code>NotSupportedException</code> for any other type. A <code>SplitContainer</code> can contain any number of valid layout elements. A <code>DocumentHost</code> can contain a nested layout made only of document containers and splits.</p>
+
+      <figure>
+        <svg viewBox="0 0 920 410" role="img" aria-label="Three hosts each expose one Child slot. The slot accepts SplitContainer, ToolWindowContainer, DocumentContainer, DocumentHost or Workspace. SplitContainer recurses with N panes; DocumentHost recurses with a document-only subtree. Containers hold N windows, each of which holds one piece of user content.">
+          <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path class="svg-head" d="M 0 0 L 10 5 L 0 10 z" />
+            </marker>
+          </defs>
+
+          <text class="svg-sub" x="186" y="62" text-anchor="end">DockSite.Child</text>
+          <text class="svg-sub" x="186" y="82" text-anchor="end">FloatingWindowRoot.Child</text>
+          <text class="svg-sub" x="186" y="102" text-anchor="end">DocumentHost.Child</text>
+          <line class="svg-arrow" x1="192" y1="58" x2="216" y2="70" marker-end="url(#ar2)" />
+          <line class="svg-arrow" x1="192" y1="78" x2="216" y2="78" marker-end="url(#ar2)" />
+          <line class="svg-arrow" x1="192" y1="98" x2="216" y2="86" marker-end="url(#ar2)" />
+
+          <rect class="svg-slot" x="220" y="60" width="500" height="36" />
+          <text class="svg-lbl" x="470" y="83" text-anchor="middle">layout slot &mdash; contains one element</text>
+
+          <line class="svg-arrow" x1="440" y1="96" x2="120" y2="152" marker-end="url(#ar2)" />
+          <line class="svg-arrow" x1="452" y1="96" x2="292" y2="152" marker-end="url(#ar2)" />
+          <line class="svg-arrow" x1="470" y1="96" x2="470" y2="152" marker-end="url(#ar2)" />
+          <line class="svg-arrow" x1="488" y1="96" x2="648" y2="152" marker-end="url(#ar2)" />
+          <line class="svg-arrow" x1="500" y1="96" x2="820" y2="152" marker-end="url(#ar2)" />
+
+          <rect class="svg-node" x="44" y="154" width="152" height="44" />
+          <text class="svg-lbl svg-teal" x="120" y="181" text-anchor="middle">SplitContainer</text>
+          <rect class="svg-node" x="216" y="154" width="152" height="44" />
+          <text class="svg-lbl svg-teal" x="292" y="175" text-anchor="middle">ToolWindow</text>
+          <text class="svg-lbl svg-teal" x="292" y="189" text-anchor="middle">Container</text>
+          <rect class="svg-node" x="394" y="154" width="152" height="44" />
+          <text class="svg-lbl svg-teal" x="470" y="175" text-anchor="middle">Document</text>
+          <text class="svg-lbl svg-teal" x="470" y="189" text-anchor="middle">Container</text>
+          <rect class="svg-node" x="572" y="154" width="152" height="44" />
+          <text class="svg-lbl svg-teal" x="648" y="181" text-anchor="middle">DocumentHost</text>
+          <rect class="svg-node" x="744" y="154" width="152" height="44" />
+          <text class="svg-lbl svg-teal" x="820" y="181" text-anchor="middle">Workspace</text>
+
+          <!-- recursion: split -->
+          <path class="svg-arrow" d="M 44 176 C 8 176 8 78 216 78" marker-end="url(#ar2)" />
+          <text class="svg-micro" x="30" y="238">panes: N</text>
+          <text class="svg-micro" x="30" y="252">+ N&minus;1 splitters</text>
+
+          <!-- recursion: document host -->
+          <path class="svg-arrow" d="M 896 176 C 916 176 916 78 720 78" marker-end="url(#ar2)" />
+          <text class="svg-micro" x="640" y="222">Child: 1 &mdash; document layout only</text>
+          <text class="svg-micro" x="640" y="236">(SplitContainer of DocumentContainers)</text>
+
+          <line class="svg-arrow" x1="292" y1="198" x2="292" y2="272" marker-end="url(#ar2)" />
+          <text class="svg-micro" x="300" y="228">Items: N</text>
+          <line class="svg-arrow" x1="470" y1="198" x2="470" y2="272" marker-end="url(#ar2)" />
+          <text class="svg-micro" x="478" y="228">Items: N</text>
+
+          <rect class="svg-win" x="216" y="274" width="152" height="40" />
+          <text class="svg-lbl svg-clay" x="292" y="299" text-anchor="middle">ToolWindow</text>
+          <rect class="svg-win" x="394" y="274" width="152" height="40" />
+          <text class="svg-lbl svg-clay" x="470" y="299" text-anchor="middle">DocumentWindow</text>
+
+          <line class="svg-arrow" x1="292" y1="314" x2="292" y2="346" marker-end="url(#ar2)" />
+          <line class="svg-arrow" x1="470" y1="314" x2="470" y2="346" marker-end="url(#ar2)" />
+          <line class="svg-arrow" x1="820" y1="198" x2="820" y2="346" marker-end="url(#ar2)" />
+          <text class="svg-micro" x="300" y="334">Content: 1</text>
+          <text class="svg-micro" x="478" y="334">Content: 1</text>
+          <text class="svg-micro" x="828" y="270">Content: 1</text>
+
+          <rect class="svg-content" x="216" y="348" width="152" height="38" />
+          <text class="svg-lbl svg-ochre" x="292" y="372" text-anchor="middle">your content</text>
+          <rect class="svg-content" x="394" y="348" width="152" height="38" />
+          <text class="svg-lbl svg-ochre" x="470" y="372" text-anchor="middle">your content</text>
+          <rect class="svg-content" x="744" y="348" width="152" height="38" />
+          <text class="svg-lbl svg-ochre" x="820" y="372" text-anchor="middle">your content</text>
+        </svg>
+        <figcaption>These are all the element relationships supported by the layout. Each element also has the attached <code>DockSite.RelativeSize</code> property. Dragging a splitter updates this value for the two adjacent panes.</figcaption>
+      </figure>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Type</th><th>Base</th><th>Children</th><th>File</th></tr></thead>
+          <tbody>
+            <tr><td><code>SplitContainer</code></td><td><code>Panel</code> with custom layout logic</td><td>N panes and N&minus;1 <code>DockSplitter</code> elements</td><td>Controls/SplitContainer.cs</td></tr>
+            <tr><td><code>ToolWindowContainer</code></td><td><code>DockingWindowContainer</code></td><td>N <code>ToolWindow</code></td><td>Controls/ToolWindowContainer.cs</td></tr>
+            <tr><td><code>DocumentContainer</code></td><td><code>DockingWindowContainer</code></td><td>N <code>DocumentWindow</code></td><td>Controls/DocumentContainer.cs</td></tr>
+            <tr><td><code>DocumentHost</code></td><td><code>Control</code>, <code>ILayoutHost</code></td><td>one document-only <code>Child</code> subtree</td><td>Controls/DocumentHost.cs</td></tr>
+            <tr><td><code>Workspace</code></td><td><code>ContentControl</code></td><td>one <code>Content</code> element; cannot contain docking elements</td><td>Controls/Workspace.cs</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="aside">The library does not use <code>DockingManager</code>, <code>TabView</code> or <code>Popup</code>. Its tabs, title bars and auto-hide flyout are custom controls.</p>
+    </section>
+
+    <!-- ─────────────────────────────────────────── -->
+    <section id="chain">
+      <h2>From the application window to your content</h2>
+      <p>The following tree shows the simplest complete example: one docked tool window containing a <code>TextBlock</code>. Elements marked <span class="node k-tpl">template element</span> are created by <code>Themes/Generic.xaml</code>. They exist only in the visual tree and are not part of the saved layout.</p>
+
+      <div class="tree">
+        <ul>
+          <li><span class="node k-surface">Window</span> <span class="meta">your app</span>
+            <ul>
+              <li><span class="node k-user">Grid</span> <span class="meta">your page layout</span>
+                <ul>
+                  <li><span class="node k-surface">DockSite</span> <span class="meta">Control &middot; IDockSurface</span>
+                    <ul>
+                      <li><span class="node k-tpl">Grid</span> <span class="meta">3&times;3 &mdash; strips around the centre</span>
+                        <ul>
+                          <li><span class="node k-tpl">AutoHideTabStrip</span> <span class="meta">&times;4 &mdash; Top, Left, Right, Bottom &middot; collapsed when empty</span></li>
+                          <li><span class="node k-tpl">ContentPresenter</span> <span class="meta">PART_LayoutRoot &middot; Content = <code>Child</code></span>
+                            <ul>
+                              <li><span class="node k-layout">ToolWindowContainer</span> <span class="meta">DockSite.Child</span>
+                                <ul>
+                                  <li><span class="node k-tpl">Border &rsaquo; Grid</span> <span class="meta">rows: Auto / * / Auto</span>
+                                    <ul>
+                                      <li><span class="node k-tpl">ToolWindowTitleBar</span> <span class="meta">PART_TitleBar &middot; shows SelectedItem</span></li>
+                                      <li><span class="node k-tpl">ContentPresenter</span> <span class="meta">PART_ContentHost</span>
+                                        <ul>
+                                          <li><span class="node k-tpl">Grid</span> <span class="meta">windowsHost &mdash; owned by the container, not by the template</span>
+                                            <ul>
+                                              <li><span class="node k-window">ToolWindow</span> <span class="meta">Title = "Output"</span>
+                                                <ul>
+                                                  <li><span class="node k-tpl">ContentPresenter</span>
+                                                    <ul><li><span class="node k-user">TextBlock</span> <span class="meta">your content</span></li></ul>
+                                                  </li>
+                                                </ul>
+                                              </li>
+                                            </ul>
+                                          </li>
+                                        </ul>
+                                      </li>
+                                      <li><span class="node k-tpl">StackPanel</span> <span class="meta">PART_TabStrip &middot; collapsed while Items.Count == 1</span></li>
+                                    </ul>
+                                  </li>
+                                </ul>
+                              </li>
+                            </ul>
+                          </li>
+                          <li><span class="node k-tpl">Canvas</span> <span class="meta">PART_Overlay &middot; spans all rows and columns</span>
+                            <ul>
+                              <li><span class="node k-tpl">Rectangle</span> <span class="meta">PART_DockPreview</span></li>
+                              <li><span class="node k-tpl">DockGuidePanel</span> <span class="meta">PART_CenterGuides &mdash; 5 DockGuide children</span></li>
+                              <li><span class="node k-tpl">DockGuide</span> <span class="meta">&times;4 edge guides</span></li>
+                              <li><span class="node k-tpl">AutoHideFlyout</span> <span class="meta">PART_AutoHideFlyout</span></li>
+                              <li><span class="node k-tpl">Border &rsaquo; TextBlock</span> <span class="meta">PART_DragGhost</span></li>
+                            </ul>
+                          </li>
+                        </ul>
+                      </li>
+                    </ul>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+      <p class="aside">You define only this chain: <code>DockSite</code> &rarr; <code>ToolWindowContainer</code> &rarr; <code>ToolWindow</code> &rarr; your content. The control templates create all intermediate visual elements.</p>
+    </section>
+
+    <!-- ─────────────────────────────────────────── -->
+    <section id="splitters">
+      <h2>How <code>SplitContainer</code> stores panes and splitters</h2>
+      <p><code>SplitContainer</code> derives directly from <code>Panel</code>. Its <code>Children</code> collection contains both panes and generated splitters: all N panes come first, followed by N&minus;1 <code>DockSplitter</code> elements. During layout, the splitters are positioned between the panes. Use <code>GetPanes()</code> when you need the panes; iterating over <code>Children</code> also returns the splitters.</p>
+
+      <figure>
+        <svg viewBox="0 0 900 250" role="img" aria-label="A three-pane SplitContainer stores panes 0 to 2 first in its Children collection followed by two DockSplitter objects, which are arranged between the panes on screen.">
+          <defs>
+            <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path class="svg-head" d="M 0 0 L 10 5 L 0 10 z" />
+            </marker>
+          </defs>
+
+          <text class="svg-cap" x="24" y="34">Children <tspan class="svg-dim">order in the collection</tspan></text>
+          <rect class="svg-node" x="24" y="48" width="112" height="38" />
+          <text class="svg-lbl" x="80" y="72" text-anchor="middle">pane 0</text>
+          <rect class="svg-node" x="144" y="48" width="112" height="38" />
+          <text class="svg-lbl" x="200" y="72" text-anchor="middle">pane 1</text>
+          <rect class="svg-node" x="264" y="48" width="112" height="38" />
+          <text class="svg-lbl" x="320" y="72" text-anchor="middle">pane 2</text>
+          <rect class="svg-hot" x="392" y="48" width="112" height="38" />
+          <text class="svg-lbl svg-clay" x="448" y="72" text-anchor="middle">DockSplitter</text>
+          <rect class="svg-hot" x="512" y="48" width="112" height="38" />
+          <text class="svg-lbl svg-clay" x="568" y="72" text-anchor="middle">DockSplitter</text>
+          <text class="svg-micro" x="644" y="72">added after the panes by ReconcileSplitters()</text>
+
+          <text class="svg-cap" x="24" y="152">Arrangement <tspan class="svg-dim">Orientation = Horizontal</tspan></text>
+          <rect class="svg-pane" x="24" y="166" width="240" height="60" />
+          <text class="svg-lbl" x="144" y="196" text-anchor="middle">pane 0</text>
+          <text class="svg-micro" x="144" y="212" text-anchor="middle">RelativeSize 1.0</text>
+          <rect class="svg-hot" x="268" y="166" width="8" height="60" />
+          <rect class="svg-pane" x="280" y="166" width="240" height="60" />
+          <text class="svg-lbl" x="400" y="196" text-anchor="middle">pane 1</text>
+          <text class="svg-micro" x="400" y="212" text-anchor="middle">RelativeSize 1.0</text>
+          <rect class="svg-hot" x="524" y="166" width="8" height="60" />
+          <rect class="svg-pane" x="536" y="166" width="240" height="60" />
+          <text class="svg-lbl" x="656" y="196" text-anchor="middle">pane 2</text>
+          <text class="svg-micro" x="656" y="212" text-anchor="middle">RelativeSize 1.0</text>
+
+          <path class="svg-arrow svg-dash" d="M 448 86 C 448 120 272 120 272 160" marker-end="url(#ar3)" />
+          <path class="svg-arrow svg-dash" d="M 568 86 C 568 120 528 120 528 160" marker-end="url(#ar3)" />
+          <text class="svg-micro" x="796" y="200">dragging updates the two</text>
+          <text class="svg-micro" x="796" y="214">neighbours' RelativeSize</text>
+        </svg>
+        <figcaption>Splitters appear after the panes in <code>Children</code>, although they are displayed between panes. A <code>SplitContainer</code> can contain more than two panes. Docking another pane along the same axis adds it to the existing split instead of creating a nested split.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ─────────────────────────────────────────── -->
+    <section id="windowshost">
+      <h2>How containers preserve their windows when templates change</h2>
+      <p>Each <code>DockingWindowContainer</code> creates and owns a private <code>Grid</code> named <code>windowsHost</code>. The container assigns this grid to <code>PART_ContentHost.Content</code>. All hosted windows remain in the grid; selecting a tab changes their <code>Visibility</code>. Because the grid belongs to the container rather than the template, it survives when the template is reapplied.</p>
+
+      <figure>
+        <svg viewBox="0 0 900 240" role="img" aria-label="Before redocking, the container's template holds a ContentPresenter containing the container-owned windowsHost grid and its tool windows. After the template is reapplied, the old presenter is discarded, but the same windowsHost grid, still holding the windows, is assigned to the new presenter.">
+          <defs>
+            <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path class="svg-head" d="M 0 0 L 10 5 L 0 10 z" />
+            </marker>
+          </defs>
+          <text class="svg-cap" x="24" y="30">before redocking</text>
+          <rect class="svg-surface" x="24" y="44" width="300" height="170" />
+          <text class="svg-lbl svg-teal" x="40" y="66">ToolWindowContainer</text>
+          <rect class="svg-strip" x="40" y="78" width="268" height="52" />
+          <text class="svg-sub" x="52" y="98">template: Border &rsaquo; Grid</text>
+          <text class="svg-sub" x="52" y="116">ContentPresenter PART_ContentHost</text>
+          <rect class="svg-hot" x="52" y="138" width="244" height="60" />
+          <text class="svg-lbl svg-clay" x="64" y="158">windowsHost <tspan class="svg-dim">owned</tspan></text>
+          <text class="svg-sub" x="64" y="176">ToolWindow "Output" &middot; Visible</text>
+          <text class="svg-sub" x="64" y="192">ToolWindow "Errors" &middot; Collapsed</text>
+
+          <line class="svg-arrow" x1="344" y1="129" x2="416" y2="129" marker-end="url(#ar4)" />
+          <text class="svg-micro" x="380" y="120" text-anchor="middle">redock</text>
+          <text class="svg-micro" x="380" y="148" text-anchor="middle">template reapplied</text>
+
+          <text class="svg-cap" x="436" y="30">after redocking</text>
+          <rect class="svg-surface" x="436" y="44" width="300" height="170" />
+          <text class="svg-lbl svg-teal" x="452" y="66">ToolWindowContainer</text>
+          <rect class="svg-strip" x="452" y="78" width="268" height="52" />
+          <text class="svg-sub" x="464" y="98">new Border &rsaquo; Grid</text>
+          <text class="svg-sub" x="464" y="116">new ContentPresenter</text>
+          <rect class="svg-hot" x="464" y="138" width="244" height="60" />
+          <text class="svg-lbl svg-clay" x="476" y="158">the same windowsHost</text>
+          <text class="svg-sub" x="476" y="176">windows remain in the same grid,</text>
+          <text class="svg-sub" x="476" y="192">avoiding COMException 0x800F1000</text>
+
+          <text class="svg-micro" x="756" y="120">A window cannot be added to a</text>
+          <text class="svg-micro" x="756" y="136">new parent while it still belongs</text>
+          <text class="svg-micro" x="756" y="152">to a discarded template panel.</text>
+        </svg>
+        <figcaption>The container-owned grid prevents WinUI's double-parent error. When the template is reapplied after redocking, the existing grid is assigned to the new presenter without moving its child windows.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ─────────────────────────────────────────── -->
+    <section id="scenarios">
+      <h2>Six examples of runtime control trees</h2>
+      <p>The following examples show how common docking arrangements are represented at runtime. To keep the trees readable, each example includes only the template elements needed to explain that arrangement.</p>
+
+      <div class="scenes">
+
+        <article class="scene">
+          <h3><span class="sn">a</span> One docked tool window</h3>
+          <div class="tree tight">
+            <ul>
+              <li><span class="node k-surface">DockSite</span>
+                <ul><li><span class="node k-layout">ToolWindowContainer</span>
+                  <ul><li><span class="node k-window">ToolWindow</span> <span class="meta">"Output"</span>
+                    <ul><li><span class="node k-user">TextBlock</span></li></ul>
+                  </li></ul>
+                </li></ul>
+              </li>
+            </ul>
+          </div>
+          <p class="sn-note">No <code>SplitContainer</code> is needed. The tab strip exists in the template but remains collapsed because the container has only one item.</p>
+        </article>
+
+        <article class="scene">
+          <h3><span class="sn">b</span> Two tool windows side by side</h3>
+          <div class="tree tight">
+            <ul>
+              <li><span class="node k-surface">DockSite</span>
+                <ul><li><span class="node k-layout">SplitContainer</span> <span class="meta">Horizontal</span>
+                  <ul>
+                    <li><span class="node k-layout">ToolWindowContainer</span> <span class="meta">RelativeSize 0.5</span>
+                      <ul><li><span class="node k-window">ToolWindow</span> <span class="meta">"Solution Explorer"</span></li></ul></li>
+                    <li><span class="node k-layout">ToolWindowContainer</span> <span class="meta">RelativeSize 0.5</span>
+                      <ul><li><span class="node k-window">ToolWindow</span> <span class="meta">"Properties"</span></li></ul></li>
+                    <li><span class="node k-tpl">DockSplitter</span> <span class="meta">generated &middot; last in Children</span></li>
+                  </ul>
+                </li></ul>
+              </li>
+            </ul>
+          </div>
+          <p class="sn-note">If a third pane is docked along the same axis, it is added to this <code>SplitContainer</code>. The library does not create another nested split with the same orientation.</p>
+        </article>
+
+        <article class="scene">
+          <h3><span class="sn">c</span> Two tool windows in one tab group</h3>
+          <div class="tree tight">
+            <ul>
+              <li><span class="node k-layout">ToolWindowContainer</span> <span class="meta">Items = [Output, Error List]</span>
+                <ul>
+                  <li><span class="node k-tpl">ToolWindowTitleBar</span> <span class="meta">Window = SelectedItem</span></li>
+                  <li><span class="node k-tpl">Grid</span> <span class="meta">windowsHost</span>
+                    <ul>
+                      <li><span class="node k-window">ToolWindow</span> <span class="meta">"Output" &middot; Visible</span></li>
+                      <li><span class="node k-window">ToolWindow</span> <span class="meta">"Error List" &middot; Collapsed</span></li>
+                    </ul>
+                  </li>
+                  <li><span class="node k-tpl">StackPanel</span> <span class="meta">PART_TabStrip &middot; bottom, shown while Count &gt; 1</span>
+                    <ul>
+                      <li><span class="node k-tpl">ToolWindowTabItem</span> <span class="meta">&times;2</span></li>
+                    </ul>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+          <p class="sn-note">Tool-window tabs appear at the bottom and are shown only when the container has multiple items. Document tabs appear at the top and are always visible.</p>
+        </article>
+
+        <article class="scene">
+          <h3><span class="sn">d</span> An expanded auto-hidden tool window</h3>
+          <div class="tree tight">
+            <ul>
+              <li><span class="node k-surface">DockSite</span>
+                <ul>
+                  <li><span class="node k-tpl">AutoHideTabStrip</span> <span class="meta">Left</span>
+                    <ul><li><span class="node k-tpl">StackPanel</span> <span class="meta">one per AutoHideGroup, offset by Margin</span>
+                      <ul><li><span class="node k-tpl">AutoHideTabItem</span> <span class="meta">rotated 90&deg; in Arrange</span></li></ul>
+                    </li></ul>
+                  </li>
+                  <li><span class="node k-tpl">ContentPresenter</span> <span class="meta">PART_LayoutRoot &mdash; the rest of the layout, unchanged</span></li>
+                  <li><span class="node k-tpl">Canvas</span> <span class="meta">PART_Overlay</span>
+                    <ul><li><span class="node k-tpl">AutoHideFlyout</span> <span class="meta">Canvas.Left / Top set by PositionAutoHideFlyout</span>
+                      <ul>
+                        <li><span class="node k-tpl">ToolWindowTitleBar</span> <span class="meta">the pin button docks the window again</span></li>
+                        <li><span class="node k-tpl">Grid</span> <span class="meta">windowHost</span>
+                          <ul><li><span class="node k-window">ToolWindow</span> <span class="meta">"Solution Explorer"</span>
+                            <ul><li><span class="node k-user">TreeView</span></li></ul>
+                          </li></ul>
+                        </li>
+                      </ul>
+                    </li></ul>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+          <p class="sn-note">When collapsed, the <code>ToolWindow</code> is removed from the visual tree and stored in the internal <code>AutoHideGroup</code>. Expanding it reparents it into <code>AutoHideFlyout</code>.</p>
+        </article>
+
+        <article class="scene">
+          <h3><span class="sn">e</span> A floating window</h3>
+          <div class="tree tight">
+            <ul>
+              <li><span class="node k-surface">Window</span> <span class="meta">owned by the dock site's HWND</span>
+                <ul><li><span class="node k-surface">FloatingWindowRoot</span>
+                  <ul>
+                    <li><span class="node k-tpl">FloatingWindowCaption</span> <span class="meta">collapsed &mdash; the single pane provides its own caption</span></li>
+                    <li><span class="node k-layout">ToolWindowContainer</span>
+                      <ul>
+                        <li><span class="node k-tpl">ToolWindowTitleBar</span> <span class="meta">acts as the window caption; drag it to dock the window again</span></li>
+                        <li><span class="node k-window">ToolWindow</span> <span class="meta">"Output"</span></li>
+                      </ul>
+                    </li>
+                    <li><span class="node k-tpl">Canvas</span> <span class="meta">PART_Overlay &mdash; preview, guides, drag ghost</span></li>
+                  </ul>
+                </li></ul>
+              </li>
+            </ul>
+          </div>
+          <p class="sn-note">If a second pane is docked in the floating window, <code>FloatingWindowRoot.Child</code> becomes a <code>SplitContainer</code> and the shared caption becomes visible. The floating host closes when its last docking window is removed.</p>
+        </article>
+
+        <article class="scene wide">
+          <h3><span class="sn">f</span> Two groups of tabbed MDI documents</h3>
+          <div class="tree tight">
+            <ul>
+              <li><span class="node k-surface">DockSite</span>
+                <ul><li><span class="node k-layout">SplitContainer</span> <span class="meta">Horizontal</span>
+                  <ul>
+                    <li><span class="node k-layout">ToolWindowContainer</span> <span class="meta">"Solution Explorer"</span></li>
+                    <li><span class="node k-layout">DocumentHost</span> <span class="meta">the MDI area &middot; its own ILayoutHost</span>
+                      <ul><li><span class="node k-layout">SplitContainer</span> <span class="meta">Vertical &mdash; two tab groups</span>
+                        <ul>
+                          <li><span class="node k-layout">DocumentContainer</span> <span class="meta">group 1</span>
+                            <ul>
+                              <li><span class="node k-tpl">Border &rsaquo; ScrollViewer &rsaquo; StackPanel</span> <span class="meta">PART_TabStrip, top</span>
+                                <ul><li><span class="node k-tpl">DocumentTabItem</span> <span class="meta">&times;2 &middot; each with PART_CloseButton</span></li></ul>
+                              </li>
+                              <li><span class="node k-tpl">Grid</span> <span class="meta">windowsHost</span>
+                                <ul>
+                                  <li><span class="node k-window">DocumentWindow</span> <span class="meta">"README.md" &middot; Visible</span>
+                                    <ul><li><span class="node k-user">TextBox</span></li></ul></li>
+                                  <li><span class="node k-window">DocumentWindow</span> <span class="meta">"Program.cs" &middot; Collapsed</span></li>
+                                </ul>
+                              </li>
+                            </ul>
+                          </li>
+                          <li><span class="node k-layout">DocumentContainer</span> <span class="meta">group 2</span></li>
+                          <li><span class="node k-tpl">DockSplitter</span></li>
+                        </ul>
+                      </li></ul>
+                    </li>
+                    <li><span class="node k-tpl">DockSplitter</span></li>
+                  </ul>
+                </li></ul>
+              </li>
+            </ul>
+          </div>
+          <p class="sn-note">When <code>DocumentHost.Child</code> is <code>null</code>, the empty host acts as a drop target. Opening or dropping the first document creates its initial <code>DocumentContainer</code>.</p>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────────────── -->
+    <section id="primitives">
+      <h2>Visual elements created by the library</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Element</th><th>Created by</th><th>Location and behavior</th></tr></thead>
+          <tbody>
+            <tr><td><code>ToolWindowTitleBar</code></td><td>control template</td><td><code>PART_TitleBar</code> in <code>ToolWindowContainer</code> and <code>AutoHideFlyout</code></td></tr>
+            <tr><td><code>ToolWindowTabItem</code></td><td><code>ToolWindowContainer.CreateTab</code></td><td>bottom <code>PART_TabStrip</code>; visible when <code>Items.Count &gt; 1</code></td></tr>
+            <tr><td><code>DocumentTabItem</code></td><td><code>DocumentContainer.CreateTab</code></td><td>top <code>PART_TabStrip</code>; always visible</td></tr>
+            <tr><td><code>DockSplitter</code></td><td><code>SplitContainer.ReconcileSplitters</code></td><td>after all panes in <code>SplitContainer.Children</code></td></tr>
+            <tr><td><code>DockGuide</code>, <code>DockGuidePanel</code></td><td>control template</td><td>overlay canvas in <code>DockSite</code> and <code>FloatingWindowRoot</code></td></tr>
+            <tr><td><code>AutoHideTabItem</code></td><td><code>AutoHideTabStrip</code> code</td><td>inside one <code>StackPanel</code> per group in <code>PART_Items</code></td></tr>
+            <tr><td><code>FloatingWindowCaption</code></td><td>control template</td><td><code>FloatingWindowRoot</code>; visible only when the window contains multiple panes</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────────────── -->
+    <section id="model">
+      <h2>Runtime state and the serializable layout model</h2>
+      <p>The control tree is supported by two non-visual data layers. The internal runtime layer tracks objects that do not belong in the visual tree, such as collapsed auto-hide windows and floating-window hosts. The serialization layer represents the layout without UI controls. This separate model is used to save and load XML and allows the serialization logic to be unit-tested independently of WinUI.</p>
+      <div class="cols two">
+        <div class="tablewrap">
+          <p class="eyebrow">Internal runtime state</p>
+          <table>
+            <tbody>
+              <tr><td><code>AutoHideGroup</code></td><td>stores the collapsed windows associated with one edge</td></tr>
+              <tr><td><code>FloatingWindowHost</code></td><td>manages one owned <code>Window</code></td></tr>
+              <tr><td><code>DockRestoreHint</code></td><td>records the previous location of a pane</td></tr>
+              <tr><td><code>LayoutLocation</code></td><td>identifies the surface, host and split returned by <code>LayoutTree.Locate</code></td></tr>
+              <tr><td><code>DockTarget</code></td><td>describes a resolved drop target: Home, Edge, Relative or Tab</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tablewrap">
+          <p class="eyebrow">Serializable layout model</p>
+          <table>
+            <tbody>
+              <tr><td><code>LayoutDocument</code></td><td>represents the complete <code>DockSite</code> layout</td></tr>
+              <tr><td><code>SplitLayoutNode</code></td><td><code>SplitContainer</code></td></tr>
+              <tr><td><code>ContainerLayoutNode</code></td><td><code>ToolWindowContainer</code></td></tr>
+              <tr><td><code>DocumentContainerLayoutNode</code></td><td><code>DocumentContainer</code></td></tr>
+              <tr><td><code>DocumentHostLayoutNode</code></td><td><code>DocumentHost</code></td></tr>
+              <tr><td><code>WorkspaceLayoutNode</code></td><td><code>Workspace</code></td></tr>
+              <tr><td><code>LayoutWindowEntry</code></td><td>represents a docking window, matched by <code>SerializationId</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="aside">Loading updates the existing layout instead of replacing the entire control tree. The loader reuses <code>Workspace</code>, <code>DocumentHost</code>, <code>SplitContainer</code> and container instances when their position or ID matches. If the saved layout has not changed, the existing controls remain in place.</p>
+    </section>
+
+    <!-- ─────────────────────────────────────────── -->
+    <section id="invariants">
+      <h2>Rules enforced by the layout system</h2>
+      <ul class="rules">
+        <li><span class="rule-k">Window type determines container type.</span> A <code>DocumentWindow</code> is always placed in a <code>DocumentContainer</code>. Every other docking window is placed in a <code>ToolWindowContainer</code>.</li>
+        <li><span class="rule-k">Empty layout elements are removed.</span> When a container becomes empty, it is removed from its parent. When a split has only one pane left, the split is replaced by that pane, which inherits the split's <code>RelativeSize</code>.</li>
+        <li><span class="rule-k">Splits with the same orientation are merged.</span> Docking along the same axis adds the pane to the existing split at the appropriate end. Docking along the other axis creates a nested split.</li>
+        <li><span class="rule-k">Use the layout tree to determine location.</span> Do not inspect the visual tree for this purpose. Immediately after a move, an element may not have a visual parent until WinUI completes the next layout pass.</li>
+        <li><span class="rule-k">Handle <code>Relocated</code> instead of <code>Loaded</code>.</span> After a move and the following layout pass, the library raises <code>Relocated</code> at low dispatcher priority for every <code>IRelocatable</code> element in the moved subtree.</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>Relevant namespaces: <code>Digi21.WinUI.Docking</code>, <code>Digi21.WinUI.Docking.Primitives</code> and <code>Digi21.WinUI.Docking.Serialization</code>. Control-template structure is defined in <code>Themes/Generic.xaml</code>.</p>
+    </footer>
+
+  </main>
+</div>
+
+<style>
+:root {
+  --ground:#E6EAEB; --pane:#FCFDFD; --pane-2:#F0F4F4; --sunk:#DBE1E2;
+  --ink:#0F171A; --ink-2:#4A585E; --ink-3:#7B8A90;
+  --rule:#C7D1D4; --rule-2:#9FAEB3;
+  --teal:#0B6F78; --teal-soft:rgba(11,111,120,.10);
+  --clay:#A0433A; --clay-soft:rgba(160,67,58,.10);
+  --ochre:#7E6318; --ochre-soft:rgba(126,99,24,.13);
+  --display:"Segoe UI Variable Display","Segoe UI Semibold","Segoe UI",system-ui,sans-serif;
+  --body:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,"SFMono-Regular",ui-monospace,monospace;
+  --rail-w:250px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:#111618; --pane:#1A2124; --pane-2:#20292C; --sunk:#0C1113;
+    --ink:#E2EAEC; --ink-2:#A1B0B5; --ink-3:#74848A;
+    --rule:#2B3639; --rule-2:#465659;
+    --teal:#59C7D0; --teal-soft:rgba(89,199,208,.14);
+    --clay:#E58C7D; --clay-soft:rgba(229,140,125,.14);
+    --ochre:#D6B263; --ochre-soft:rgba(214,178,99,.14);
+  }
+}
+:root[data-theme="dark"] {
+  --ground:#111618; --pane:#1A2124; --pane-2:#20292C; --sunk:#0C1113;
+  --ink:#E2EAEC; --ink-2:#A1B0B5; --ink-3:#74848A;
+  --rule:#2B3639; --rule-2:#465659;
+  --teal:#59C7D0; --teal-soft:rgba(89,199,208,.14);
+  --clay:#E58C7D; --clay-soft:rgba(229,140,125,.14);
+  --ochre:#D6B263; --ochre-soft:rgba(214,178,99,.14);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior:smooth; }
+body {
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--body); font-size:15px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+code { font-family:var(--mono); font-size:.86em; color:var(--ink); background:var(--pane-2); padding:.06em .3em; border:1px solid var(--rule); }
+em { font-style:normal; box-shadow:inset 0 -.4em 0 var(--teal-soft); }
+
+/* ── shell: the page laid out like a dock site ───────── */
+.shell { display:flex; align-items:stretch; min-height:100vh; }
+.rail {
+  width:var(--rail-w); flex:0 0 auto; background:var(--pane);
+  border-right:1px solid var(--rule);
+  position:sticky; top:0; align-self:flex-start; height:100vh;
+  display:flex; flex-direction:column; overflow:auto;
+}
+.rail-caption {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:.55rem .9rem; border-bottom:1px solid var(--rule); background:var(--pane-2);
+}
+.rail-title { font-family:var(--display); font-size:.8125rem; font-weight:600; }
+.rail-glyph { color:var(--ink-3); font-size:.7rem; }
+.rail-body { display:flex; flex-direction:column; padding:.6rem 0; }
+.rail-body a {
+  font-family:var(--mono); font-size:.75rem; letter-spacing:.01em;
+  color:var(--ink-2); text-decoration:none; padding:.3rem .9rem .3rem .85rem;
+  border-left:2px solid transparent;
+}
+.rail-body a:hover { color:var(--ink); background:var(--pane-2); }
+.rail-body a.on { color:var(--teal); border-left-color:var(--teal); background:var(--teal-soft); }
+.rail-legend { margin-top:auto; padding:.9rem; border-top:1px solid var(--rule); }
+.legend { list-style:none; margin:.5rem 0 0; padding:0; display:flex; flex-direction:column; gap:.4rem; font-size:.7rem; color:var(--ink-3); }
+.legend li { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; }
+
+.splitter {
+  flex:0 0 6px; background:var(--ground); cursor:col-resize;
+  display:flex; align-items:center; justify-content:center; border:0;
+}
+.splitter .grip { width:1px; height:26px; background:var(--rule-2); opacity:0; transition:opacity .12s; }
+.splitter:hover .grip, .splitter:focus-visible .grip { opacity:1; }
+.splitter:focus-visible { outline:2px solid var(--teal); outline-offset:-2px; }
+
+.doc { flex:1 1 auto; min-width:0; padding:3.5rem clamp(1.1rem,4vw,4rem) 5rem; max-width:1180px; }
+
+/* ── type ───────────────────────────────────────────── */
+.eyebrow {
+  font-family:var(--display); font-size:.6875rem; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); margin:0 0 .4rem;
+}
+h1 {
+  font-family:var(--display); font-size:clamp(2rem,4.4vw,3rem); font-weight:700;
+  letter-spacing:-.022em; line-height:1.04; margin:.1rem 0 .8rem; text-wrap:balance;
+}
+h2 {
+  font-family:var(--display); font-size:1.5rem; font-weight:650; letter-spacing:-.014em;
+  margin:0 0 .6rem; text-wrap:balance;
+}
+h3 { font-family:var(--display); font-size:.95rem; font-weight:650; margin:0 0 .7rem; display:flex; align-items:center; gap:.5rem; }
+p { margin:0 0 1rem; max-width:66ch; color:var(--ink-2); }
+.lede { font-size:1.0625rem; color:var(--ink-2); max-width:64ch; }
+h2 + p, .masthead .lede { margin-bottom:1.4rem; }
+
+.masthead { padding-bottom:1.6rem; border-bottom:1px solid var(--rule); margin-bottom:3rem; }
+.facts { display:flex; flex-wrap:wrap; gap:0; margin:1.4rem 0 0; border-top:1px solid var(--rule); }
+.facts > div { padding:.7rem 1.4rem .1rem 0; margin-right:1.4rem; border-right:1px solid var(--rule); padding-right:1.4rem; }
+.facts > div:last-child { border-right:0; }
+.facts dt { font-family:var(--display); font-size:.6875rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); }
+.facts dd { margin:.1rem 0 0; font-family:var(--mono); font-size:1.5rem; color:var(--teal); font-variant-numeric:tabular-nums; }
+
+section { margin-bottom:3.6rem; scroll-margin-top:1.5rem; }
+
+/* ── node chips ─────────────────────────────────────── */
+.node {
+  display:inline-block; font-family:var(--mono); font-size:.78rem; line-height:1.35;
+  padding:.08rem .42rem; border:1px solid var(--rule-2); background:var(--pane);
+  white-space:nowrap;
+}
+.k-surface { border-color:var(--ink-2); color:var(--ink); font-weight:600; box-shadow:2px 2px 0 var(--sunk); }
+.k-layout  { border-color:var(--teal); color:var(--teal); background:var(--teal-soft); font-weight:600; }
+.k-window  { border-color:var(--clay); color:var(--clay); background:var(--clay-soft); }
+.k-user    { border-color:var(--ochre); color:var(--ochre); background:var(--ochre-soft); }
+.k-tpl     { border-style:dashed; border-color:var(--rule-2); color:var(--ink-3); background:transparent; }
+.meta { font-size:.72rem; color:var(--ink-3); }
+.meta code { font-size:.95em; background:none; border:0; padding:0; color:var(--ink-3); }
+
+/* ── treeview ───────────────────────────────────────── */
+.tree { background:var(--pane); border:1px solid var(--rule); padding:1.1rem 1.2rem 1.1rem .6rem; overflow-x:auto; margin:0 0 1rem; }
+.tree ul { list-style:none; margin:0; padding:0 0 0 .55rem; }
+.tree > ul { padding-left:.2rem; }
+.tree li { position:relative; padding:.13rem 0 .13rem 1.05rem; }
+.tree ul ul > li::before {
+  content:""; position:absolute; left:0; top:0; bottom:0;
+  border-left:1px solid var(--rule);
+}
+.tree ul ul > li:last-child::before { bottom:auto; height:.95em; }
+.tree ul ul > li::after {
+  content:""; position:absolute; left:0; top:.95em; width:.7rem;
+  border-top:1px solid var(--rule);
+}
+.tree.tight li { padding-top:.09rem; padding-bottom:.09rem; }
+
+/* ── figures ────────────────────────────────────────── */
+figure { margin:0 0 1.6rem; }
+figure svg { display:block; width:100%; max-width:100%; height:auto; background:var(--pane); border:1px solid var(--rule); }
+figcaption { margin-top:.6rem; font-size:.8125rem; color:var(--ink-3); max-width:70ch; }
+
+.svg-shell { fill:var(--pane-2); stroke:var(--ink-2); stroke-width:1.25; }
+.svg-surface { fill:var(--pane); stroke:var(--teal); stroke-width:1.25; }
+.svg-pane { fill:var(--pane-2); stroke:var(--rule-2); }
+.svg-strip { fill:var(--sunk); stroke:var(--rule-2); }
+.svg-overlay { fill:none; stroke:var(--rule-2); stroke-dasharray:3 3; }
+.svg-hot { fill:var(--clay-soft); stroke:var(--clay); }
+.svg-model { fill:none; stroke:var(--rule-2); stroke-dasharray:5 4; }
+.svg-slot { fill:var(--pane-2); stroke:var(--ink-2); }
+.svg-node { fill:var(--teal-soft); stroke:var(--teal); }
+.svg-win { fill:var(--clay-soft); stroke:var(--clay); }
+.svg-content { fill:var(--ochre-soft); stroke:var(--ochre); }
+.svg-arrow { fill:none; stroke:var(--ink-2); stroke-width:1.25; }
+.svg-dash { stroke-dasharray:5 4; }
+.svg-head { fill:var(--ink-2); }
+.svg-cap { font-family:var(--display); font-size:12px; font-weight:650; fill:var(--ink); }
+.svg-lbl { font-family:var(--mono); font-size:12px; fill:var(--ink); }
+.svg-sub { font-family:var(--mono); font-size:10.5px; fill:var(--ink-2); }
+.svg-micro { font-family:var(--body); font-size:10.5px; fill:var(--ink-3); }
+.svg-dim { fill:var(--ink-3); font-family:var(--body); font-weight:400; }
+.svg-teal { fill:var(--teal); }
+.svg-clay { fill:var(--clay); }
+.svg-ochre { fill:var(--ochre); }
+
+/* ── layout blocks ──────────────────────────────────── */
+.cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1.6rem; margin-top:1.6rem; }
+.cols.two { grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
+.cols p:last-child { margin-bottom:0; }
+
+.scenes { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:1.2rem; }
+.scene { background:var(--pane-2); border:1px solid var(--rule); padding:1rem 1.1rem 1.1rem; }
+.scene.wide { grid-column:1 / -1; }
+.scene .tree { background:var(--pane); }
+.sn {
+  font-family:var(--mono); font-size:.72rem; width:1.35rem; height:1.35rem;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--teal); color:var(--pane); flex:0 0 auto;
+}
+.sn-note { font-size:.8125rem; color:var(--ink-3); margin:0; max-width:none; }
+
+.tablewrap { overflow-x:auto; margin:0 0 1rem; border:1px solid var(--rule); background:var(--pane); }
+table { border-collapse:collapse; width:100%; font-size:.8125rem; }
+th, td { text-align:left; padding:.5rem .8rem; border-bottom:1px solid var(--rule); vertical-align:top; }
+thead th { font-family:var(--display); font-size:.6875rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); background:var(--pane-2); }
+tbody tr:last-child td { border-bottom:0; }
+td code { background:none; border:0; padding:0; color:var(--teal); }
+td:not(:first-child) { color:var(--ink-2); }
+
+.aside {
+  border-left:2px solid var(--teal); padding:.15rem 0 .15rem .9rem;
+  font-size:.875rem; color:var(--ink-2); max-width:66ch;
+}
+.rules { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.7rem; }
+.rules li { font-size:.9375rem; color:var(--ink-2); max-width:72ch; padding-left:.9rem; border-left:1px solid var(--rule); }
+.rule-k { font-family:var(--display); font-weight:650; color:var(--ink); }
+
+footer { border-top:1px solid var(--rule); padding-top:1.2rem; }
+footer p { font-size:.75rem; color:var(--ink-3); margin:0; }
+
+a:focus-visible, .rail-body a:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+
+@media (max-width: 820px) {
+  .shell { flex-direction:column; }
+  .rail { width:auto; height:auto; position:static; border-right:0; border-bottom:1px solid var(--rule); }
+  .rail-body { flex-direction:row; flex-wrap:wrap; padding:.5rem .6rem; gap:.1rem; }
+  .rail-body a { border-left:0; border-bottom:2px solid transparent; padding:.25rem .5rem; }
+  .rail-body a.on { border-left:0; border-bottom-color:var(--teal); }
+  .rail-legend { margin-top:0; }
+  .splitter { display:none; }
+  .doc { padding-top:2rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior:auto; }
+  * { transition:none !important; animation:none !important; }
+}
+</style>
+
+<script>
+(function () {
+  var rail = document.getElementById('rail');
+  var splitter = document.getElementById('splitter');
+  var links = Array.prototype.slice.call(document.querySelectorAll('.rail-body a'));
+
+  // the page's own splitter, because of course it has one
+  function setWidth(px) {
+    var w = Math.max(180, Math.min(420, px));
+    document.documentElement.style.setProperty('--rail-w', w + 'px');
+  }
+  var dragging = false;
+  splitter.addEventListener('pointerdown', function (e) {
+    dragging = true; splitter.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  splitter.addEventListener('pointermove', function (e) {
+    if (dragging) setWidth(e.clientX - rail.getBoundingClientRect().left);
+  });
+  splitter.addEventListener('pointerup', function () { dragging = false; });
+  splitter.addEventListener('keydown', function (e) {
+    var step = e.shiftKey ? 32 : 8;
+    if (e.key === 'ArrowLeft') { setWidth(rail.offsetWidth - step); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { setWidth(rail.offsetWidth + step); e.preventDefault(); }
+  });
+
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  var seen = new Set();
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) seen.add(en.target.id); else seen.delete(en.target.id);
+    });
+    var first = null;
+    Object.keys(byId).forEach(function (id) { if (!first && seen.has(id)) first = id; });
+    links.forEach(function (a) { a.classList.toggle('on', a === byId[first]); });
+  }, { rootMargin: '-10% 0px -70% 0px' });
+  document.querySelectorAll('section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>
