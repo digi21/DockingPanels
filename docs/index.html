@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Documentation for Digi21.WinUI.Docking, a docking panels library for WinUI 3 applications.">
+<link rel="icon" href="icon.png">
+<title>Documentation — Digi21.WinUI.Docking</title>
+</head>
+<body>
+
+<main class="doc">
+
+  <header class="masthead">
+    <img class="mark" src="icon.png" width="64" height="64" alt="">
+    <p class="eyebrow">Digi21.WinUI.Docking</p>
+    <h1>Documentation</h1>
+    <p class="lede">Dockable tool windows with splitters and tabs, a tabbed MDI document area, Visual Studio-style dock guides, floating windows, auto-hide and layout serialization, for WinUI 3 applications.</p>
+  </header>
+
+  <ul class="entries">
+    <li>
+      <a class="entry" href="control-tree.html">
+        <span class="entry-title">Understanding the docking control tree</span>
+        <span class="entry-note">Where a docking tree can be hosted, which elements a layout accepts, what the control templates build around them, and the rules the layout system enforces. Six runtime trees for the usual arrangements.</span>
+      </a>
+    </li>
+    <li>
+      <a class="entry" href="https://github.com/Digi21/DockingPanels/blob/main/docs/theming.md">
+        <span class="entry-title">Theming <span class="ext" aria-hidden="true">&#8599;</span></span>
+        <span class="entry-note">Every brush and metric key the chrome paints with, how to redefine them for light, dark and high contrast, and how to retemplate a control.</span>
+      </a>
+    </li>
+    <li>
+      <a class="entry" href="https://github.com/Digi21/DockingPanels#readme">
+        <span class="entry-title">Getting started <span class="ext" aria-hidden="true">&#8599;</span></span>
+        <span class="entry-note">Installation, a quickstart layout in XAML, and the API for documents, floating windows, auto-hide and saving the layout.</span>
+      </a>
+    </li>
+  </ul>
+
+  <footer>
+    <p>
+      <a href="https://github.com/Digi21/DockingPanels">Source on GitHub</a> &middot;
+      <a href="https://www.nuget.org/packages/Digi21.WinUI.Docking">Package on NuGet</a> &middot;
+      <a href="https://github.com/Digi21/DockingPanels/blob/main/CHANGELOG.md">Changelog</a> &middot;
+      MIT licensed
+    </p>
+  </footer>
+
+</main>
+
+<style>
+:root {
+  --ground:#E6EAEB; --pane:#FCFDFD; --pane-2:#F0F4F4; --sunk:#DBE1E2;
+  --ink:#0F171A; --ink-2:#4A585E; --ink-3:#7B8A90;
+  --rule:#C7D1D4; --rule-2:#9FAEB3;
+  --teal:#0B6F78; --teal-soft:rgba(11,111,120,.10);
+  --display:"Segoe UI Variable Display","Segoe UI Semibold","Segoe UI",system-ui,sans-serif;
+  --body:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,"SFMono-Regular",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:#111618; --pane:#1A2124; --pane-2:#20292C; --sunk:#0C1113;
+    --ink:#E2EAEC; --ink-2:#A1B0B5; --ink-3:#74848A;
+    --rule:#2B3639; --rule-2:#465659;
+    --teal:#59C7D0; --teal-soft:rgba(89,199,208,.14);
+  }
+}
+:root[data-theme="dark"] {
+  --ground:#111618; --pane:#1A2124; --pane-2:#20292C; --sunk:#0C1113;
+  --ink:#E2EAEC; --ink-2:#A1B0B5; --ink-3:#74848A;
+  --rule:#2B3639; --rule-2:#465659;
+  --teal:#59C7D0; --teal-soft:rgba(89,199,208,.14);
+}
+
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--body); font-size:15px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.doc { max-width:760px; margin:0 auto; padding:clamp(2.5rem,7vw,5rem) clamp(1.1rem,4vw,2rem) 4rem; }
+
+.mark { display:block; margin:0 0 1.1rem; image-rendering:auto; }
+.eyebrow {
+  font-family:var(--display); font-size:.6875rem; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); margin:0 0 .4rem;
+}
+h1 {
+  font-family:var(--display); font-size:clamp(2rem,4.4vw,2.75rem); font-weight:700;
+  letter-spacing:-.022em; line-height:1.04; margin:.1rem 0 .8rem;
+}
+.lede { font-size:1.0625rem; color:var(--ink-2); max-width:60ch; margin:0; }
+.masthead { padding-bottom:1.8rem; border-bottom:1px solid var(--rule); margin-bottom:2.4rem; }
+
+.entries { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.9rem; }
+.entry {
+  display:block; text-decoration:none; background:var(--pane);
+  border:1px solid var(--rule); border-left:2px solid var(--rule-2);
+  padding:1rem 1.2rem;
+}
+.entry:hover { border-left-color:var(--teal); background:var(--pane-2); }
+.entry-title {
+  display:block; font-family:var(--display); font-size:1.0625rem; font-weight:650;
+  color:var(--ink); letter-spacing:-.01em; margin-bottom:.25rem;
+}
+.entry:hover .entry-title { color:var(--teal); }
+.entry-note { display:block; font-size:.875rem; color:var(--ink-2); }
+.ext { font-family:var(--mono); font-size:.75em; color:var(--ink-3); }
+
+footer { margin-top:3rem; padding-top:1.2rem; border-top:1px solid var(--rule); }
+footer p { margin:0; font-size:.8125rem; color:var(--ink-3); }
+footer a { color:var(--ink-2); text-decoration:none; border-bottom:1px solid var(--rule-2); }
+footer a:hover { color:var(--teal); border-bottom-color:var(--teal); }
+
+a:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+</style>
+
+</body>
+</html>

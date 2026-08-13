@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="A guide to the Digi21.WinUI.Docking control tree, from the host window to your application content.">
+<link rel="icon" href="icon.png">
 <title>Understanding the Docking Control Tree — Digi21.WinUI.Docking</title>
 </head>
 <body>
@@ -43,7 +44,7 @@
   <main class="doc">
 
     <header class="masthead">
-      <p class="eyebrow">Digi21.WinUI.Docking &middot; control tree guide</p>
+      <p class="eyebrow"><a href="index.html">Digi21.WinUI.Docking</a> &middot; control tree guide</p>
       <h1>Understanding the Docking Control Tree</h1>
       <p class="lede">A docking layout consists of a host surface and a tree of layout elements. The tree can contain five element types. Visual elements such as splitters, tabs, title bars and docking guides are created at runtime and are not included in a saved layout.</p>
       <dl class="facts">
@@ -829,6 +830,9 @@ td:not(:first-child) { color:var(--ink-2); }
 
 footer { border-top:1px solid var(--rule); padding-top:1.2rem; }
 footer p { font-size:.75rem; color:var(--ink-3); margin:0; }
+
+.eyebrow a { color:inherit; text-decoration:none; border-bottom:1px solid var(--rule-2); }
+.eyebrow a:hover { color:var(--teal); border-bottom-color:var(--teal); }
 
 a:focus-visible, .rail-body a:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
 
