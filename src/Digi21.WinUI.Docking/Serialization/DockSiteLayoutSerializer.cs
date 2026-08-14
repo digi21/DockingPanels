@@ -113,7 +113,7 @@ public class DockSiteLayoutSerializer
         {
             foreach (var window in windows)
             {
-                entries.Add(new LayoutWindowEntry(RequireId(window), window.State.ToString()));
+                entries.Add(CaptureWindow(window));
             }
         }
     }
@@ -156,6 +156,17 @@ public class DockSiteLayoutSerializer
                 $"The window '{window.Title}' has no SerializationId. Every open window needs a stable id to save the layout.");
     }
 
+    // Captures one window as a layout entry. Whether it may be auto-hidden travels with the layout
+    // so that a panel meant to stay docked keeps that when the layout is reloaded, and so an
+    // application can settle it from its initial layout file rather than from XAML.
+    private static LayoutWindowEntry CaptureWindow(DockingWindow window)
+    {
+        return new LayoutWindowEntry(
+            RequireId(window),
+            window.State.ToString(),
+            window is ToolWindow { CanAutoHide: false } ? false : null);
+    }
+
     private static LayoutNode Capture(UIElement element)
     {
         switch (element)
@@ -181,7 +192,7 @@ public class DockSiteLayoutSerializer
                 };
                 foreach (var window in container.Items)
                 {
-                    containerNode.Windows.Add(new LayoutWindowEntry(RequireId(window), window.State.ToString()));
+                    containerNode.Windows.Add(CaptureWindow(window));
                 }
 
                 return containerNode;
@@ -305,9 +316,24 @@ public class DockSiteLayoutSerializer
                 if (ResolveToolWindow(entry.Id, index) is { } window && !used.Contains(window))
                 {
                     used.Add(window);
+                    ApplyCanAutoHide(window, entry);
                     window.IsRelocating = true;
                     window.Container?.Items.Remove(window);
                     window.IsRelocating = false;
+
+                    if (!window.CanAutoHide)
+                    {
+                        // The layout collapsed this window to an edge but the window no longer
+                        // allows it — a file saved before the application settled on keeping the
+                        // panel docked. Honoring the file would strand it: with auto-hide off its
+                        // title bar has no pin button, so nothing in the interface could bring it
+                        // back. It goes back into the layout instead, which the user can undo.
+                        window.State = DockingWindowState.Docked;
+                        window.IsOpen = true;
+                        KeepOpen(site, window);
+                        continue;
+                    }
+
                     window.State = DockingWindowState.AutoHide;
                     window.IsOpen = true;
                     window.IsSelected = false;
@@ -415,6 +441,17 @@ public class DockSiteLayoutSerializer
     // Puts a window the loaded layout does not mention back into the layout, for
     // UnresolvedWindowBehavior.DockLeft: documents reopen in the document area, tool windows dock
     // to the left edge.
+    // Applies what the layout says about auto-hiding, if it says anything. A file written before
+    // the attribute existed leaves the window exactly as the application declared it, which is what
+    // keeps those files loading unchanged.
+    private static void ApplyCanAutoHide(DockingWindow window, LayoutWindowEntry entry)
+    {
+        if (entry.CanAutoHide is { } canAutoHide && window is ToolWindow tool)
+        {
+            tool.CanAutoHide = canAutoHide;
+        }
+    }
+
     private static void KeepOpen(DockSite site, DockingWindow window)
     {
         if (window is DocumentWindow document && site.DocumentHost is { } host)
@@ -513,6 +550,7 @@ public class DockSiteLayoutSerializer
         {
             if (resolve(entry.Id) is { } window && used.Add(window))
             {
+                ApplyCanAutoHide(window, entry);
                 windows.Add(window);
             }
         }

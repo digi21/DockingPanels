@@ -122,8 +122,14 @@
                 </docking:SplitContainer>
 
                 <docking:ToolWindowContainer x:Name="RightContainer" docking:DockSite.RelativeSize="0.25">
+                    <!--
+                        The trace is read while the other panels are being dragged around, so it is
+                        the one panel here that stays docked: CanAutoHide takes its pin button away
+                        and refuses the operation from code as well.
+                    -->
                     <docking:ToolWindow
                         x:Name="EventTrace"
+                        CanAutoHide="False"
                         Title="Event Trace"
                         SerializationId="eventTrace">
                         <local:EventTracePanel x:Name="Trace" />

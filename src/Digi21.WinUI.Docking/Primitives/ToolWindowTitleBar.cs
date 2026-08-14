@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 
@@ -18,6 +19,7 @@ public partial class ToolWindowTitleBar : Control
         new PropertyMetadata(null, (d, _) => ((ToolWindowTitleBar)d).OnWindowChanged()));
 
     private DockingWindow? observed;
+    private DockingWindowContainer? observedContainer;
     private long titleToken = -1;
     private long isActiveToken = -1;
     private long canCloseToken = -1;
@@ -118,7 +120,22 @@ public partial class ToolWindowTitleBar : Control
             observed.UnregisterPropertyChangedCallback(DockingWindow.StateProperty, stateToken);
         }
 
+        if (observedContainer is not null)
+        {
+            observedContainer.ItemsChanged -= OnContainerItemsChanged;
+            observedContainer = null;
+        }
+
         observed = Window;
+
+        // Dragging a window that cannot auto-hide into this tab group takes the pin away from the
+        // windows already in it, so the group's membership is watched as closely as the window's
+        // own properties.
+        observedContainer = observed?.Container;
+        if (observedContainer is not null)
+        {
+            observedContainer.ItemsChanged += OnContainerItemsChanged;
+        }
 
         if (observed is not null)
         {
@@ -146,18 +163,40 @@ public partial class ToolWindowTitleBar : Control
 
         if (pinButton is not null)
         {
+            // The container matters as much as the window: unpinning takes the whole tab group to
+            // the edge, so a group holding one window that must stay docked shows no pin at all
+            // rather than a button that does nothing.
             var canPin = observed is ToolWindow { CanAutoHide: true }
-                && observed.State is DockingWindowState.Docked or DockingWindowState.AutoHide;
+                && observed.State is DockingWindowState.Docked or DockingWindowState.AutoHide
+                && (observed.Container is not { } container || LayoutManager.CanAutoHideContainer(container));
             pinButton.Visibility = canPin ? Visibility.Visible : Visibility.Collapsed;
+
+            // Docked: vertical pin, click auto-hides. Auto-hidden: unpin glyph, click docks. The
+            // button says which of the two it is doing, because one button doing opposite things
+            // is otherwise unreadable to anything that cannot see the glyph \u2014 a screen reader, or
+            // an automated test looking for it by name.
+            var unpinned = observed?.State == DockingWindowState.AutoHide;
 
             if (pinButton.Content is FontIcon icon)
             {
-                // Docked: vertical pin, click auto-hides. Auto-hidden: unpin glyph, click docks.
-                icon.Glyph = observed?.State == DockingWindowState.AutoHide ? "\uE77A" : "\uE718";
+                icon.Glyph = unpinned
+                    ? DockingThemeResources.Value("DockingUnpinGlyph", "\uE77A")
+                    : DockingThemeResources.Value("DockingPinGlyph", "\uE718");
             }
+
+            var pinName = unpinned
+                ? DockingThemeResources.Value("DockingDockButtonName", "Dock")
+                : DockingThemeResources.Value("DockingAutoHideButtonName", "Auto-hide");
+            AutomationProperties.SetName(pinButton, pinName);
+            ToolTipService.SetToolTip(pinButton, pinName);
         }
 
         VisualStateManager.GoToState(this, observed?.IsActive == true ? "Active" : "Inactive", true);
+    }
+
+    private void OnContainerItemsChanged(object? sender, EventArgs e)
+    {
+        Update();
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)

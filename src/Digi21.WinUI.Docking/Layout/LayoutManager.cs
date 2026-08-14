@@ -322,6 +322,15 @@ internal static class LayoutManager
         window.Activate();
     }
 
+    // Whether a container may be collapsed to an edge. Auto-hiding takes the whole tab group with
+    // it, so a single window that must stay docked keeps its neighbours docked too: the alternative
+    // would be to split the group apart behind the user's back, or to strand a window at an edge
+    // whose title bar has no pin button to bring it home.
+    internal static bool CanAutoHideContainer(DockingWindowContainer container)
+    {
+        return container.Items.All(window => window is ToolWindow { CanAutoHide: true });
+    }
+
     // Collapses a container and all its windows to the nearest auto-hide edge.
     internal static void AutoHideContainer(DockSite site, DockingWindowContainer container)
     {
@@ -329,6 +338,11 @@ internal static class LayoutManager
         if (windows.Count != container.Items.Count)
         {
             // Only tool windows auto-hide; a group holding anything else stays where it is.
+            return;
+        }
+
+        if (!CanAutoHideContainer(container))
+        {
             return;
         }
 

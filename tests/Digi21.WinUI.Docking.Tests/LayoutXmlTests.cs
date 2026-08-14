@@ -380,6 +380,77 @@ public class LayoutXmlTests
         Assert.Contains("Version=\"3\"", Encoding.UTF8.GetString(stream.ToArray()));
     }
 
+    [Fact]
+    public void RoundTrip_WindowThatCannotAutoHide_KeepsThat()
+    {
+        var container = new ContainerLayoutNode();
+        container.Windows.Add(new LayoutWindowEntry("properties", "Docked", CanAutoHide: false));
+        container.Windows.Add(new LayoutWindowEntry("output", "Docked"));
+
+        var restored = Assert.IsType<ContainerLayoutNode>(RoundTrip(container));
+
+        Assert.False(restored.Windows[0].CanAutoHide);
+        Assert.Null(restored.Windows[1].CanAutoHide);
+    }
+
+    [Fact]
+    public void RoundTrip_AutoHideGroupWindowThatCannotAutoHide_KeepsThat()
+    {
+        var layout = new LayoutDocument { Root = new WorkspaceLayoutNode() };
+        var group = new AutoHideGroupNode { Edge = DockSide.Left };
+        group.Windows.Add(new LayoutWindowEntry("stranded", "AutoHide", CanAutoHide: false));
+        layout.AutoHideGroups.Add(group);
+
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, layout);
+        stream.Position = 0;
+
+        var restored = LayoutXml.Read(stream);
+        Assert.False(Assert.Single(Assert.Single(restored.AutoHideGroups).Windows).CanAutoHide);
+    }
+
+    [Fact]
+    public void Write_WindowThatCanAutoHide_WritesNoAttribute()
+    {
+        // Files stay byte for byte what earlier versions wrote unless a window actually forbids
+        // auto-hiding, so the 1.0 library can still read what this one saves.
+        var container = new ContainerLayoutNode();
+        container.Windows.Add(new LayoutWindowEntry("output", "Docked"));
+
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, new LayoutDocument { Root = container });
+
+        Assert.DoesNotContain("CanAutoHide", Encoding.UTF8.GetString(stream.ToArray()));
+    }
+
+    [Fact]
+    public void Read_WindowWithoutTheAttribute_SaysNothingAboutAutoHiding()
+    {
+        // What every file saved before the attribute existed looks like: null means the window
+        // keeps whatever the application declared, rather than being forced either way.
+        var xml = """
+            <DockSiteLayout Version="3">
+              <ToolWindowContainer><ToolWindow Id="output" State="Docked" /></ToolWindowContainer>
+            </DockSiteLayout>
+            """;
+
+        var container = Assert.IsType<ContainerLayoutNode>(Read(xml));
+        Assert.Null(Assert.Single(container.Windows).CanAutoHide);
+    }
+
+    [Fact]
+    public void Read_WindowWithAnUnparsableAttribute_SaysNothingAboutAutoHiding()
+    {
+        var xml = """
+            <DockSiteLayout Version="3">
+              <ToolWindowContainer><ToolWindow Id="output" State="Docked" CanAutoHide="perhaps" /></ToolWindowContainer>
+            </DockSiteLayout>
+            """;
+
+        var container = Assert.IsType<ContainerLayoutNode>(Read(xml));
+        Assert.Null(Assert.Single(container.Windows).CanAutoHide);
+    }
+
     private static LayoutNode? RoundTrip(LayoutNode? node)
     {
         using var stream = new MemoryStream();

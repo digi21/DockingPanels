@@ -94,9 +94,24 @@ internal static class LayoutXml
         foreach (var window in windows)
         {
             writer.WriteStartElement("ToolWindow");
-            writer.WriteAttributeString("Id", window.Id);
-            writer.WriteAttributeString("State", window.State);
+            WriteWindowAttributes(writer, window);
             writer.WriteEndElement();
+        }
+    }
+
+    // Writes what a tool window entry carries. CanAutoHide is only written when the window forbids
+    // auto-hiding, which keeps the common file identical to what earlier versions wrote and means a
+    // reader that predates the attribute — the 1.0 library reading a file saved by a later one —
+    // simply ignores it instead of refusing the file. That is also why the format version does not
+    // move for this: bumping it would make older libraries reject layouts they can still read.
+    private static void WriteWindowAttributes(XmlWriter writer, LayoutWindowEntry window)
+    {
+        writer.WriteAttributeString("Id", window.Id);
+        writer.WriteAttributeString("State", window.State);
+
+        if (window.CanAutoHide == false)
+        {
+            writer.WriteAttributeString("CanAutoHide", "False");
         }
     }
 
@@ -217,10 +232,25 @@ internal static class LayoutXml
     {
         foreach (var child in element.Elements("ToolWindow"))
         {
-            var id = (string?)child.Attribute("Id")
-                ?? throw new InvalidDataException("A ToolWindow element is missing its Id attribute.");
-            windows.Add(new LayoutWindowEntry(id, (string?)child.Attribute("State") ?? defaultState));
+            windows.Add(ReadWindowEntry(child, defaultState));
         }
+    }
+
+    private static LayoutWindowEntry ReadWindowEntry(XElement element, string defaultState)
+    {
+        var id = (string?)element.Attribute("Id")
+            ?? throw new InvalidDataException("A ToolWindow element is missing its Id attribute.");
+
+        return new LayoutWindowEntry(
+            id,
+            (string?)element.Attribute("State") ?? defaultState,
+            ReadOptionalBoolean(element, "CanAutoHide"));
+    }
+
+    private static bool? ReadOptionalBoolean(XElement element, string name)
+    {
+        var text = (string?)element.Attribute(name);
+        return bool.TryParse(text, out var value) ? value : null;
     }
 
     private static int ReadInt(XElement element, string name, int fallback)
@@ -256,8 +286,7 @@ internal static class LayoutXml
                 foreach (var window in container.Windows)
                 {
                     writer.WriteStartElement("ToolWindow");
-                    writer.WriteAttributeString("Id", window.Id);
-                    writer.WriteAttributeString("State", window.State);
+                    WriteWindowAttributes(writer, window);
                     writer.WriteEndElement();
                 }
 
@@ -332,9 +361,7 @@ internal static class LayoutXml
                 };
                 foreach (var child in element.Elements("ToolWindow"))
                 {
-                    var id = (string?)child.Attribute("Id")
-                        ?? throw new InvalidDataException("A ToolWindow element is missing its Id attribute.");
-                    container.Windows.Add(new LayoutWindowEntry(id, (string?)child.Attribute("State") ?? nameof(DockingWindowState.Docked)));
+                    container.Windows.Add(ReadWindowEntry(child, nameof(DockingWindowState.Docked)));
                 }
 
                 return container;
