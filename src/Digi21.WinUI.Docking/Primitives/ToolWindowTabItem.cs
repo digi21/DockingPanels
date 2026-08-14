@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 
@@ -102,11 +103,14 @@ public partial class ToolWindowTabItem : Control
 
     private void Update()
     {
+        var title = observed?.Title ?? string.Empty;
+
         if (titleText is not null)
         {
-            titleText.Text = observed?.Title ?? string.Empty;
+            titleText.Text = title;
         }
 
+        AutomationProperties.SetName(this, title);
         VisualStateManager.GoToState(this, observed?.IsSelected == true ? "Selected" : "Unselected", true);
         UpdateCommonState();
     }

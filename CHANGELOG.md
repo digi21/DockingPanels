@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Pointing at an auto-hide tab now previews its window, as in Visual Studio. The preview is not
+  activated and slides back when the pointer leaves it.
+- `DockSite.AutoHideCloseDelay`, the grace period before a previewed panel slides back once the
+  pointer leaves. Defaults to 350 ms, which covers the pointer crossing outside the panel on its
+  way to a control near the edge.
+- `CanAutoHide` is saved in the layout, so an application can settle from its layout file which
+  panels stay docked instead of relying on XAML or on the user leaving the pin alone. Layouts
+  written before this release do not carry the attribute and load exactly as they did, and the
+  attribute is only written for windows that forbid auto-hiding, so 1.0.0 still reads what this
+  version saves.
+- Accessible names on the chrome: the pin button (which says whether it will auto-hide or dock),
+  the close buttons of tool window title bars, document tabs and floating captions, and the tab of
+  every window. They are resource keys — `DockingCloseButtonName`, `DockingAutoHideButtonName`,
+  `DockingDockButtonName` — so an application that is not in English redefines them with the rest
+  of the theme, and `DockingUnpinGlyph` joins `DockingPinGlyph` as a themable glyph.
+
+### Changed
+
+- An open auto-hide panel now closes when the focus leaves it, not on any click elsewhere in the
+  dock site. A panel opened by clicking its tab, or holding the focus, stays put through clicks
+  that take no focus with them — empty chrome, a splitter, a control that refuses focus — and only
+  a preview still goes away with the pointer.
+
+### Fixed
+
+- A tab group holding a window with `CanAutoHide="False"` can no longer be sent to an edge through
+  one of its neighbours, which used to take the whole group with it. The pin button is hidden for
+  the whole group in that case rather than being shown and doing nothing.
+- Loading a layout that collapsed a window to an edge no longer strands it there when the window
+  now forbids auto-hiding: with auto-hide off there is no pin button to bring it back, so it is
+  docked instead.
+- `DockingPinGlyph` is honored again on a title bar whose window changed state; the glyph was
+  being overwritten from code with a hard-coded code point.
+
 ## [1.0.0] - 2026-08-11
 
 First release. The API is stable: it took its final shape while the library was being built against

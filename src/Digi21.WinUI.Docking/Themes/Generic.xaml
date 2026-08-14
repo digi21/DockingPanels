@@ -245,10 +245,12 @@
                             Height="24"
                             Padding="0"
                             VerticalAlignment="Center"
+                            AutomationProperties.Name="{ThemeResource DockingCloseButtonName}"
                             Background="Transparent"
                             BorderThickness="0"
                             Foreground="{TemplateBinding Foreground}"
-                            IsTabStop="False">
+                            IsTabStop="False"
+                            ToolTipService.ToolTip="{ThemeResource DockingCloseButtonName}">
                             <FontIcon
                                 FontFamily="{ThemeResource DockingIconFontFamily}"
                                 FontSize="{ThemeResource DockingIconFontSize}"
@@ -481,11 +483,13 @@
                             Height="20"
                             Padding="0"
                             VerticalAlignment="Center"
+                            AutomationProperties.Name="{ThemeResource DockingCloseButtonName}"
                             Background="Transparent"
                             BorderThickness="0"
                             Foreground="{TemplateBinding Foreground}"
                             IsTabStop="False"
-                            Opacity="0">
+                            Opacity="0"
+                            ToolTipService.ToolTip="{ThemeResource DockingCloseButtonName}">
                             <FontIcon
                                 FontFamily="{ThemeResource DockingIconFontFamily}"
                                 FontSize="{ThemeResource DockingIconFontSize}"
@@ -553,10 +557,12 @@
                             Height="24"
                             Padding="0"
                             VerticalAlignment="Center"
+                            AutomationProperties.Name="{ThemeResource DockingCloseButtonName}"
                             Background="Transparent"
                             BorderThickness="0"
                             Foreground="{TemplateBinding Foreground}"
-                            IsTabStop="False">
+                            IsTabStop="False"
+                            ToolTipService.ToolTip="{ThemeResource DockingCloseButtonName}">
                             <FontIcon
                                 FontFamily="{ThemeResource DockingIconFontFamily}"
                                 FontSize="{ThemeResource DockingIconFontSize}"

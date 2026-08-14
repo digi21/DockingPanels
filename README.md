@@ -166,9 +166,26 @@ outputWindow.AutoHide();   // collapse the whole pane to its nearest edge
 outputWindow.Dock();       // pin it back where it was
 ```
 
-Unpinned windows become tabs on the dock site edge; clicking a tab slides the window over the
-layout until it loses focus. Set `CanAutoHide="False"` (or `CanFloat="False"`) on a tool window
-to hide the affordance and block the operation.
+Unpinned windows become tabs on the dock site edge. Pointing at a tab slides its window over the
+layout as a preview, which is not activated and slides back when the pointer leaves; clicking the
+tab opens it for real, and then it stays until the focus goes somewhere else. A click that takes no
+focus with it — empty chrome, a splitter, a control that refuses focus — leaves a panel being typed
+into where it is.
+
+```xml
+<docking:DockSite AutoHideCloseDelay="0:0:0.35">
+```
+
+`AutoHideCloseDelay` is the cushion between the pointer leaving a preview and the panel sliding
+back, for the pointer that crosses outside the panel on its way to a control near the edge.
+Returning within it keeps the panel open. It has no effect on a panel opened by clicking, which the
+pointer does not dismiss at all.
+
+Set `CanAutoHide="False"` (or `CanFloat="False"`) on a tool window to hide the affordance and block
+the operation. `CanAutoHide` covers the whole tab group: a group holding one window that must stay
+docked shows no pin button at all, rather than one that does nothing. The flag is saved with the
+layout, so an application can settle from its layout file which panels stay docked instead of
+depending on the user leaving the pin alone.
 
 An application that sets up its initial layout from the dock site's `Loaded` can call these
 straight from there, as many times as it likes: a window whose own `Loaded` has not run yet is not
@@ -256,8 +273,8 @@ usually has one to restore into. Every element the load moves raises `Relocated`
 settled — see below — so content with a life cycle of its own comes back with it.
 
 Only the structure is saved (splits, proportions, tab order, selection, the document tab groups,
-auto-hidden groups, and the screen bounds of floating windows together with the layout inside
-them). Window instances and their content are matched by id and reused, so control state survives
+auto-hidden groups, the screen bounds of floating windows together with the layout inside them,
+and `CanAutoHide` for the windows that forbid it). Window instances and their content are matched by id and reused, so control state survives
 a reload. Floating windows are restored on a monitor that exists, so a layout saved with two
 monitors still loads on one. Layouts written by earlier versions are still read.
 

@@ -191,6 +191,7 @@ Replacing the font means replacing the glyphs with the code points of the new on
 | `DockingGuideIconFontSize` | `x:Double` | `14` |
 | `DockingCloseGlyph` | `x:String` | `&#xE8BB;` |
 | `DockingPinGlyph` | `x:String` | `&#xE718;` |
+| `DockingUnpinGlyph` | `x:String` | `&#xE77A;` |
 | `DockingGuideCenterGlyph` | `x:String` | `&#xE8A9;` |
 | `DockingGuideLeftGlyph` | `x:String` | `&#xE76B;` |
 | `DockingGuideTopGlyph` | `x:String` | `&#xE70E;` |
@@ -200,6 +201,28 @@ Replacing the font means replacing the glyphs with the code points of the new on
 The guide glyphs are chosen in code, since which one is drawn depends on the side the guide stands
 for, so they are read from the resources the same way the splitter metrics are. Anything richer
 than a glyph — a `PathIcon`, an image — needs a retemplate.
+
+The pin button takes `DockingPinGlyph` while its window is docked and `DockingUnpinGlyph` while it
+is collapsed to an edge, since the same button does the opposite thing in each state.
+
+## Names
+
+What the chrome buttons are called. A screen reader reads these, they are the tooltips, and they
+are what UI Automation finds a button by, so an application that is not in English redefines them
+along with the colors:
+
+```xml
+<x:String x:Key="DockingCloseButtonName">Cerrar</x:String>
+```
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `DockingCloseButtonName` | `x:String` | `Close` |
+| `DockingAutoHideButtonName` | `x:String` | `Auto-hide` |
+| `DockingDockButtonName` | `x:String` | `Dock` |
+
+The pin button takes whichever of the last two matches what clicking it would do, the same way it
+picks its glyph. Tabs are named after the window they carry, so they need no key of their own.
 
 ## Text
 

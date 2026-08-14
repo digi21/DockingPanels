@@ -217,6 +217,7 @@
     <x:Double x:Key="DockingGuideIconFontSize">14</x:Double>
     <x:String x:Key="DockingCloseGlyph">&#xE8BB;</x:String>
     <x:String x:Key="DockingPinGlyph">&#xE718;</x:String>
+    <x:String x:Key="DockingUnpinGlyph">&#xE77A;</x:String>
     <x:String x:Key="DockingGuideCenterGlyph">&#xE8A9;</x:String>
     <x:String x:Key="DockingGuideLeftGlyph">&#xE76B;</x:String>
     <x:String x:Key="DockingGuideTopGlyph">&#xE70E;</x:String>
@@ -229,5 +230,15 @@
     -->
     <StaticResource x:Key="DockingTitleTextStyle" ResourceKey="CaptionTextBlockStyle" />
     <StaticResource x:Key="DockingTabTextStyle" ResourceKey="CaptionTextBlockStyle" />
+
+    <!--
+        Names. What the chrome buttons are called: a screen reader reads these, they are the
+        tooltips, and they are what UI Automation finds a button by. They are keys like everything
+        else here, so an application that is not in English redefines them along with the rest.
+        The pin button takes whichever of the two matches what clicking it would do.
+    -->
+    <x:String x:Key="DockingCloseButtonName">Close</x:String>
+    <x:String x:Key="DockingAutoHideButtonName">Auto-hide</x:String>
+    <x:String x:Key="DockingDockButtonName">Dock</x:String>
 
 </ResourceDictionary>
