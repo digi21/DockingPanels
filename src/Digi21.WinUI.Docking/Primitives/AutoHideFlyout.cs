@@ -1,13 +1,15 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 
 namespace Digi21.WinUI.Docking.Primitives;
 
 /// <summary>
-/// The panel that slides over the workspace when an auto-hide tab is clicked, hosting the
-/// window's content together with a title bar whose pin button re-docks the group. It is
-/// hosted in a popup by the <see cref="DockSite"/> template: rendering it as a sibling of
-/// the main layout suppresses text rendering in that subtree on some WinUI versions.
+/// The panel that slides over the workspace when an auto-hide tab is pointed at or clicked,
+/// hosting the window's content together with a title bar whose pin button re-docks the group.
+/// The <see cref="DockSite"/> template puts it on the overlay canvas rather than in a popup, so
+/// it shares the dock site's focus scope: the focus moving in and out of it is what tells the
+/// dock site whether the panel is still in use.
 /// </summary>
 public partial class AutoHideFlyout : Control
 {
@@ -27,6 +29,23 @@ public partial class AutoHideFlyout : Control
 
     // Gets the window currently shown by the flyout, if any.
     internal ToolWindow? Window => window;
+
+    /// <inheritdoc />
+    protected override void OnPointerEntered(PointerRoutedEventArgs e)
+    {
+        base.OnPointerEntered(e);
+
+        // Bubbles from the content as well, so the pointer moving between the panel's own controls
+        // keeps calling off a collapse that the crossing from the tab may have scheduled.
+        this.FindAncestor<DockSite>()?.NotifyAutoHidePointerEntered();
+    }
+
+    /// <inheritdoc />
+    protected override void OnPointerExited(PointerRoutedEventArgs e)
+    {
+        base.OnPointerExited(e);
+        this.FindAncestor<DockSite>()?.NotifyAutoHidePointerExited();
+    }
 
     /// <inheritdoc />
     protected override void OnApplyTemplate()

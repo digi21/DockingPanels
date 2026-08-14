@@ -1,4 +1,6 @@
+using Digi21.WinUI.Docking.Interaction;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -63,13 +65,33 @@ public partial class AutoHideTabItem : Control
     }
 
     /// <inheritdoc />
+    protected override void OnPointerEntered(PointerRoutedEventArgs e)
+    {
+        base.OnPointerEntered(e);
+
+        // Pointing at a tab previews its window, as in Visual Studio. The panel is shown without
+        // being activated, and leaving the tab takes it away again.
+        if (Window is { } window)
+        {
+            this.FindAncestor<DockSite>()?.ShowAutoHideFlyout(window, AutoHideOpenReason.Hover);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void OnPointerExited(PointerRoutedEventArgs e)
+    {
+        base.OnPointerExited(e);
+        this.FindAncestor<DockSite>()?.NotifyAutoHidePointerExited();
+    }
+
+    /// <inheritdoc />
     protected override void OnPointerPressed(PointerRoutedEventArgs e)
     {
         base.OnPointerPressed(e);
 
         if (Window is { } window)
         {
-            this.FindAncestor<DockSite>()?.ShowAutoHideFlyout(window);
+            this.FindAncestor<DockSite>()?.ShowAutoHideFlyout(window, AutoHideOpenReason.Activation);
         }
     }
 
@@ -144,9 +166,16 @@ public partial class AutoHideTabItem : Control
 
     private void Update()
     {
+        var title = observed?.Title ?? string.Empty;
+
         if (titleText is not null)
         {
-            titleText.Text = observed?.Title ?? string.Empty;
+            titleText.Text = title;
         }
+
+        // The tab is the only way back to an auto-hidden window, so it is named after it: this is
+        // what a screen reader announces, and what an automated test finds it by instead of having
+        // to know where along the edge it landed.
+        AutomationProperties.SetName(this, title);
     }
 }

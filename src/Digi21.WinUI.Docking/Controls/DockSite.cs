@@ -1,6 +1,9 @@
+using Digi21.WinUI.Docking.Interaction;
 using Digi21.WinUI.Docking.Primitives;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Media;
@@ -74,6 +77,13 @@ public partial class DockSite : Control, IDockSurface
         typeof(DockSite),
         new PropertyMetadata(null));
 
+    /// <summary>Identifies the <see cref="AutoHideCloseDelay"/> dependency property.</summary>
+    public static readonly DependencyProperty AutoHideCloseDelayProperty = DependencyProperty.Register(
+        nameof(AutoHideCloseDelay),
+        typeof(TimeSpan),
+        typeof(DockSite),
+        new PropertyMetadata(TimeSpan.FromMilliseconds(350)));
+
     private readonly List<ToolWindow> toolWindows = [];
     private readonly List<DocumentWindow> documents = [];
     private readonly List<AutoHideGroup> autoHideGroups = [];
@@ -81,6 +91,8 @@ public partial class DockSite : Control, IDockSurface
     private readonly Dictionary<DockSide, AutoHideTabStrip> autoHideStrips = [];
     private readonly HashSet<IRelocatable> pendingRelocations = [];
     private bool relocationFlushScheduled;
+    private AutoHideOpenReason autoHideOpenReason;
+    private DispatcherQueueTimer? autoHideCollapseTimer;
     private AutoHideFlyout? autoHideFlyout;
     private ContentPresenter? layoutRootPresenter;
     private AppWindow? ownerWindow;
@@ -203,6 +215,19 @@ public partial class DockSite : Control, IDockSurface
     {
         get => (UIElement?)GetValue(ChildProperty);
         set => SetValue(ChildProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets how long an auto-hide flyout opened by pointing at its tab waits before
+    /// sliding back once the pointer leaves it. The delay is a cushion for the pointer crossing
+    /// outside the panel on its way to a control near the edge; returning within it keeps the
+    /// panel open. It does not apply to a flyout the user opened by clicking or has typed into,
+    /// which stays until the focus moves elsewhere. Defaults to 350 milliseconds.
+    /// </summary>
+    public TimeSpan AutoHideCloseDelay
+    {
+        get => (TimeSpan)GetValue(AutoHideCloseDelayProperty);
+        set => SetValue(AutoHideCloseDelayProperty, value);
     }
 
     /// <summary>Gets the currently active window, or <see langword="null"/> when none is active.</summary>
@@ -542,8 +567,15 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
-    // Shows the auto-hide flyout for the given window.
+    // Shows the auto-hide flyout for the given window, as if its tab had been clicked.
     internal void ShowAutoHideFlyout(ToolWindow window)
+    {
+        ShowAutoHideFlyout(window, AutoHideOpenReason.Activation);
+    }
+
+    // Shows the auto-hide flyout for the given window. How it was opened decides how it closes
+    // later, so it is recorded here and nowhere else.
+    internal void ShowAutoHideFlyout(ToolWindow window, AutoHideOpenReason reason)
     {
         if (autoHideFlyout is null || layoutRootPresenter is null
             || FindAutoHideGroup(window) is not { } group)
@@ -551,12 +583,33 @@ public partial class DockSite : Control, IDockSurface
             return;
         }
 
+        // The pointer crossing the tab strip must not take away the panel the user is working in:
+        // a preview replaces a preview, but only a click swaps out a panel that was opened for
+        // real. This is the same protection the dismissal rule gives, applied to the way in.
+        if (reason == AutoHideOpenReason.Hover
+            && autoHideFlyout.Window is { } current
+            && !ReferenceEquals(current, window)
+            && autoHideOpenReason == AutoHideOpenReason.Activation)
+        {
+            return;
+        }
+
+        CancelAutoHideCollapse();
+
         if (ReferenceEquals(autoHideFlyout.Window, window))
         {
             // Already showing this window. Re-rooting it would raise Loaded, Unloaded and a
             // spurious Relocated — the signal that tells content like a WebView2 to rebuild — on
             // every click of its tab or its title bar, for a window that never moved.
-            SetActiveWindow(window);
+            //
+            // Clicking the tab of a panel that is merely being previewed does upgrade it: the user
+            // asked for it this time, so it no longer goes away when the pointer wanders off.
+            if (reason == AutoHideOpenReason.Activation)
+            {
+                autoHideOpenReason = AutoHideOpenReason.Activation;
+                SetActiveWindow(window);
+            }
+
             return;
         }
 
@@ -567,8 +620,103 @@ public partial class DockSite : Control, IDockSurface
 
         PositionAutoHideFlyout(group);
         autoHideFlyout.Visibility = Visibility.Visible;
+        autoHideOpenReason = reason;
 
-        SetActiveWindow(window);
+        // Pointing at a tab shows the panel without disturbing what the user is working in: making
+        // it the active window would move the focus, fire WindowActivated, and take the previous
+        // window's title bar out of its active state, all for a preview the pointer dismisses.
+        if (reason == AutoHideOpenReason.Activation)
+        {
+            SetActiveWindow(window);
+        }
+    }
+
+    // Called by the flyout and the auto-hide tabs when the pointer arrives. Anything the pointer
+    // can reach on its way between the tab and the panel counts as staying in.
+    internal void NotifyAutoHidePointerEntered()
+    {
+        CancelAutoHideCollapse();
+    }
+
+    // Called when the pointer leaves the flyout or a tab. The move from one to the other raises an
+    // exit before the matching entry, so this only ever schedules: the delay is what tells a
+    // crossing apart from a departure.
+    internal void NotifyAutoHidePointerExited()
+    {
+        if (autoHideFlyout?.Window is null)
+        {
+            return;
+        }
+
+        var delay = AutoHideCloseDelay;
+        if (delay <= TimeSpan.Zero)
+        {
+            TryCollapseAutoHideFlyout(AutoHideDismissTrigger.PointerLeft);
+            return;
+        }
+
+        if (DispatcherQueue is null)
+        {
+            return;
+        }
+
+        autoHideCollapseTimer ??= CreateAutoHideCollapseTimer();
+        autoHideCollapseTimer.Interval = delay;
+        autoHideCollapseTimer.Start();
+    }
+
+    private DispatcherQueueTimer CreateAutoHideCollapseTimer()
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) => TryCollapseAutoHideFlyout(AutoHideDismissTrigger.PointerLeft);
+        return timer;
+    }
+
+    private void CancelAutoHideCollapse()
+    {
+        autoHideCollapseTimer?.Stop();
+    }
+
+    // Collapses the flyout when the policy says this trigger ends its stay.
+    private void TryCollapseAutoHideFlyout(AutoHideDismissTrigger trigger)
+    {
+        CancelAutoHideCollapse();
+
+        if (autoHideFlyout?.Window is null)
+        {
+            return;
+        }
+
+        if (AutoHideDismissPolicy.ShouldCollapse(autoHideOpenReason, trigger, IsFocusInsideAutoHideFlyout()))
+        {
+            HideAutoHideFlyout();
+        }
+    }
+
+    // Whether the focused element is inside the open flyout. Read from the focus manager rather
+    // than tracked across events, so it is right even when the focus moved without passing through
+    // this dock site.
+    private bool IsFocusInsideAutoHideFlyout()
+    {
+        if (autoHideFlyout is null || XamlRoot is null)
+        {
+            return false;
+        }
+
+        return FocusManager.GetFocusedElement(XamlRoot) is DependencyObject focused
+            && IsInsideAutoHideFlyout(focused);
+    }
+
+    private bool IsInsideAutoHideFlyout(DependencyObject element)
+    {
+        return autoHideFlyout is not null
+            && (ReferenceEquals(element, autoHideFlyout) || ReferenceEquals(element.FindAncestor<AutoHideFlyout>(), autoHideFlyout));
+    }
+
+    private static bool IsInsideAutoHideStrip(DependencyObject element)
+    {
+        return element is AutoHideTabStrip or AutoHideTabItem || element.FindAncestor<AutoHideTabStrip>() is not null;
     }
 
     // Sizes the flyout to the area the layout occupies and pins it to its group's edge. The flyout
@@ -620,6 +768,8 @@ public partial class DockSite : Control, IDockSurface
     // Hides the auto-hide flyout if it is open.
     internal void HideAutoHideFlyout()
     {
+        CancelAutoHideCollapse();
+
         if (autoHideFlyout?.Window is { } shown)
         {
             if (ReferenceEquals(ActiveWindow, shown))
@@ -636,7 +786,7 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
-    private void OnDismissPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    private void OnDismissPointerPressed(object sender, PointerRoutedEventArgs e)
     {
         if (autoHideFlyout?.Window is null)
         {
@@ -646,6 +796,10 @@ public partial class DockSite : Control, IDockSurface
         var point = e.GetCurrentPoint(this).Position;
         if (IsWithin(autoHideFlyout, point))
         {
+            // Clicking inside settles it: a panel that was only being previewed is now the one the
+            // user is working in, even if what they clicked takes no focus.
+            autoHideOpenReason = AutoHideOpenReason.Activation;
+            CancelAutoHideCollapse();
             return;
         }
 
@@ -657,7 +811,14 @@ public partial class DockSite : Control, IDockSurface
             }
         }
 
-        HideAutoHideFlyout();
+        // Decided one turn later, on purpose. Whether this press ends the flyout's stay depends on
+        // where it leaves the focus, and XAML moves the focus after the press is delivered:
+        // checking now would read the focus the click is about to take away. If the press turns out
+        // to move the focus out of the flyout, the focus handler collapses it first and this
+        // becomes a no-op.
+        DispatcherQueue?.TryEnqueue(
+            DispatcherQueuePriority.Low,
+            () => TryCollapseAutoHideFlyout(AutoHideDismissTrigger.PointerPressedOutside));
 
         bool IsWithin(FrameworkElement element, Windows.Foundation.Point p)
         {
@@ -856,13 +1017,24 @@ public partial class DockSite : Control, IDockSurface
 
     private void OnAnyDescendantGotFocus(object sender, RoutedEventArgs e)
     {
-        if (e.OriginalSource is DependencyObject source)
+        if (e.OriginalSource is not DependencyObject source)
         {
-            var window = source as DockingWindow ?? source.FindAncestor<DockingWindow>();
-            if (window is not null)
-            {
-                SetActiveWindow(window);
-            }
+            return;
+        }
+
+        var window = source as DockingWindow ?? source.FindAncestor<DockingWindow>();
+        if (window is not null)
+        {
+            SetActiveWindow(window);
+        }
+
+        // The focus landing anywhere else is what ends an auto-hide panel's stay, whether it got
+        // there by a click or by the keyboard. Inside the flyout it counts as staying — the panel's
+        // own title bar and its content are part of it — and so does the edge it came from, whose
+        // tabs are how the user reopens or swaps panels.
+        if (autoHideFlyout?.Window is not null && !IsInsideAutoHideFlyout(source) && !IsInsideAutoHideStrip(source))
+        {
+            TryCollapseAutoHideFlyout(AutoHideDismissTrigger.FocusMovedOutside);
         }
     }
 }
