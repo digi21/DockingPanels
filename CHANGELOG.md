@@ -39,7 +39,9 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the whole group in that case rather than being shown and doing nothing.
 - Loading a layout that collapsed a window to an edge no longer strands it there when the window
   now forbids auto-hiding: with auto-hide off there is no pin button to bring it back, so it is
-  docked instead.
+  docked instead. It is docked where the file says the group came from — beside the same neighbour,
+  at the same relative size — which is what pinning it from the edge would have done, instead of
+  landing at the left of the layout; when that neighbour is gone it goes to the group's own edge.
 - `DockingPinGlyph` is honored again on a title bar whose window changed state; the glyph was
   being overwritten from code with a hard-coded code point.
 

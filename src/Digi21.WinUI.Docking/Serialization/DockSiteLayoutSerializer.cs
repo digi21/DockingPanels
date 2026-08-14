@@ -311,6 +311,7 @@ public class DockSiteLayoutSerializer
         foreach (var groupNode in layout.AutoHideGroups)
         {
             var groupWindows = new List<ToolWindow>();
+            var pinnedWindows = new List<ToolWindow>();
             foreach (var entry in groupNode.Windows)
             {
                 if (ResolveToolWindow(entry.Id, index) is { } window && !used.Contains(window))
@@ -328,9 +329,7 @@ public class DockSiteLayoutSerializer
                         // panel docked. Honoring the file would strand it: with auto-hide off its
                         // title bar has no pin button, so nothing in the interface could bring it
                         // back. It goes back into the layout instead, which the user can undo.
-                        window.State = DockingWindowState.Docked;
-                        window.IsOpen = true;
-                        KeepOpen(site, window);
+                        pinnedWindows.Add(window);
                         continue;
                     }
 
@@ -341,23 +340,35 @@ public class DockSiteLayoutSerializer
                 }
             }
 
+            // Where the group came from, resolved against the tree that has just been rebuilt.
+            // Both the windows that stay collapsed and the ones that have to go back into the
+            // layout are placed by it.
+            DockRestoreHint? restoreHint = null;
+            if (ResolveSiblingReference(site, groupNode.RestoreSibling, index) is { } sibling)
+            {
+                restoreHint = new DockRestoreHint(
+                    container: null,
+                    sibling,
+                    groupNode.RestoreSide,
+                    groupNode.RestoreRelativeSize);
+            }
+
+            if (pinnedWindows.Count > 0)
+            {
+                // Down the same path as pinning the group from its edge, so a layout being
+                // migrated puts the panel back beside the neighbour the file names, at the size it
+                // records, instead of wherever a fresh dock would land it. When that neighbour is
+                // gone the group's own edge takes over, which is still what the file asked for.
+                LayoutManager.RestoreWindows(site, pinnedWindows, restoreHint, groupNode.Edge);
+            }
+
             if (groupWindows.Count > 0)
             {
-                var group = new AutoHideGroup(groupNode.Edge, groupWindows, groupNode.Size)
+                site.AddAutoHideGroup(new AutoHideGroup(groupNode.Edge, groupWindows, groupNode.Size)
                 {
                     Offset = groupNode.Offset,
-                };
-
-                if (ResolveSiblingReference(site, groupNode.RestoreSibling, index) is { } sibling)
-                {
-                    group.RestoreHint = new DockRestoreHint(
-                        container: null,
-                        sibling,
-                        groupNode.RestoreSide,
-                        groupNode.RestoreRelativeSize);
-                }
-
-                site.AddAutoHideGroup(group);
+                    RestoreHint = restoreHint,
+                });
             }
         }
 
@@ -438,9 +449,6 @@ public class DockSiteLayoutSerializer
         return windows;
     }
 
-    // Puts a window the loaded layout does not mention back into the layout, for
-    // UnresolvedWindowBehavior.DockLeft: documents reopen in the document area, tool windows dock
-    // to the left edge.
     // Applies what the layout says about auto-hiding, if it says anything. A file written before
     // the attribute existed leaves the window exactly as the application declared it, which is what
     // keeps those files loading unchanged.
@@ -452,6 +460,9 @@ public class DockSiteLayoutSerializer
         }
     }
 
+    // Puts a window the loaded layout does not mention back into the layout, for
+    // UnresolvedWindowBehavior.DockLeft: documents reopen in the document area, tool windows dock
+    // to the left edge.
     private static void KeepOpen(DockSite site, DockingWindow window)
     {
         if (window is DocumentWindow document && site.DocumentHost is { } host)
