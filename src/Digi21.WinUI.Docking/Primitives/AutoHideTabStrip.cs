@@ -5,7 +5,7 @@ namespace Digi21.WinUI.Docking.Primitives;
 
 /// <summary>
 /// The thin bar at a dock site edge that lists the auto-hidden tool windows of that edge.
-/// Each auto-hide group is positioned along the strip at the offset its container had when
+/// Each auto-hide group is positioned along the strip near the offset its container had when
 /// it was unpinned, so the tabs appear aligned with where the panel used to be.
 /// </summary>
 public partial class AutoHideTabStrip : Control
@@ -61,18 +61,17 @@ public partial class AutoHideTabStrip : Control
 
         var vertical = Edge is DockSide.Left or DockSide.Right;
 
+        // The strip reserves a band at the dock site edge; each group's tabs are placed along it
+        // near the offset the group's container had, so they stay aligned with where the panel used
+        // to be, but never on top of another group's tabs.
+        var host = new AutoHideStripPanel { IsVertical = vertical };
+
         foreach (var group in groups)
         {
-            // The strip reserves a band at the dock site edge; each group's tabs are placed
-            // along it at the offset the group's container had, so they stay aligned with
-            // where the panel used to be.
             var panel = new StackPanel
             {
                 Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal,
                 Spacing = 2,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = vertical ? new Thickness(0, group.Offset, 0, 0) : new Thickness(group.Offset, 0, 0, 0),
             };
 
             foreach (var window in group.Windows)
@@ -80,7 +79,10 @@ public partial class AutoHideTabStrip : Control
                 panel.Children.Add(new AutoHideTabItem { Window = window, Edge = Edge });
             }
 
-            itemsHost.Children.Add(panel);
+            AutoHideStripPanel.SetOffsetHint(panel, group.Offset);
+            host.Children.Add(panel);
         }
+
+        itemsHost.Children.Add(host);
     }
 }

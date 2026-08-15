@@ -471,8 +471,10 @@
               <li><span class="node k-surface">DockSite</span>
                 <ul>
                   <li><span class="node k-tpl">AutoHideTabStrip</span> <span class="meta">Left</span>
-                    <ul><li><span class="node k-tpl">StackPanel</span> <span class="meta">one per AutoHideGroup, offset by Margin</span>
-                      <ul><li><span class="node k-tpl">AutoHideTabItem</span> <span class="meta">rotated 90&deg; in Arrange</span></li></ul>
+                    <ul><li><span class="node k-tpl">AutoHideStripPanel</span> <span class="meta">places the groups along the edge, none over another</span>
+                      <ul><li><span class="node k-tpl">StackPanel</span> <span class="meta">one per AutoHideGroup, near the offset its container had</span>
+                        <ul><li><span class="node k-tpl">AutoHideTabItem</span> <span class="meta">rotated 90&deg; in Arrange</span></li></ul>
+                      </li></ul>
                     </li></ul>
                   </li>
                   <li><span class="node k-tpl">ContentPresenter</span> <span class="meta">PART_LayoutRoot &mdash; the rest of the layout, unchanged</span></li>
@@ -572,7 +574,7 @@
             <tr><td><code>DocumentTabItem</code></td><td><code>DocumentContainer.CreateTab</code></td><td>top <code>PART_TabStrip</code>; always visible</td></tr>
             <tr><td><code>DockSplitter</code></td><td><code>SplitContainer.ReconcileSplitters</code></td><td>after all panes in <code>SplitContainer.Children</code></td></tr>
             <tr><td><code>DockGuide</code>, <code>DockGuidePanel</code></td><td>control template</td><td>overlay canvas in <code>DockSite</code> and <code>FloatingWindowRoot</code></td></tr>
-            <tr><td><code>AutoHideTabItem</code></td><td><code>AutoHideTabStrip</code> code</td><td>inside one <code>StackPanel</code> per group in <code>PART_Items</code></td></tr>
+            <tr><td><code>AutoHideTabItem</code></td><td><code>AutoHideTabStrip</code> code</td><td>inside one <code>StackPanel</code> per group, in the <code>AutoHideStripPanel</code> that fills <code>PART_Items</code></td></tr>
             <tr><td><code>FloatingWindowCaption</code></td><td>control template</td><td><code>FloatingWindowRoot</code>; visible only when the window contains multiple panes</td></tr>
           </tbody>
         </table>
