@@ -4,10 +4,8 @@ using Windows.Foundation;
 
 namespace Digi21.WinUI.Docking.Primitives;
 
-/// <summary>
-/// Hosts the tab groups of an <see cref="AutoHideTabStrip"/>, each one at the offset along the
-/// edge that <see cref="AutoHideStripLayout"/> gives it.
-/// </summary>
+// Hosts the tab groups of an AutoHideTabStrip, each one at the offset along the edge that
+// AutoHideStripLayout gives it.
 internal sealed partial class AutoHideStripPanel : Panel
 {
     // Where along the strip a group would like to sit; see AutoHideStripLayout.
@@ -19,14 +17,13 @@ internal sealed partial class AutoHideStripPanel : Panel
 
     private double[] positions = [];
 
-    /// <summary>Gets or sets a value indicating whether the strip runs down a side edge.</summary>
+    // Gets or sets a value indicating whether the strip runs down a side edge.
     internal bool IsVertical { get; set; }
 
     internal static void SetOffsetHint(DependencyObject element, double value) => element.SetValue(OffsetHintProperty, value);
 
     internal static double GetOffsetHint(DependencyObject element) => (double)element.GetValue(OffsetHintProperty);
 
-    /// <inheritdoc />
     protected override Size MeasureOverride(Size availableSize)
     {
         var along = IsVertical ? availableSize.Height : availableSize.Width;
@@ -64,7 +61,6 @@ internal sealed partial class AutoHideStripPanel : Panel
         return IsVertical ? new Size(thickness, extent) : new Size(extent, thickness);
     }
 
-    /// <inheritdoc />
     protected override Size ArrangeOverride(Size finalSize)
     {
         var index = 0;

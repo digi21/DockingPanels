@@ -1,26 +1,20 @@
 namespace Digi21.WinUI.Docking.Primitives;
 
-/// <summary>
-/// Places the auto-hide tab groups of one edge along the strip.
-/// </summary>
-/// <remarks>
-/// A group asks to sit at the offset its container had when it was unpinned, so its tabs stay
-/// under where the panel used to be. That offset is only a wish: two groups routinely ask for the
-/// same spot — a panel unpinned before the layout has been measured reports 0, and so does the one
-/// that grew to take its place — and honouring both would draw one group's titles over the
-/// other's. Groups are laid out in offset order, each pushed past the one before it.
-/// </remarks>
+// Places the auto-hide tab groups of one edge along the strip.
+//
+// A group asks to sit at the offset its container had when it was unpinned, so its tabs stay under
+// where the panel used to be. That offset is only a wish: two groups routinely ask for the same
+// spot — a panel unpinned before the layout has been measured reports 0, and so does the one that
+// grew to take its place — and honouring both would draw one group's titles over the other's.
+// Groups are laid out in offset order, each pushed past the one before it.
 internal static class AutoHideStripLayout
 {
-    /// <summary>The gap kept between two groups, so their tabs do not read as a single run.</summary>
+    // The gap kept between two groups, so their tabs do not read as a single run.
     internal const double GroupGap = 8;
 
-    /// <summary>
-    /// Returns the offset along the strip for each group, in the order the groups were given.
-    /// </summary>
-    /// <param name="groups">The wished-for offset and the length along the strip of each group.</param>
-    /// <param name="available">The length of the strip, or infinity when it is not known yet.</param>
-    /// <param name="gap">The gap to keep between two groups.</param>
+    // Returns the offset along the strip for each group, in the order the groups were given, from
+    // the offset each one wishes for and its length along the strip. The strip's own length is
+    // infinity while it has not been measured.
     internal static double[] Place(IReadOnlyList<(double Hint, double Length)> groups, double available, double gap = GroupGap)
     {
         var positions = new double[groups.Count];
