@@ -27,6 +27,7 @@ public partial class DocumentTabItem : Control
     private long isActiveToken = -1;
     private long canCloseToken = -1;
     private long isPinnedToken = -1;
+    private long isProvisionalToken = -1;
     private TextBlock? titleText;
     private Button? pinButton;
     private Button? closeButton;
@@ -117,6 +118,18 @@ public partial class DocumentTabItem : Control
         UpdateCommonState();
     }
 
+    /// <inheritdoc />
+    protected override void OnDoubleTapped(DoubleTappedRoutedEventArgs e)
+    {
+        base.OnDoubleTapped(e);
+
+        // Double-clicking a preview keeps it, as double-clicking a file in Solution Explorer does.
+        if (observed is DocumentWindow document)
+        {
+            document.KeepOpen();
+        }
+    }
+
     private void OnWindowChanged()
     {
         if (observed is not null)
@@ -129,6 +142,7 @@ public partial class DocumentTabItem : Control
             if (observed is DocumentWindow previous)
             {
                 previous.UnregisterPropertyChangedCallback(DocumentWindow.IsPinnedProperty, isPinnedToken);
+                previous.UnregisterPropertyChangedCallback(DocumentWindow.IsProvisionalProperty, isProvisionalToken);
             }
         }
 
@@ -144,6 +158,7 @@ public partial class DocumentTabItem : Control
             if (observed is DocumentWindow document)
             {
                 isPinnedToken = document.RegisterPropertyChangedCallback(DocumentWindow.IsPinnedProperty, (_, _) => Update());
+                isProvisionalToken = document.RegisterPropertyChangedCallback(DocumentWindow.IsProvisionalProperty, (_, _) => Update());
             }
         }
 
@@ -167,6 +182,11 @@ public partial class DocumentTabItem : Control
         }
 
         UpdatePinButton();
+
+        VisualStateManager.GoToState(
+            this,
+            observed is DocumentWindow { IsProvisional: true } ? "Provisional" : "Committed",
+            true);
 
         VisualStateManager.GoToState(
             this,
@@ -254,10 +274,17 @@ public partial class DocumentTabItem : Control
         }
 
         var host = this.FindLayoutHost() as DocumentHost;
-        var items = new List<MenuFlyoutItemBase>
+        var items = new List<MenuFlyoutItemBase>();
+
+        // Only while there is a preview to keep: on an ordinary tab the command would do nothing.
+        if (document.IsProvisional)
         {
-            Command(PinCommandName(document), () => document.IsPinned = !document.IsPinned),
-        };
+            items.Add(Command(
+                DockingThemeResources.Value("DockingKeepTabOpenName", "Keep open"),
+                document.KeepOpen));
+        }
+
+        items.Add(Command(PinCommandName(document), () => document.IsPinned = !document.IsPinned));
 
         if (document.CanClose)
         {
@@ -269,7 +296,7 @@ public partial class DocumentTabItem : Control
 
         if (host is not null)
         {
-            if (items.Count == 1)
+            if (items is not [.., MenuFlyoutSeparator])
             {
                 items.Add(new MenuFlyoutSeparator());
             }

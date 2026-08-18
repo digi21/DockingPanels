@@ -1,21 +1,35 @@
 namespace Digi21.WinUI.Docking;
 
-// Keeps the tabs of a document group in two blocks: the pinned ones first, in their own order, and
-// the rest after them.
+// The block a document's tab belongs to. The values are the order the blocks appear in, which is
+// what every rule below is arithmetic over.
+internal enum DocumentTabZone
+{
+    // Pinned to the head of the strip, in its own order, outside the part that scrolls.
+    Pinned,
+
+    // An ordinary tab.
+    Normal,
+
+    // The provisional (preview) tab: one per group, at the far end of the strip.
+    Provisional,
+}
+
+// Keeps the tabs of a document group in blocks: the pinned ones first, the ordinary ones after
+// them, and the provisional one last.
 //
 // The blocks are an invariant of the group's Items collection rather than a way of drawing it, so
-// the tab strip, the selected index, the insertion index a drag computes and the order the layout
-// file records all agree on one list. Every rule below is expressed as indices over the pinned
-// flags of a group, which is what makes it testable without a XAML runtime.
+// the tab strips, the selected index, the insertion index a drag computes and the order the layout
+// file records all agree on one list. Every rule below is expressed as indices over the zones of a
+// group, which is what makes it testable without a XAML runtime.
 internal static class DocumentTabOrder
 {
-    // Returns the number of pinned tabs, which is where the pinned block ends.
-    internal static int PinnedCount(IReadOnlyList<bool> pinned)
+    // Returns the number of tabs before the given zone, which is where that zone begins.
+    internal static int StartOf(IReadOnlyList<DocumentTabZone> zones, DocumentTabZone zone)
     {
         var count = 0;
-        for (var i = 0; i < pinned.Count; i++)
+        for (var i = 0; i < zones.Count; i++)
         {
-            if (pinned[i])
+            if (zones[i] < zone)
             {
                 count++;
             }
@@ -24,88 +38,95 @@ internal static class DocumentTabOrder
         return count;
     }
 
-    // Returns where the tab at 'from' belongs once its pinned flag has changed, as an index into
-    // the list the tab has already been taken out of.
-    //
-    // Both directions land on the same boundary: pinning moves the tab to the end of the pinned
-    // block, unpinning moves it to the front of the normal block, and that is the same position —
-    // the number of other pinned tabs. This is what Visual Studio does, and it means a tab pinned
-    // and unpinned again does not travel back to where it started, which is deliberate: its old
-    // neighbours may be gone by then.
-    internal static int TargetIndexFor(IReadOnlyList<bool> pinned, int from)
+    // Returns the number of tabs up to and including the given zone, which is where that zone ends.
+    internal static int EndOf(IReadOnlyList<DocumentTabZone> zones, DocumentTabZone zone)
     {
         var count = 0;
-        for (var i = 0; i < pinned.Count; i++)
+        for (var i = 0; i < zones.Count; i++)
         {
-            if (i != from && pinned[i])
+            if (zones[i] <= zone)
             {
                 count++;
             }
         }
 
         return count;
+    }
+
+    // Returns where the tab at 'from' belongs once its zone has changed, as an index into the list
+    // the tab has already been taken out of: the near edge of its new block, which is the one it
+    // arrives from.
+    //
+    // Pinning a tab moves it to the *end* of the pinned block and unpinning it to the *front* of the
+    // normal block; promoting the preview brings it to the end of the normal block, because it
+    // arrives from the other side. Landing on the far edge instead would make a tab jump across
+    // every tab of its new block for no reason the user asked for. Clamping the position it already
+    // had into the new block says all of that at once.
+    //
+    // It also means a tab pinned and unpinned again does not travel back to where it started, which
+    // is deliberate: its old neighbours may be gone by then.
+    internal static int TargetIndexFor(IReadOnlyList<DocumentTabZone> zones, int from)
+    {
+        var zone = zones[from];
+        var others = Without(zones, from);
+
+        return Math.Clamp(from, StartOf(others, zone), EndOf(others, zone));
     }
 
     // Clamps the destination of a tab being moved inside its own group to the block it belongs to,
     // so dragging a pinned tab past the block does not silently unpin it, nor dragging a normal tab
     // to the far left pin it. Pinning stays an explicit gesture.
     //
+    // A provisional tab is clamped to the *normal* block instead of to its own: dragging it is one
+    // of the gestures that promotes it, so it is free to land anywhere among the ordinary tabs, and
+    // the drop promotes it before the move is applied.
+    //
     // Both 'from' and 'to' are indices into the group, 'to' being where the tab lands once it has
     // been taken out of it.
-    internal static int ClampMove(IReadOnlyList<bool> pinned, int from, int to)
+    internal static int ClampMove(IReadOnlyList<DocumentTabZone> zones, int from, int to)
     {
-        if (from < 0 || from >= pinned.Count)
+        if (from < 0 || from >= zones.Count)
         {
             return to;
         }
 
-        var boundary = TargetIndexFor(pinned, from);
-        var last = Math.Max(pinned.Count - 1, 0);
+        var zone = zones[from] == DocumentTabZone.Provisional ? DocumentTabZone.Normal : zones[from];
+        var others = Without(zones, from);
 
-        return pinned[from]
-            ? Math.Clamp(to, 0, boundary)
-            : Math.Clamp(to, boundary, last);
+        return Math.Clamp(to, StartOf(others, zone), EndOf(others, zone));
     }
 
     // Clamps the position a tab is inserted at when it joins a group it is not in yet — a document
     // dropped from another group, or one being opened — to the block it belongs to. A negative
-    // index means "append", which appends to the end of that block rather than of the strip.
-    internal static int ClampInsertion(IReadOnlyList<bool> pinned, bool isPinned, int index)
+    // index means "append", which appends to the end of that block rather than of the strip: an
+    // ordinary document lands before the provisional tab, never after it.
+    internal static int ClampInsertion(IReadOnlyList<DocumentTabZone> zones, DocumentTabZone zone, int index)
     {
-        var boundary = PinnedCount(pinned);
+        var start = StartOf(zones, zone);
+        var end = EndOf(zones, zone);
 
-        if (isPinned)
-        {
-            return index < 0 ? boundary : Math.Clamp(index, 0, boundary);
-        }
-
-        return index < 0 ? pinned.Count : Math.Clamp(index, boundary, pinned.Count);
+        return index < 0 ? end : Math.Clamp(index, start, end);
     }
 
-    // Returns the order that puts the pinned tabs first while keeping the relative order inside
-    // each block, as the old index of each tab in its new position, or null when the tabs are
-    // already in two blocks.
+    // Returns the order that puts the tabs in their blocks while keeping the relative order inside
+    // each one, as the old index of each tab in its new position, or null when they are already in
+    // blocks.
     //
     // Used to settle a group whose order came from outside the rules above: a layout file that was
     // hand-edited, or an application inserting into the group's Items itself.
-    internal static int[]? Partition(IReadOnlyList<bool> pinned)
+    internal static int[]? Partition(IReadOnlyList<DocumentTabZone> zones)
     {
-        var order = new int[pinned.Count];
+        var order = new int[zones.Count];
         var next = 0;
 
-        for (var i = 0; i < pinned.Count; i++)
+        foreach (var zone in new[] { DocumentTabZone.Pinned, DocumentTabZone.Normal, DocumentTabZone.Provisional })
         {
-            if (pinned[i])
+            for (var i = 0; i < zones.Count; i++)
             {
-                order[next++] = i;
-            }
-        }
-
-        for (var i = 0; i < pinned.Count; i++)
-        {
-            if (!pinned[i])
-            {
-                order[next++] = i;
+                if (zones[i] == zone)
+                {
+                    order[next++] = i;
+                }
             }
         }
 
@@ -118,5 +139,22 @@ internal static class DocumentTabOrder
         }
 
         return null;
+    }
+
+    // The zones of every tab but one, in order, which is the list an index computed after the tab
+    // has been taken out refers to.
+    private static List<DocumentTabZone> Without(IReadOnlyList<DocumentTabZone> zones, int index)
+    {
+        var rest = new List<DocumentTabZone>(Math.Max(zones.Count - 1, 0));
+
+        for (var i = 0; i < zones.Count; i++)
+        {
+            if (i != index)
+            {
+                rest.Add(zones[i]);
+            }
+        }
+
+        return rest;
     }
 }

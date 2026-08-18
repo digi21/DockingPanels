@@ -46,6 +46,7 @@ public abstract partial class DockingWindowContainer : Control
     private readonly Grid windowsHost = new();
     private ContentPresenter? contentSlot;
     private Panel? pinnedTabStrip;
+    private Panel? provisionalTabStrip;
     private Panel? tabStrip;
     private ToolWindowTitleBar? titleBar;
     private bool syncingSelection;
@@ -108,6 +109,17 @@ public abstract partial class DockingWindowContainer : Control
     protected virtual bool BelongsToPinnedStrip(DockingWindow window) => false;
 
     /// <summary>
+    /// Tells whether a window's tab goes into the fixed strip that a template can declare as
+    /// <c>PART_ProvisionalTabStrip</c>, past the scrolling one, instead of into the scrolling strip.
+    /// </summary>
+    /// <param name="window">The window the tab represents.</param>
+    /// <remarks>
+    /// Only <see cref="DocumentContainer"/> answers <see langword="true"/>, for the provisional
+    /// document. A template without that part puts every tab in the scrolling strip.
+    /// </remarks>
+    protected virtual bool BelongsToProvisionalStrip(DockingWindow window) => false;
+
+    /// <summary>
     /// Puts <see cref="Items"/> back in the order this kind of container keeps them in, before the
     /// selection and the tabs are brought up to date. Called whenever the collection changes.
     /// </summary>
@@ -140,6 +152,7 @@ public abstract partial class DockingWindowContainer : Control
 
         pinnedTabStrip = GetTemplateChild("PART_PinnedTabStrip") as Panel;
         tabStrip = GetTemplateChild("PART_TabStrip") as Panel;
+        provisionalTabStrip = GetTemplateChild("PART_ProvisionalTabStrip") as Panel;
         titleBar = GetTemplateChild("PART_TitleBar") as ToolWindowTitleBar;
 
         Rebuild();
@@ -163,10 +176,11 @@ public abstract partial class DockingWindowContainer : Control
         }
     }
 
-    // Enumerates the strips holding the tabs, pinned first, skipping those with nothing to show.
+    // Enumerates the strips holding the tabs in the order they are drawn — pinned, scrolling,
+    // provisional — skipping those with nothing to show.
     private IEnumerable<Panel> Strips()
     {
-        foreach (var strip in new[] { pinnedTabStrip, tabStrip })
+        foreach (var strip in new[] { pinnedTabStrip, tabStrip, provisionalTabStrip })
         {
             if (strip is { Visibility: Visibility.Visible, ActualWidth: > 0, ActualHeight: > 0 })
             {
@@ -371,22 +385,40 @@ public abstract partial class DockingWindowContainer : Control
 
         pinnedTabStrip?.Children.Clear();
         tabStrip?.Children.Clear();
+        provisionalTabStrip?.Children.Clear();
 
         if (ShowTabs(items.Count))
         {
             foreach (var window in items)
             {
-                var strip = pinnedTabStrip is not null && BelongsToPinnedStrip(window) ? pinnedTabStrip : tabStrip;
-                strip?.Children.Add(CreateTab(window));
+                StripFor(window)?.Children.Add(CreateTab(window));
             }
         }
 
-        // An empty pinned strip is collapsed rather than left at zero width, so its column takes no
-        // room at all while no tab is pinned.
+        // An empty fixed strip is collapsed rather than left at zero width, so its column takes no
+        // room at all while nothing is pinned and nothing is being previewed.
         SetStripVisibility(pinnedTabStrip, pinnedTabStrip?.Children.Count > 0);
         SetStripVisibility(tabStrip, ShowTabs(items.Count));
+        SetStripVisibility(provisionalTabStrip, provisionalTabStrip?.Children.Count > 0);
 
         ApplySelection();
+    }
+
+    // The strip a window's tab is put in. A template that declares none of the fixed strips puts
+    // every tab in the scrolling one, which is what a pane of tool windows does.
+    private Panel? StripFor(DockingWindow window)
+    {
+        if (pinnedTabStrip is not null && BelongsToPinnedStrip(window))
+        {
+            return pinnedTabStrip;
+        }
+
+        if (provisionalTabStrip is not null && BelongsToProvisionalStrip(window))
+        {
+            return provisionalTabStrip;
+        }
+
+        return tabStrip;
     }
 
     private static void SetStripVisibility(Panel? strip, bool visible)

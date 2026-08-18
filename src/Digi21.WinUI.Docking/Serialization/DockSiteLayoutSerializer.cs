@@ -208,7 +208,8 @@ public class DockSiteLayoutSerializer
                     groupNode.Windows.Add(new LayoutWindowEntry(
                         RequireId(document),
                         document.State.ToString(),
-                        IsPinned: document is DocumentWindow { IsPinned: true }));
+                        IsPinned: document is DocumentWindow { IsPinned: true },
+                        IsProvisional: document is DocumentWindow { IsProvisional: true }));
                 }
 
                 return groupNode;
@@ -455,17 +456,22 @@ public class DockSiteLayoutSerializer
     // Applies what the layout says about auto-hiding, if it says anything. A file written before
     // the attribute existed leaves the window exactly as the application declared it, which is what
     // keeps those files loading unchanged.
-    // Restores which document tabs are pinned, once the documents are in the group they belong to:
-    // pinning moves a tab to the head of its group, so the flag has to be set where it can be acted
-    // on. Applied in the order the file lists them, which is the order the pinned block keeps, so a
-    // layout whose blocks were mixed up by hand still settles into two of them.
-    private static void ApplyIsPinned(List<LayoutWindowEntry> entries, List<DockingWindow> windows)
+    // Restores which document tab is pinned and which one is being previewed, once the documents are
+    // in the group they belong to: both move a tab to one end of its group, so the flags have to be
+    // set where they can be acted on. Applied in the order the file lists them, which is the order
+    // each block keeps, so a layout whose blocks were mixed up by hand still settles into three.
+    //
+    // A file marking several provisional documents in one group — only a hand-edited one can — ends
+    // up with the last of them provisional and the rest promoted, which is the group's own rule
+    // applying rather than the file being trusted.
+    private static void ApplyTabZone(List<LayoutWindowEntry> entries, List<DockingWindow> windows)
     {
         foreach (var entry in entries)
         {
             if (windows.FirstOrDefault(window => window.SerializationId == entry.Id) is DocumentWindow document)
             {
                 document.IsPinned = entry.IsPinned;
+                document.IsProvisional = entry.IsProvisional && !entry.IsPinned;
             }
         }
     }
@@ -592,7 +598,7 @@ public class DockSiteLayoutSerializer
         var container = rebuild.TakeContainer<T>(windows);
         DockSite.SetRelativeSize(container, relativeSize);
         rebuild.SetItems(container, windows);
-        ApplyIsPinned(entries, windows);
+        ApplyTabZone(entries, windows);
 
         if (selectedId is not null
             && container.Items.FirstOrDefault(w => w.SerializationId == selectedId) is { } selected)

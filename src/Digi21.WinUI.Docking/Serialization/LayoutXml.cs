@@ -324,13 +324,19 @@ internal static class LayoutXml
                     writer.WriteAttributeString("Id", document.Id);
                     writer.WriteAttributeString("State", document.State);
 
-                    // Written only when the tab is pinned, for the same reason CanAutoHide is only
-                    // written when it is false: the common file stays what earlier versions wrote,
-                    // and a library that predates the attribute ignores it instead of refusing the
-                    // file, which is also why the format version does not move for this.
+                    // Written only for the tabs that are one or the other, for the same reason
+                    // CanAutoHide is only written when it is false: the common file stays what
+                    // earlier versions wrote, and a library that predates the attribute ignores it
+                    // instead of refusing the file, which is also why the format version does not
+                    // move for either of these.
                     if (document.IsPinned)
                     {
                         writer.WriteAttributeString("IsPinned", "True");
+                    }
+
+                    if (document.IsProvisional)
+                    {
+                        writer.WriteAttributeString("IsProvisional", "True");
                     }
 
                     writer.WriteEndElement();
@@ -402,7 +408,8 @@ internal static class LayoutXml
                     group.Windows.Add(new LayoutWindowEntry(
                         documentId,
                         (string?)child.Attribute("State") ?? nameof(DockingWindowState.Docked),
-                        IsPinned: ReadOptionalBoolean(child, "IsPinned") ?? false));
+                        IsPinned: ReadOptionalBoolean(child, "IsPinned") ?? false,
+                        IsProvisional: ReadOptionalBoolean(child, "IsProvisional") ?? false));
                 }
 
                 return group;

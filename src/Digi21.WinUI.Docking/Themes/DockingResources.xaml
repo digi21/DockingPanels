@@ -191,6 +191,7 @@
     <x:Double x:Key="DockingCaptionHeight">32</x:Double>
     <x:Double x:Key="DockingDocumentTabHeight">30</x:Double>
     <x:Double x:Key="DockingPinnedTabStripMaxWidth">400</x:Double>
+    <x:Double x:Key="DockingProvisionalTabStripMaxWidth">240</x:Double>
     <x:Double x:Key="DockingToolWindowTabHeight">28</x:Double>
     <x:Double x:Key="DockingGuideSize">40</x:Double>
     <x:Double x:Key="DockingGuideClusterSize">128</x:Double>
@@ -256,6 +257,7 @@
     -->
     <x:String x:Key="DockingPinTabButtonName">Pin tab</x:String>
     <x:String x:Key="DockingUnpinTabButtonName">Unpin tab</x:String>
+    <x:String x:Key="DockingKeepTabOpenName">Keep open</x:String>
     <x:String x:Key="DockingCloseAllTabsName">Close all tabs</x:String>
     <x:String x:Key="DockingCloseAllButPinnedTabsName">Close all but pinned</x:String>
     <x:String x:Key="DockingCloseAllButThisTabName">Close all but this</x:String>

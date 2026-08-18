@@ -494,6 +494,48 @@ public class LayoutXmlTests
         Assert.False(Assert.Single(group.Windows).IsPinned);
     }
 
+    [Fact]
+    public void RoundTrip_TheProvisionalTab_KeepsItsFlagAndItsPlace()
+    {
+        var group = new DocumentContainerLayoutNode { SelectedId = "notes" };
+        group.Windows.Add(new LayoutWindowEntry("readme", "Docked", IsPinned: true));
+        group.Windows.Add(new LayoutWindowEntry("program", "Docked"));
+        group.Windows.Add(new LayoutWindowEntry("notes", "Docked", IsProvisional: true));
+
+        var restored = Assert.IsType<DocumentContainerLayoutNode>(RoundTrip(group));
+
+        Assert.Equal(["readme", "program", "notes"], restored.Windows.Select(w => w.Id));
+        Assert.Equal([false, false, true], restored.Windows.Select(w => w.IsProvisional));
+        Assert.Equal([true, false, false], restored.Windows.Select(w => w.IsPinned));
+    }
+
+    [Fact]
+    public void Write_DocumentThatIsNotProvisional_WritesNoAttribute()
+    {
+        var group = new DocumentContainerLayoutNode();
+        group.Windows.Add(new LayoutWindowEntry("readme", "Docked", IsPinned: true));
+
+        using var stream = new MemoryStream();
+        LayoutXml.Write(stream, new LayoutDocument { Root = group });
+
+        Assert.DoesNotContain("IsProvisional", Encoding.UTF8.GetString(stream.ToArray()));
+    }
+
+    [Fact]
+    public void Read_LayoutWrittenBeforeTheAttributeExisted_HasNothingProvisional()
+    {
+        const string xml = """
+            <DockSiteLayout Version="3">
+              <DocumentHost><DocumentContainer><Document Id="readme" State="Docked" IsPinned="True" /></DocumentContainer></DocumentHost>
+            </DockSiteLayout>
+            """;
+
+        var host = Assert.IsType<DocumentHostLayoutNode>(Read(xml));
+        var group = Assert.IsType<DocumentContainerLayoutNode>(host.Root);
+
+        Assert.False(Assert.Single(group.Windows).IsProvisional);
+    }
+
     private static LayoutNode? RoundTrip(LayoutNode? node)
     {
         using var stream = new MemoryStream();

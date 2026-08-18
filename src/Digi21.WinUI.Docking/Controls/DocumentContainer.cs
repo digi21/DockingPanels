@@ -42,13 +42,21 @@ public partial class DocumentContainer : DockingWindowContainer
         => window is DocumentWindow { IsPinned: true };
 
     /// <summary>
+    /// The provisional document's tab goes into the fixed strip past the scrolling one, so it stays
+    /// at the end of the strip however many documents are open.
+    /// </summary>
+    /// <param name="window">The window the tab represents.</param>
+    protected override bool BelongsToProvisionalStrip(DockingWindow window)
+        => ZoneOf(window) == DocumentTabZone.Provisional;
+
+    /// <summary>
     /// Puts the pinned documents back at the head of the group, keeping the order within each
     /// block, for the case where they were inserted into <see cref="DockingWindowContainer.Items"/>
     /// directly instead of through a docking operation.
     /// </summary>
     protected override void CoerceItemOrder()
     {
-        if (partitioning || DocumentTabOrder.Partition(PinnedFlags()) is not { } order)
+        if (partitioning || DocumentTabOrder.Partition(TabZones()) is not { } order)
         {
             return;
         }
@@ -95,16 +103,29 @@ public partial class DocumentContainer : DockingWindowContainer
         }
     }
 
-    // Gets the pinned flag of every tab, in tab order, which is what the ordering rules work on.
-    internal bool[] PinnedFlags()
+    // Gets the block every tab belongs to, in tab order, which is what the ordering rules work on.
+    internal DocumentTabZone[] TabZones()
     {
-        var flags = new bool[Items.Count];
+        var zones = new DocumentTabZone[Items.Count];
 
-        for (var i = 0; i < flags.Length; i++)
+        for (var i = 0; i < zones.Length; i++)
         {
-            flags[i] = Items[i] is DocumentWindow { IsPinned: true };
+            zones[i] = ZoneOf(Items[i]);
         }
 
-        return flags;
+        return zones;
+    }
+
+    // The block a window's tab belongs to. Pinning wins over previewing: the two are set through
+    // properties an application can drive independently, and a pinned tab is one the user asked to
+    // keep, which is the opposite of provisional.
+    internal static DocumentTabZone ZoneOf(DockingWindow window)
+    {
+        return window switch
+        {
+            DocumentWindow { IsPinned: true } => DocumentTabZone.Pinned,
+            DocumentWindow { IsProvisional: true } => DocumentTabZone.Provisional,
+            _ => DocumentTabZone.Normal,
+        };
     }
 }

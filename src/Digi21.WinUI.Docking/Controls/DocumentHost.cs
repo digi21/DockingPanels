@@ -89,6 +89,29 @@ public partial class DocumentHost : Control, ILayoutHost, IRelocatable
     }
 
     /// <summary>
+    /// Opens a document, optionally as the group's provisional (preview) document: the tab Visual
+    /// Studio shows at the end of the strip in italics, one at a time.
+    /// </summary>
+    /// <param name="document">The document to open.</param>
+    /// <param name="provisional">
+    /// <see langword="true"/> to open it in preview, which closes the document the group was
+    /// previewing; <see langword="false"/> to open an ordinary tab, which also promotes the
+    /// document when it was the one being previewed.
+    /// </param>
+    /// <remarks>
+    /// Which documents open in preview is the application's decision — in Visual Studio a single
+    /// click in Solution Explorer, Go To Definition, a search result or the debugger. The document
+    /// being replaced is closed through <see cref="DockingWindow.Close"/>, so an application that
+    /// will not let it go keeps it: it is promoted instead of closed, and the group is left with
+    /// one provisional tab either way. See <see cref="DocumentWindow.IsProvisional"/>.
+    /// </remarks>
+    public void OpenDocument(DocumentWindow document, bool provisional)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        LayoutManager.OpenDocument(this, document, provisional);
+    }
+
+    /// <summary>
     /// Closes the documents of this area in one go, the way "Close All Tabs" does in Visual Studio.
     /// </summary>
     /// <param name="scope">Which documents to close.</param>

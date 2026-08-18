@@ -333,6 +333,15 @@ internal sealed partial class DragDockController
     // Applies the drop of a single dragged window.
     private void Drop(IDockSurface? surface, DockTarget target, DockingWindow window, PointInt32 cursor)
     {
+        // Dragging the provisional tab is one of the gestures that promotes it, and this is where
+        // the gesture has actually happened. Promoting at the start of the drag instead would move
+        // the tab to another strip mid-gesture, destroying the very control holding the pointer
+        // capture, and the drag would be canceled rather than performed.
+        if (window is DocumentWindow { IsProvisional: true } document)
+        {
+            document.KeepOpen();
+        }
+
         if (surface is not null && target.Kind != DockTargetKind.None)
         {
             LayoutManager.DockAtTarget(surface, window, target);

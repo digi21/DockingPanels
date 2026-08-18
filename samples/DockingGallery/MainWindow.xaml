@@ -17,6 +17,7 @@
             Orientation="Horizontal"
             Spacing="8">
             <Button Click="OnNewDocument" Content="New Document" />
+            <Button Click="OnPreviewDocument" Content="Preview Document" />
             <Button Click="OnPinDocument" Content="Pin Active Document" />
             <Button Click="OnCloseDocuments" Content="Close All But Pinned" />
             <Button Click="OnReopenSolutionExplorer" Content="Reopen Solution Explorer" />

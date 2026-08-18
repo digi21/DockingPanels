@@ -26,13 +26,15 @@ internal sealed class SplitLayoutNode : LayoutNode
 // CanAutoHide is null when the layout says nothing about it, which is what every file written
 // before the attribute existed looks like: the window keeps whatever it was declared with.
 //
-// IsPinned only ever applies to a document, whose tab is pinned to the head of its group; a file
-// written before the attribute existed simply has none pinned.
+// IsPinned and IsProvisional only ever apply to a document — its tab pinned to the head of its
+// group, or the one being previewed at the end of it. A file written before either attribute existed
+// simply has none of them set.
 internal readonly record struct LayoutWindowEntry(
     string Id,
     string State,
     bool? CanAutoHide = null,
-    bool IsPinned = false);
+    bool IsPinned = false,
+    bool IsProvisional = false);
 
 // A tool window container with its tabs.
 internal sealed class ContainerLayoutNode : LayoutNode

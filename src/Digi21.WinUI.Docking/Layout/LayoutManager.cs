@@ -168,8 +168,8 @@ internal static class LayoutManager
         FinishDock(surface, window, wasOpen);
     }
 
-    // Moves a document to the block its pinned state puts it in, which is what pinning and unpinning
-    // a tab amounts to once the flag itself has changed.
+    // Moves a document to the block its state puts it in, which is what pinning, unpinning and
+    // promoting a tab amount to once the flag itself has changed.
     internal static void MoveToOwnBlock(DocumentWindow document)
     {
         if (document.Container is not DocumentContainer container)
@@ -183,11 +183,58 @@ internal static class LayoutManager
             return;
         }
 
-        if (!Move(container, document, from, DocumentTabOrder.TargetIndexFor(container.PinnedFlags(), from)))
+        if (!Move(container, document, from, DocumentTabOrder.TargetIndexFor(container.TabZones(), from)))
         {
-            // The document is already where its new state puts it — the first tab pinned, say — but
-            // its tab still has to move to the other strip and change its glyph.
+            // The document is already where its new state puts it — the first tab pinned, say, or
+            // the last one previewed — but its tab still has to move to the other strip and change
+            // how it is drawn.
             container.RefreshTabs();
+        }
+    }
+
+    // Promotes every other provisional document of the group the given one is in, so that a group
+    // never shows two provisional tabs.
+    //
+    // Promoting, not closing: closing the document that was being previewed is what opening another
+    // one in preview does, and that is ReplaceProvisionalDocument's job. Setting the property by
+    // hand only moves tabs about.
+    internal static void PromoteOtherProvisionalDocuments(DocumentWindow document)
+    {
+        if (document.Container is not DocumentContainer container)
+        {
+            return;
+        }
+
+        foreach (var other in container.Items.OfType<DocumentWindow>().ToList())
+        {
+            if (!ReferenceEquals(other, document) && other.IsProvisional)
+            {
+                other.IsProvisional = false;
+            }
+        }
+    }
+
+    // Makes room for a new provisional document in a group: the one being previewed is closed, the
+    // way opening a second preview replaces the first in Visual Studio.
+    //
+    // Through DockingWindow.Close, so an application that will not let the document go — CanClose
+    // cleared, or a canceled WindowClosing — is obeyed; the document is promoted then, which leaves
+    // the group with one provisional tab either way.
+    private static void ReplaceProvisionalDocument(DocumentContainer container, DocumentWindow incoming)
+    {
+        foreach (var previous in container.Items.OfType<DocumentWindow>().ToList())
+        {
+            if (ReferenceEquals(previous, incoming) || !previous.IsProvisional)
+            {
+                continue;
+            }
+
+            previous.Close();
+
+            if (previous.IsOpen)
+            {
+                previous.IsProvisional = false;
+            }
         }
     }
 
@@ -204,10 +251,12 @@ internal static class LayoutManager
         var to = Math.Clamp(index > from ? index - 1 : index, 0, container.Items.Count - 1);
 
         // A document only ever moves within its own block: dragging a pinned tab past the block does
-        // not unpin it, nor does dragging a normal tab to the far left pin it.
+        // not unpin it, nor does dragging a normal tab to the far left pin it. The provisional tab
+        // is the exception — dragging it is one of the gestures that promotes it — and the drop has
+        // promoted it by the time this runs.
         if (container is DocumentContainer group)
         {
-            to = DocumentTabOrder.ClampMove(group.PinnedFlags(), from, to);
+            to = DocumentTabOrder.ClampMove(group.TabZones(), from, to);
         }
 
         if (Move(container, window, from, to))
@@ -250,8 +299,7 @@ internal static class LayoutManager
     {
         if (container is DocumentContainer group)
         {
-            return DocumentTabOrder.ClampInsertion(
-                group.PinnedFlags(), window is DocumentWindow { IsPinned: true }, index);
+            return DocumentTabOrder.ClampInsertion(group.TabZones(), DocumentContainer.ZoneOf(window), index);
         }
 
         return index < 0 ? container.Items.Count : Math.Clamp(index, 0, container.Items.Count);
@@ -266,14 +314,14 @@ internal static class LayoutManager
 
     // Opens a document as a tab of the document area's active group, creating the first group when
     // the area is empty.
-    internal static void OpenDocument(DocumentHost host, DocumentWindow document)
+    internal static void OpenDocument(DocumentHost host, DocumentWindow document, bool provisional = false)
     {
         // The document area does not know its dock site: it is found through the tree it hangs
         // from, or through the document itself when it has been open before.
-        OpenDocument(host.FindSurface()?.Site ?? document.DockSite, host, document);
+        OpenDocument(host.FindSurface()?.Site ?? document.DockSite, host, document, provisional);
     }
 
-    internal static void OpenDocument(DockSite? site, DocumentHost host, DocumentWindow document)
+    internal static void OpenDocument(DockSite? site, DocumentHost host, DocumentWindow document, bool provisional = false)
     {
         if (site is null || LayoutTree.Locate(site, host)?.Surface is not { } surface)
         {
@@ -282,9 +330,19 @@ internal static class LayoutManager
 
         if (host.ActiveGroup is { } group)
         {
+            // Before the flag is set, so that the document being previewed is still the one this
+            // replaces, and before the attach, so that the tab lands in a settled strip.
+            if (provisional)
+            {
+                ReplaceProvisionalDocument(group, document);
+            }
+
+            document.IsProvisional = provisional;
             AttachAsTab(site, document, group);
             return;
         }
+
+        document.IsProvisional = provisional;
 
         var wasOpen = document.IsOpen;
         Detach(site, document);

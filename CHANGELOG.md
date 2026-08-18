@@ -17,19 +17,25 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `DocumentHost.CloseDocuments(DocumentCloseScope)` closes the documents of an area in one go —
   `All`, `AllButPinned` or `AllButActive` — which is what pinned tabs survive. Each document is
   closed on its own, so `CanClose` and a canceled `DockSite.WindowClosing` still hold.
+- A provisional (preview) document tab, the other half of Visual Studio's tab behaviour: one per
+  group, at the end of the strip, drawn in italics, and replaced by the next preview instead of
+  leaving a tab behind. `DocumentWindow.IsProvisional` and `KeepOpen()` are the API,
+  `OpenDocument(document, provisional: true)` opens one, and double-clicking the tab, dragging it,
+  pinning it or "keep open" promote it. Editing the document promotes it too, from one line in the
+  application: the content belongs to the host, so it is the host that calls `KeepOpen()`.
 - `DockSite.DocumentTabContextMenuOpening`, raised with the entries of a document tab's context
   menu before it opens, for an application to add its own commands or replace the menu.
 - Theme keys for the new chrome: `DockingTabPinGlyph`, `DockingTabUnpinGlyph`,
-  `DockingPinnedTabStripMaxWidth`, `DockingPinTabButtonName`, `DockingUnpinTabButtonName`,
-  `DockingCloseAllTabsName`, `DockingCloseAllButPinnedTabsName` and
-  `DockingCloseAllButThisTabName`. The existing `DockingPinGlyph` / `DockingUnpinGlyph` keep
-  meaning a tool window's auto-hide button.
+  `DockingPinnedTabStripMaxWidth`, `DockingProvisionalTabStripMaxWidth`, `DockingPinTabButtonName`,
+  `DockingUnpinTabButtonName`, `DockingKeepTabOpenName`, `DockingCloseAllTabsName`,
+  `DockingCloseAllButPinnedTabsName` and `DockingCloseAllButThisTabName`. The existing
+  `DockingPinGlyph` / `DockingUnpinGlyph` keep meaning a tool window's auto-hide button.
 
 ### Changed
 
-- Layouts record which document tabs are pinned, in a new `IsPinned` attribute written only for the
-  tabs that are. The format version does not move: a layout with nothing pinned is what 1.1 wrote,
-  and 1.1 reads one that has pinned tabs, ignoring the attribute.
+- Layouts record which document tabs are pinned and which one is provisional, in new `IsPinned` and
+  `IsProvisional` attributes written only for the tabs that are. The format version does not move: a
+  layout with neither is what 1.1 wrote, and 1.1 reads one that has them, ignoring the attributes.
 - Only the primary pointer button starts a window drag, so the secondary one reaches the tab's
   context menu.
 

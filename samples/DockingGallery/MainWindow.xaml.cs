@@ -43,6 +43,16 @@ public sealed partial class MainWindow : Window
         EventLog.Text = $"Opened {id}";
     }
 
+    // What a single click in a file list does in Visual Studio: the document opens in preview,
+    // replacing whatever was being previewed instead of leaving a tab behind. Which documents open
+    // this way is the application's decision, which is why it is a flag on the call.
+    private void OnPreviewDocument(object sender, RoutedEventArgs e)
+    {
+        var id = $"untitled{++newDocumentCount}";
+        Documents.OpenDocument(CreateDocument(id, $"Untitled {newDocumentCount}"), provisional: true);
+        EventLog.Text = $"Previewing {id} — type in it and it is kept";
+    }
+
     // The same thing the tab's own pin button does, from the outside: pinning is a property of the
     // document, so a toolbar, a command or a binding can drive it.
     private void OnPinDocument(object sender, RoutedEventArgs e)
@@ -64,18 +74,26 @@ public sealed partial class MainWindow : Window
 
     private static DocumentWindow CreateDocument(string id, string title)
     {
-        return new DocumentWindow
+        var editor = new TextBox
+        {
+            AcceptsReturn = true,
+            BorderThickness = new Thickness(0),
+            PlaceholderText = "Type here",
+            TextWrapping = TextWrapping.Wrap,
+        };
+
+        var document = new DocumentWindow
         {
             Title = title,
             SerializationId = id,
-            Content = new TextBox
-            {
-                AcceptsReturn = true,
-                BorderThickness = new Thickness(0),
-                PlaceholderText = "Type here",
-                TextWrapping = TextWrapping.Wrap,
-            },
+            Content = editor,
         };
+
+        // The promotion gesture the library cannot own: only the application knows what editing its
+        // document means. The other four — double click, drag, pin, "keep open" — are the tab's own.
+        editor.TextChanged += (_, _) => document.KeepOpen();
+
+        return document;
     }
 
     private void OnSaveLayout(object sender, RoutedEventArgs e)

@@ -149,6 +149,7 @@ These are the same in every theme, so declare them directly in `Application.Reso
 | `DockingCaptionHeight` | `x:Double` | `32` |
 | `DockingDocumentTabHeight` | `x:Double` | `30` |
 | `DockingPinnedTabStripMaxWidth` | `x:Double` | `400` |
+| `DockingProvisionalTabStripMaxWidth` | `x:Double` | `240` |
 | `DockingToolWindowTabHeight` | `x:Double` | `28` |
 | `DockingGuideSize` | `x:Double` | `40` |
 | `DockingGuideClusterSize` | `x:Double` | `128` |
@@ -171,9 +172,14 @@ from the resources by the layout code, because a splitter is sized by the panel 
 rather than by a template of its own. That also means they are resolved once, on the first layout
 pass, and are not re-read afterwards.
 
-`DockingPinnedTabStripMaxWidth` bounds the block of pinned document tabs, which sits outside the
-scroller so that pinning a tab keeps it in view when the strip overflows. Up to that width the
-block takes only what its tabs need; past it, it scrolls on its own.
+`DockingPinnedTabStripMaxWidth` and `DockingProvisionalTabStripMaxWidth` bound the two fixed ends of
+a document strip: the block of pinned tabs at its head and the provisional (preview) tab at its end.
+Both sit outside the scroller, which is what keeps them in view when the ordinary tabs overflow. Up
+to those widths each takes only what its tabs need; past them, it scrolls on its own.
+
+The provisional tab is drawn in italics by the `Provisional` state of the `PreviewStates` group in
+the `DocumentTabItem` template. Retemplate the tab to say it differently — a dog-ear, a lighter
+foreground — since a state, unlike a brush, is not something a key can redefine.
 
 `DockingPaneCornerRadius` is the one to use for rounded panes. Setting `CornerRadius` on a
 container in XAML works too, but only for the containers you declared: the panes the user creates
@@ -235,14 +241,16 @@ along with the colors:
 | `DockingDockButtonName` | `x:String` | `Dock` |
 | `DockingPinTabButtonName` | `x:String` | `Pin tab` |
 | `DockingUnpinTabButtonName` | `x:String` | `Unpin tab` |
+| `DockingKeepTabOpenName` | `x:String` | `Keep open` |
 | `DockingCloseAllTabsName` | `x:String` | `Close all tabs` |
 | `DockingCloseAllButPinnedTabsName` | `x:String` | `Close all but pinned` |
 | `DockingCloseAllButThisTabName` | `x:String` | `Close all but this` |
 
 A tool window's pin button takes whichever of `DockingAutoHideButtonName` and
 `DockingDockButtonName` matches what clicking it would do, the same way it picks its glyph. A
-document tab's pin button does the same with the two `…TabButtonName` keys, and the last three name
-the commands of the document tab's context menu. Tabs themselves are named after the window they
+document tab's pin button does the same with the two `…TabButtonName` keys, and the rest name the
+commands of the document tab's context menu — `DockingKeepTabOpenName` appearing only while the tab
+is the provisional one. Tabs themselves are named after the window they
 carry, so they need no key of their own.
 
 ## Text

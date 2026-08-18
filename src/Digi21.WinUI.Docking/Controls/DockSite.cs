@@ -429,7 +429,19 @@ public partial class DockSite : Control, IDockSurface
     /// </summary>
     /// <param name="document">The document to open.</param>
     /// <exception cref="InvalidOperationException">The layout has no <see cref="DocumentHost"/>.</exception>
-    public void OpenDocument(DocumentWindow document)
+    public void OpenDocument(DocumentWindow document) => OpenDocument(document, provisional: false);
+
+    /// <summary>
+    /// Opens a document in the document area, optionally as the provisional (preview) document of
+    /// its active group.
+    /// </summary>
+    /// <param name="document">The document to open.</param>
+    /// <param name="provisional">
+    /// <see langword="true"/> to open it in preview, which closes the document the group was
+    /// previewing; <see langword="false"/> to open an ordinary tab.
+    /// </param>
+    /// <exception cref="InvalidOperationException">The layout has no <see cref="DocumentHost"/>.</exception>
+    public void OpenDocument(DocumentWindow document, bool provisional)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -438,7 +450,7 @@ public partial class DockSite : Control, IDockSurface
             throw new InvalidOperationException("The layout of this dock site has no DocumentHost to open documents in.");
         }
 
-        LayoutManager.OpenDocument(this, host, document);
+        LayoutManager.OpenDocument(this, host, document, provisional);
     }
 
     /// <summary>
