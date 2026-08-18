@@ -43,6 +43,25 @@ public sealed partial class MainWindow : Window
         EventLog.Text = $"Opened {id}";
     }
 
+    // The same thing the tab's own pin button does, from the outside: pinning is a property of the
+    // document, so a toolbar, a command or a binding can drive it.
+    private void OnPinDocument(object sender, RoutedEventArgs e)
+    {
+        if (DockSite.ActiveDocument is { } document)
+        {
+            document.IsPinned = !document.IsPinned;
+            EventLog.Text = $"{document.Title} {(document.IsPinned ? "pinned" : "unpinned")}";
+        }
+    }
+
+    // What a File menu's "Close All Tabs" does. Which documents survive is the library's rule, not
+    // this application's: pinning a tab is what spares it.
+    private void OnCloseDocuments(object sender, RoutedEventArgs e)
+    {
+        Documents.CloseDocuments(DocumentCloseScope.AllButPinned);
+        EventLog.Text = $"{Documents.Documents.Count()} document(s) left";
+    }
+
     private static DocumentWindow CreateDocument(string id, string title)
     {
         return new DocumentWindow

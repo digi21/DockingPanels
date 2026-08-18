@@ -22,6 +22,8 @@ pin buttons](https://raw.githubusercontent.com/Digi21/DockingPanels/main/assets/
 - Multiple tool windows in one container become tabs; switching tabs preserves control state.
 - Tabbed MDI document area (`DocumentHost`): documents open as tabs, split into as many tab
   groups as needed, are reordered by dragging their tabs, and can be floated out.
+- Pinned document tabs, as in Visual Studio: they keep their own block at the head of the strip,
+  stay in view when it overflows, and survive a mass close.
 - Drag & drop re-docking with Visual Studio-style dock guides and drop previews.
 - Floating tool windows in real top-level windows, across monitors.
 - Docking *inside* a floating window: it takes drops with its own dock guides and holds a
@@ -116,6 +118,29 @@ document.Close();                           // cancelable via DockSite.WindowClo
 var active = dockSite.ActiveDocument;       // last activated document
 var open = dockSite.DocumentHost?.Documents;     // documents across all tab groups
 ```
+
+#### Pinned tabs
+
+A document whose `IsPinned` is set keeps its tab at the head of its group, in a block of its own
+with its own order, outside the part of the strip that scrolls: pinning a tab is how the user keeps
+it in reach while opening any number of others. Dragging never crosses the two blocks, so pinning
+stays an explicit gesture — the tab's pin button, or its context menu.
+
+```csharp
+document.Pin();                             // or document.IsPinned = true, in XAML or a binding
+document.Unpin();
+
+// What a "Close All Tabs" command calls. Pinned documents survive every scope but All.
+dockSite.DocumentHost?.CloseDocuments(DocumentCloseScope.AllButPinned);
+```
+
+Right-clicking a tab shows the pin and close commands. `DockSite.DocumentTabContextMenuOpening`
+hands the application that list of entries before the menu opens, to add its own commands, reorder
+them, or empty it and put its own menu there.
+
+> `IsPinned` is a document's tab, not a tool window's pin button: that one auto-hides the panel and
+> is `CanAutoHide` / `AutoHide()` / `Dock()`. Visual Studio draws both with a pushpin; the library
+> keeps the two apart everywhere, theme keys included.
 
 An application without documents can use `Workspace` instead: a plain content area that tool
 windows dock around. Both can appear in the same layout.
@@ -272,9 +297,9 @@ Restoring the saved layout from the dock site's `Loaded` works, which is where a
 usually has one to restore into. Every element the load moves raises `Relocated` once the tree has
 settled — see below — so content with a life cycle of its own comes back with it.
 
-Only the structure is saved (splits, proportions, tab order, selection, the document tab groups,
-auto-hidden groups, the screen bounds of floating windows together with the layout inside them,
-and `CanAutoHide` for the windows that forbid it). Window instances and their content are matched by id and reused, so control state survives
+Only the structure is saved (splits, proportions, tab order, selection, the document tab groups
+and which of their tabs are pinned, auto-hidden groups, the screen bounds of floating windows
+together with the layout inside them, and `CanAutoHide` for the windows that forbid it). Window instances and their content are matched by id and reused, so control state survives
 a reload. Floating windows are restored on a monitor that exists, so a layout saved with two
 monitors still loads on one. Layouts written by earlier versions are still read.
 

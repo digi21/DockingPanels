@@ -209,6 +209,13 @@ public partial class DockSite : Control, IDockSurface
     public event EventHandler<LayoutChangedEventArgs>? LayoutChanged;
 
     /// <summary>
+    /// Raised just before a document tab shows its context menu, with the entries the library
+    /// provides already in <see cref="DocumentTabContextMenuEventArgs.Items"/>, so an application
+    /// can add its own commands, reorder them or replace the menu.
+    /// </summary>
+    public event EventHandler<DocumentTabContextMenuEventArgs>? DocumentTabContextMenuOpening;
+
+    /// <summary>
     /// Gets or sets the root element of the docking layout tree.
     /// </summary>
     public UIElement? Child
@@ -954,6 +961,12 @@ public partial class DockSite : Control, IDockSurface
 
         WindowClosed?.Invoke(this, new DockingWindowEventArgs(window));
         LayoutChanged?.Invoke(this, new LayoutChangedEventArgs(LayoutChangeKind.WindowClosed));
+    }
+
+    // Lets the application edit the entries of a document tab's context menu before it opens.
+    internal void RaiseDocumentTabContextMenuOpening(DocumentWindow document, IList<MenuFlyoutItemBase> items)
+    {
+        DocumentTabContextMenuOpening?.Invoke(this, new DocumentTabContextMenuEventArgs(document, items));
     }
 
     internal void NotifyLayoutChanged(LayoutChangeKind kind)

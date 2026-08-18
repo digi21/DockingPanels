@@ -205,7 +205,10 @@ public class DockSiteLayoutSerializer
                 };
                 foreach (var document in group.Items)
                 {
-                    groupNode.Windows.Add(new LayoutWindowEntry(RequireId(document), document.State.ToString()));
+                    groupNode.Windows.Add(new LayoutWindowEntry(
+                        RequireId(document),
+                        document.State.ToString(),
+                        IsPinned: document is DocumentWindow { IsPinned: true }));
                 }
 
                 return groupNode;
@@ -311,7 +314,7 @@ public class DockSiteLayoutSerializer
         foreach (var groupNode in layout.AutoHideGroups)
         {
             var groupWindows = new List<ToolWindow>();
-            var pinnedWindows = new List<ToolWindow>();
+            var redockedWindows = new List<ToolWindow>();
             foreach (var entry in groupNode.Windows)
             {
                 if (ResolveToolWindow(entry.Id, index) is { } window && !used.Contains(window))
@@ -329,7 +332,7 @@ public class DockSiteLayoutSerializer
                         // panel docked. Honoring the file would strand it: with auto-hide off its
                         // title bar has no pin button, so nothing in the interface could bring it
                         // back. It goes back into the layout instead, which the user can undo.
-                        pinnedWindows.Add(window);
+                        redockedWindows.Add(window);
                         continue;
                     }
 
@@ -353,13 +356,13 @@ public class DockSiteLayoutSerializer
                     groupNode.RestoreRelativeSize);
             }
 
-            if (pinnedWindows.Count > 0)
+            if (redockedWindows.Count > 0)
             {
                 // Down the same path as pinning the group from its edge, so a layout being
                 // migrated puts the panel back beside the neighbour the file names, at the size it
                 // records, instead of wherever a fresh dock would land it. When that neighbour is
                 // gone the group's own edge takes over, which is still what the file asked for.
-                LayoutManager.RestoreWindows(site, pinnedWindows, restoreHint, groupNode.Edge);
+                LayoutManager.RestoreWindows(site, redockedWindows, restoreHint, groupNode.Edge);
             }
 
             if (groupWindows.Count > 0)
@@ -452,6 +455,21 @@ public class DockSiteLayoutSerializer
     // Applies what the layout says about auto-hiding, if it says anything. A file written before
     // the attribute existed leaves the window exactly as the application declared it, which is what
     // keeps those files loading unchanged.
+    // Restores which document tabs are pinned, once the documents are in the group they belong to:
+    // pinning moves a tab to the head of its group, so the flag has to be set where it can be acted
+    // on. Applied in the order the file lists them, which is the order the pinned block keeps, so a
+    // layout whose blocks were mixed up by hand still settles into two of them.
+    private static void ApplyIsPinned(List<LayoutWindowEntry> entries, List<DockingWindow> windows)
+    {
+        foreach (var entry in entries)
+        {
+            if (windows.FirstOrDefault(window => window.SerializationId == entry.Id) is DocumentWindow document)
+            {
+                document.IsPinned = entry.IsPinned;
+            }
+        }
+    }
+
     private static void ApplyCanAutoHide(DockingWindow window, LayoutWindowEntry entry)
     {
         if (entry.CanAutoHide is { } canAutoHide && window is ToolWindow tool)
@@ -574,6 +592,7 @@ public class DockSiteLayoutSerializer
         var container = rebuild.TakeContainer<T>(windows);
         DockSite.SetRelativeSize(container, relativeSize);
         rebuild.SetItems(container, windows);
+        ApplyIsPinned(entries, windows);
 
         if (selectedId is not null
             && container.Items.FirstOrDefault(w => w.SerializationId == selectedId) is { } selected)

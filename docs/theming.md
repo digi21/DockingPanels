@@ -148,6 +148,7 @@ These are the same in every theme, so declare them directly in `Application.Reso
 | `DockingTitleBarHeight` | `x:Double` | `32` |
 | `DockingCaptionHeight` | `x:Double` | `32` |
 | `DockingDocumentTabHeight` | `x:Double` | `30` |
+| `DockingPinnedTabStripMaxWidth` | `x:Double` | `400` |
 | `DockingToolWindowTabHeight` | `x:Double` | `28` |
 | `DockingGuideSize` | `x:Double` | `40` |
 | `DockingGuideClusterSize` | `x:Double` | `128` |
@@ -169,6 +170,10 @@ draggable band — and `DockingSplitterGripThickness` is the line drawn inside i
 from the resources by the layout code, because a splitter is sized by the panel that arranges it
 rather than by a template of its own. That also means they are resolved once, on the first layout
 pass, and are not re-read afterwards.
+
+`DockingPinnedTabStripMaxWidth` bounds the block of pinned document tabs, which sits outside the
+scroller so that pinning a tab keeps it in view when the strip overflows. Up to that width the
+block takes only what its tabs need; past it, it scrolls on its own.
 
 `DockingPaneCornerRadius` is the one to use for rounded panes. Setting `CornerRadius` on a
 container in XAML works too, but only for the containers you declared: the panes the user creates
@@ -192,6 +197,8 @@ Replacing the font means replacing the glyphs with the code points of the new on
 | `DockingCloseGlyph` | `x:String` | `&#xE8BB;` |
 | `DockingPinGlyph` | `x:String` | `&#xE718;` |
 | `DockingUnpinGlyph` | `x:String` | `&#xE77A;` |
+| `DockingTabPinGlyph` | `x:String` | `&#xE718;` |
+| `DockingTabUnpinGlyph` | `x:String` | `&#xE77A;` |
 | `DockingGuideCenterGlyph` | `x:String` | `&#xE8A9;` |
 | `DockingGuideLeftGlyph` | `x:String` | `&#xE76B;` |
 | `DockingGuideTopGlyph` | `x:String` | `&#xE70E;` |
@@ -204,6 +211,12 @@ than a glyph — a `PathIcon`, an image — needs a retemplate.
 
 The pin button takes `DockingPinGlyph` while its window is docked and `DockingUnpinGlyph` while it
 is collapsed to an edge, since the same button does the opposite thing in each state.
+
+**Two different pins, four keys.** `DockingPinGlyph` and `DockingUnpinGlyph` belong to a tool
+window's title bar, where the button auto-hides the panel and pins it back. `DockingTabPinGlyph`
+and `DockingTabUnpinGlyph` belong to a document tab, where pinning fixes the tab at the head of the
+strip and has nothing to do with auto-hiding. Visual Studio draws both with a pushpin, which is why
+they default to the same glyphs; redefine the pair you actually mean.
 
 ## Names
 
@@ -220,9 +233,17 @@ along with the colors:
 | `DockingCloseButtonName` | `x:String` | `Close` |
 | `DockingAutoHideButtonName` | `x:String` | `Auto-hide` |
 | `DockingDockButtonName` | `x:String` | `Dock` |
+| `DockingPinTabButtonName` | `x:String` | `Pin tab` |
+| `DockingUnpinTabButtonName` | `x:String` | `Unpin tab` |
+| `DockingCloseAllTabsName` | `x:String` | `Close all tabs` |
+| `DockingCloseAllButPinnedTabsName` | `x:String` | `Close all but pinned` |
+| `DockingCloseAllButThisTabName` | `x:String` | `Close all but this` |
 
-The pin button takes whichever of the last two matches what clicking it would do, the same way it
-picks its glyph. Tabs are named after the window they carry, so they need no key of their own.
+A tool window's pin button takes whichever of `DockingAutoHideButtonName` and
+`DockingDockButtonName` matches what clicking it would do, the same way it picks its glyph. A
+document tab's pin button does the same with the two `…TabButtonName` keys, and the last three name
+the commands of the document tab's context menu. Tabs themselves are named after the window they
+carry, so they need no key of their own.
 
 ## Text
 

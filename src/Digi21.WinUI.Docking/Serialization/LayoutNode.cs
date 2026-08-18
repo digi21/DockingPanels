@@ -21,11 +21,18 @@ internal sealed class SplitLayoutNode : LayoutNode
     internal List<LayoutNode> Children { get; } = [];
 }
 
-// A tool window entry inside a serialized container.
+// A window entry inside a serialized container.
 //
 // CanAutoHide is null when the layout says nothing about it, which is what every file written
 // before the attribute existed looks like: the window keeps whatever it was declared with.
-internal readonly record struct LayoutWindowEntry(string Id, string State, bool? CanAutoHide = null);
+//
+// IsPinned only ever applies to a document, whose tab is pinned to the head of its group; a file
+// written before the attribute existed simply has none pinned.
+internal readonly record struct LayoutWindowEntry(
+    string Id,
+    string State,
+    bool? CanAutoHide = null,
+    bool IsPinned = false);
 
 // A tool window container with its tabs.
 internal sealed class ContainerLayoutNode : LayoutNode

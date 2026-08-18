@@ -61,6 +61,13 @@ internal sealed partial class DragDockController
             return;
         }
 
+        // Only the primary button drags. The secondary one opens the tab's context menu, and taking
+        // the pointer capture for a drag that is never going to happen would fight with it.
+        if (!e.GetCurrentPoint(sourceElement).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
         if (window.State == DockingWindowState.Floating)
         {
             if (site.FindFloatingHost(window) is { } host)

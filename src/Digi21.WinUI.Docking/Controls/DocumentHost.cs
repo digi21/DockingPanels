@@ -88,6 +88,37 @@ public partial class DocumentHost : Control, ILayoutHost, IRelocatable
         LayoutManager.OpenDocument(this, document);
     }
 
+    /// <summary>
+    /// Closes the documents of this area in one go, the way "Close All Tabs" does in Visual Studio.
+    /// </summary>
+    /// <param name="scope">Which documents to close.</param>
+    /// <remarks>
+    /// Pinned documents survive every scope but <see cref="DocumentCloseScope.All"/>: that is what
+    /// pinning a tab is for. Each document is closed on its own, so a document the application will
+    /// not let go of — one with <see cref="DockingWindow.CanClose"/> cleared, or one a handler of
+    /// <see cref="DockSite.WindowClosing"/> cancels — stays open while the rest close.
+    /// </remarks>
+    public void CloseDocuments(DocumentCloseScope scope)
+    {
+        var active = this.FindSurface()?.Site.ActiveDocument;
+
+        // Over a snapshot: closing a document takes it out of the group being enumerated.
+        foreach (var document in Documents.ToList())
+        {
+            if (scope != DocumentCloseScope.All && document.IsPinned)
+            {
+                continue;
+            }
+
+            if (scope == DocumentCloseScope.AllButActive && ReferenceEquals(document, active))
+            {
+                continue;
+            }
+
+            document.Close();
+        }
+    }
+
     UIElement? ILayoutHost.LayoutChild
     {
         get => Child;

@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Document tabs can be pinned, as in Visual Studio. A pinned tab keeps its own block at the head of
+  its group, in its own order, outside the part of the strip that scrolls, so it stays in view
+  however many documents are open. `DocumentWindow.IsPinned`, `Pin()` and `Unpin()` are the API;
+  the tab's pin button and its new context menu are the gesture. Dragging never moves a tab from
+  one block to the other.
+- `DocumentHost.CloseDocuments(DocumentCloseScope)` closes the documents of an area in one go —
+  `All`, `AllButPinned` or `AllButActive` — which is what pinned tabs survive. Each document is
+  closed on its own, so `CanClose` and a canceled `DockSite.WindowClosing` still hold.
+- `DockSite.DocumentTabContextMenuOpening`, raised with the entries of a document tab's context
+  menu before it opens, for an application to add its own commands or replace the menu.
+- Theme keys for the new chrome: `DockingTabPinGlyph`, `DockingTabUnpinGlyph`,
+  `DockingPinnedTabStripMaxWidth`, `DockingPinTabButtonName`, `DockingUnpinTabButtonName`,
+  `DockingCloseAllTabsName`, `DockingCloseAllButPinnedTabsName` and
+  `DockingCloseAllButThisTabName`. The existing `DockingPinGlyph` / `DockingUnpinGlyph` keep
+  meaning a tool window's auto-hide button.
+
+### Changed
+
+- Layouts record which document tabs are pinned, in a new `IsPinned` attribute written only for the
+  tabs that are. The format version does not move: a layout with nothing pinned is what 1.1 wrote,
+  and 1.1 reads one that has pinned tabs, ignoring the attribute.
+- Only the primary pointer button starts a window drag, so the secondary one reaches the tab's
+  context menu.
+
 ## [1.1.1] - 2026-08-15
 
 ### Fixed

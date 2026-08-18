@@ -164,8 +164,31 @@ internal static class LayoutManager
         var surface = LayoutTree.Locate(site, target)?.Surface ?? site;
         var wasOpen = window.IsOpen;
         Detach(site, window);
-        target.Items.Insert(ClampIndex(target, index), window);
+        target.Items.Insert(ClampIndex(target, window, index), window);
         FinishDock(surface, window, wasOpen);
+    }
+
+    // Moves a document to the block its pinned state puts it in, which is what pinning and unpinning
+    // a tab amounts to once the flag itself has changed.
+    internal static void MoveToOwnBlock(DocumentWindow document)
+    {
+        if (document.Container is not DocumentContainer container)
+        {
+            return;
+        }
+
+        var from = container.Items.IndexOf(document);
+        if (from < 0)
+        {
+            return;
+        }
+
+        if (!Move(container, document, from, DocumentTabOrder.TargetIndexFor(container.PinnedFlags(), from)))
+        {
+            // The document is already where its new state puts it — the first tab pinned, say — but
+            // its tab still has to move to the other strip and change its glyph.
+            container.RefreshTabs();
+        }
     }
 
     // Moves a tab to another position inside its own container.
@@ -179,21 +202,58 @@ internal static class LayoutManager
 
         // The insertion index counts the window itself while it is still in the list.
         var to = Math.Clamp(index > from ? index - 1 : index, 0, container.Items.Count - 1);
+
+        // A document only ever moves within its own block: dragging a pinned tab past the block does
+        // not unpin it, nor does dragging a normal tab to the far left pin it.
+        if (container is DocumentContainer group)
+        {
+            to = DocumentTabOrder.ClampMove(group.PinnedFlags(), from, to);
+        }
+
+        if (Move(container, window, from, to))
+        {
+            container.Select(window);
+        }
+    }
+
+    // Moves a tab from one position of its container to another, without announcing a close and a
+    // reopen on the way.
+    private static bool Move(DockingWindowContainer container, DockingWindow window, int from, int to)
+    {
         if (to == from)
         {
-            return;
+            return false;
         }
+
+        // Taking the window out of Items leaves the container without a selection for an instant,
+        // and it falls back to whichever tab is at that position; putting the window back does not
+        // undo that. Moving a tab must not change which one is shown.
+        var wasSelected = ReferenceEquals(container.SelectedItem, window);
 
         window.IsRelocating = true;
         container.Items.RemoveAt(from);
         container.Items.Insert(to, window);
         window.IsRelocating = false;
-        container.Select(window);
+
+        if (wasSelected)
+        {
+            container.Select(window);
+        }
+
         window.DockSite?.NotifyLayoutChanged(LayoutChangeKind.WindowDocked);
+        return true;
     }
 
-    private static int ClampIndex(DockingWindowContainer container, int index)
+    // Where a window joining a container lands: the end of the tabs, the position asked for, or —
+    // in a document group — the same bounded by the block the document belongs to.
+    private static int ClampIndex(DockingWindowContainer container, DockingWindow window, int index)
     {
+        if (container is DocumentContainer group)
+        {
+            return DocumentTabOrder.ClampInsertion(
+                group.PinnedFlags(), window is DocumentWindow { IsPinned: true }, index);
+        }
+
         return index < 0 ? container.Items.Count : Math.Clamp(index, 0, container.Items.Count);
     }
 
@@ -673,15 +733,20 @@ internal static class LayoutManager
         DockingWindowContainer container,
         int index = -1)
     {
-        var position = ClampIndex(container, index);
+        var position = index;
 
         foreach (var window in windows)
         {
+            var at = ClampIndex(container, window, position);
+
             window.IsRelocating = true;
-            container.Items.Insert(Math.Clamp(position, 0, container.Items.Count), window);
+            container.Items.Insert(at, window);
             window.IsRelocating = false;
             site.NotifyRelocated(window);
-            position++;
+
+            // Windows asked for at a position keep their order after it; windows appended stay
+            // appended, each to the end of the block it belongs to.
+            position = index < 0 ? -1 : at + 1;
         }
     }
 
