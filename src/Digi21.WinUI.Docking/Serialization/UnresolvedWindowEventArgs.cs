@@ -23,6 +23,11 @@ public class UnresolvedWindowEventArgs : EventArgs
     }
 
     /// <summary>Gets the open window the loaded layout does not mention.</summary>
+    /// <remarks>
+    /// It is open and not placed while the event runs — it has been taken out of the layout and is
+    /// about to be put back — and so is every other window this load is still to rescue. See
+    /// <see cref="DockingWindow.IsPlaced"/>.
+    /// </remarks>
     public DockingWindow Window { get; }
 
     /// <summary>
@@ -37,9 +42,17 @@ public class UnresolvedWindowEventArgs : EventArgs
     /// the serializer nothing to do with it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A handler that sets this is responsible for the window ending up somewhere: one left out of
     /// the layout stays open but unattached, which is the state it was in when the event was
     /// raised.
+    /// </para>
+    /// <para>
+    /// A handler that places the window against another one has to check that the other one is
+    /// placed — <see cref="DockingWindow.IsPlaced"/>, which is not the same as
+    /// <see cref="DockingWindow.IsOpen"/> here — because a sibling this same load is also rescuing
+    /// may not have been put back yet.
+    /// </para>
     /// </remarks>
     public bool Handled { get; set; }
 }

@@ -156,6 +156,43 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     /// <summary>Gets the container that currently hosts this window, or <see langword="null"/> when closed.</summary>
     public DockingWindowContainer? Container { get; internal set; }
 
+    /// <summary>
+    /// Gets a value indicating whether the window is somewhere in the layout right now: in a pane,
+    /// in a floating window, or collapsed to an auto-hide edge.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Open and placed are not the same thing, and the gap is what a docking call needs to know
+    /// about: a window can only be docked beside or attached to one that is <em>placed</em>, since
+    /// an unplaced one is nowhere for the new pane or tab to go.
+    /// </para>
+    /// <para>
+    /// The gap opens while a layout is being loaded. A load rebuilds the layout tree first and puts
+    /// the windows it does not mention back afterwards, one at a time, so a window still awaiting
+    /// rescue is open, and is still holding the container it was in, and that container is no
+    /// longer part of anything. That is the state every other window being rescued is in while
+    /// <see cref="Serialization.DockSiteLayoutSerializer.UnresolvedWindowDocking"/> is raised for
+    /// one of them. Test this and not <see cref="IsOpen"/> — nor the container itself — before
+    /// docking against a window from that handler.
+    /// </para>
+    /// </remarks>
+    public bool IsPlaced
+    {
+        get
+        {
+            if (DockSite is not { } site)
+            {
+                return false;
+            }
+
+            // Holding a container is not enough: the container has to still be part of the dock
+            // site or of one of its floating windows. An abandoned one would take a tab and show
+            // it nowhere.
+            return (Container is { } container && LayoutTree.Locate(site, container) is not null)
+                || site.FindAutoHideGroup(this) is not null;
+        }
+    }
+
     // Gets the dock site this window belongs to, or null while it is not part of one.
     //
     // Resolved from the tree on demand rather than only in FrameworkElement.Loaded: a dock site's

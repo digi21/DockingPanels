@@ -35,6 +35,18 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `DockSiteLayoutSerializer.UnresolvedWindowDocking`, raised for each of those windows just before
   it is put back, with the edge it is about to take and a `Handled` flag, for the placement a single
   edge cannot express — docking the panel back beside, or as a tab of, the group it belongs with.
+  One load can keep several windows open and places them one at a time, in the order the dock site
+  registered them, so a handler docking against a sibling is looking at a layout still being
+  assembled: the event's documentation says so, and `IsPlaced` is how a handler asks.
+- `DockingWindow.IsPlaced` tells whether a window is in the layout right now — in a pane that is
+  part of the tree, in a floating window, or collapsed to an edge — which `IsOpen` does not. A
+  window a load has taken out and not put back yet is open, and is still holding the container it
+  came from, and that container is no longer part of anything.
+- `DockSite.AttachToolWindow` accepts a target whose group is collapsed to an auto-hide edge: the
+  window joins that group, opens in the same flyout and is pinned back into the layout with it.
+  Asking for the group a panel belongs with is a question the group's state does not change the
+  answer to, and refusing was worst exactly where it mattered — a layout being loaded that has the
+  group unpinned.
 - `DockingWindow.AutoHide(AutoHideScope)` collapses a single window to the edge, leaving the rest of
   its tab group docked; pinning it back returns it to that group as a tab. `AutoHide()` keeps taking
   the whole container, and so does the title bar's pin button: a user who drags panels into one
@@ -74,6 +86,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `DockSite.AttachToolWindow` and `DockToolWindow(window, target, side)` no longer take a target that
+  holds a container the layout has abandoned. They used to insert the tab into it, and the window
+  reported itself docked while being displayed nowhere — silently, and only reachable from a handler
+  of the new `UnresolvedWindowDocking` acting on a window not yet put back. They now throw, saying
+  the target is not placed in the layout.
 - The title of a floating window holding several panels no longer lags one activation behind the
   panel that is showing. A window is selected before it is made active, and the title was written
   from the selection, so it named the panel that had been active until then. The title is what the

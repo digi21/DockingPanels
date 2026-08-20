@@ -390,37 +390,77 @@ public partial class DockSite : Control, IDockSurface
     /// Docks a tool window as a new pane beside the container of another window.
     /// </summary>
     /// <param name="window">The window to dock.</param>
-    /// <param name="target">An open window whose container is the dock target.</param>
+    /// <param name="target">A window that is placed in the layout, whose container is the dock target.</param>
     /// <param name="side">The side of the target to dock to.</param>
+    /// <exception cref="InvalidOperationException">
+    /// The target has no container to dock beside: it is closed, it is collapsed to an auto-hide
+    /// edge, or it is a window a layout being loaded has not put back yet. Test
+    /// <see cref="DockingWindow.IsPlaced"/> — not <see cref="DockingWindow.IsOpen"/> — before
+    /// docking against a window whose state is not yours to know.
+    /// </exception>
     public void DockToolWindow(ToolWindow window, DockingWindow target, DockSide side)
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(target);
 
-        if (target.Container is not { } container)
+        if (PaneOf(target) is not { } container)
         {
-            throw new InvalidOperationException("The target window is not open, so there is no container to dock beside.");
+            throw new InvalidOperationException(
+                FindAutoHideGroup(target) is not null
+                    ? "The target window is collapsed to an auto-hide edge, so it has no pane to dock beside. Attach the window to it instead, or pin the target back first."
+                    : "The target window is not placed in the layout, so there is no container to dock beside.");
         }
 
         LayoutManager.DockRelativeTo(this, window, container, side);
     }
 
     /// <summary>
-    /// Attaches a tool window as a new tab in the container of another window.
+    /// Attaches a tool window as a new tab beside another window, wherever that window is: in its
+    /// container, or in its group if the group is collapsed to an auto-hide edge.
     /// </summary>
     /// <param name="window">The window to attach.</param>
-    /// <param name="target">An open window whose container receives the new tab.</param>
+    /// <param name="target">A window that is placed in the layout, whose group receives the new tab.</param>
+    /// <remarks>
+    /// Attaching to a collapsed group leaves the new window collapsed with it: it becomes a tab of
+    /// the same edge group, opens in the same flyout, and is pinned back into the layout with the
+    /// rest of it. Asking for the group a window belongs with is a question the group's state does
+    /// not change the answer to.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// The target is not placed in the layout: it is closed, or it is a window a layout being
+    /// loaded has not put back yet. Test <see cref="DockingWindow.IsPlaced"/> — not
+    /// <see cref="DockingWindow.IsOpen"/> — before attaching to a window whose state is not yours
+    /// to know.
+    /// </exception>
     public void AttachToolWindow(ToolWindow window, DockingWindow target)
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(target);
 
-        if (target.Container is not { } container)
+        if (PaneOf(target) is { } container)
         {
-            throw new InvalidOperationException("The target window is not open, so there is no container to attach to.");
+            LayoutManager.AttachAsTab(this, window, container);
+            return;
         }
 
-        LayoutManager.AttachAsTab(this, window, container);
+        if (FindAutoHideGroup(target) is { } group)
+        {
+            LayoutManager.AttachToAutoHideGroup(this, window, group);
+            return;
+        }
+
+        throw new InvalidOperationException("The target window is not placed in the layout, so there is nothing to attach it to.");
+    }
+
+    // The pane a window is in, and only when that pane is still part of the layout. A window a load
+    // has taken out and not put back yet still holds the container it was in, and inserting a tab
+    // into that one would show it nowhere: refusing is what turns a panel that silently disappears
+    // into a mistake the caller can see.
+    private DockingWindowContainer? PaneOf(DockingWindow target)
+    {
+        return target.Container is { } container && LayoutTree.Locate(this, container) is not null
+            ? container
+            : null;
     }
 
     /// <summary>

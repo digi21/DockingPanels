@@ -168,6 +168,43 @@ internal static class LayoutManager
         FinishDock(surface, window, wasOpen);
     }
 
+    // Attaches a window to a group that is collapsed to an edge, as a tab of that group.
+    //
+    // Attaching to a window is asking for the group it belongs with, and a group at an edge is
+    // still that group: the window joins it, comes out in the same flyout, and is pinned back into
+    // the layout with the rest of it. The alternative — refusing, because a collapsed group has no
+    // container to insert a tab into — would make "put this panel with its own" fail for no reason
+    // the caller could see, and exactly when a layout being loaded says the group is unpinned.
+    internal static void AttachToAutoHideGroup(DockSite site, ToolWindow window, AutoHideGroup group)
+    {
+        if (group.Windows.Contains(window))
+        {
+            return;
+        }
+
+        var wasOpen = window.IsOpen;
+        Detach(site, window);
+
+        window.IsRelocating = false;
+        window.DockSite = site;
+        window.State = DockingWindowState.AutoHide;
+        window.IsOpen = true;
+
+        site.RegisterWindow(window);
+        group.Windows.Add(window);
+        site.RefreshAutoHideStrips();
+        site.NotifyRelocated(window);
+
+        if (wasOpen)
+        {
+            site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
+        }
+        else
+        {
+            site.NotifyWindowOpened(window);
+        }
+    }
+
     // Moves a document to the block its state puts it in, which is what pinning, unpinning and
     // promoting a tab amount to once the flag itself has changed.
     internal static void MoveToOwnBlock(DocumentWindow document)

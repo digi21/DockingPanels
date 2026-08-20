@@ -386,13 +386,23 @@ being kept open, just before it is placed:
 ```csharp
 serializer.UnresolvedWindowDocking += (_, e) =>
 {
-    if (e.Window == Camera && Imu.IsOpen)
+    // IsPlaced, not IsOpen: a sibling this same load is also rescuing is open and still out of
+    // the layout. Attaching to one that is not placed throws.
+    if (e.Window == Camera && Imu.IsPlaced)
     {
         DockSite.AttachToolWindow(Camera, Imu);   // as a tab of the group it belongs with
         e.Handled = true;
     }
 };
 ```
+
+One load can keep several windows open, and it places them one at a time, in the order the dock site
+registered them — tool windows first, then documents. So a handler is looking at a layout that is
+still being assembled: `IsOpen` is true for every window being rescued, including the ones still
+waiting, and `IsPlaced` is what says whether there is anything to dock against yet. Attaching to a
+window whose group is collapsed to an edge does work, and leaves the new panel collapsed with it: it
+becomes a tab of that group, opens in the same flyout, and is pinned back into the layout with the
+rest of it.
 
 ### Theming
 

@@ -33,9 +33,19 @@ public class DockSiteLayoutSerializer
     /// goes.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Raised whichever reason keeps the window open: <see cref="UnresolvedWindowBehavior"/> set to
     /// <see cref="Serialization.UnresolvedWindowBehavior.DockLeft"/>, or a window declared with
     /// <c>CanClose="False"</c>, which is kept whatever that setting says.
+    /// </para>
+    /// <para>
+    /// Several windows can be kept open by one load, and they are placed one at a time, in the
+    /// order the dock site registered them — tool windows first, then documents. A handler that
+    /// docks a window against another one is therefore not looking at a settled layout: a sibling
+    /// later in that order is still out of it, open but not yet placed. Test
+    /// <see cref="DockingWindow.IsPlaced"/> rather than <see cref="DockingWindow.IsOpen"/>, which
+    /// is true for every window being rescued, including those still waiting.
+    /// </para>
     /// </remarks>
     public event EventHandler<UnresolvedWindowEventArgs>? UnresolvedWindowDocking;
 
