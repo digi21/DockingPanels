@@ -586,6 +586,10 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
+    // The auto-hidden window whose panel is currently out, if any.
+    internal ToolWindow? AutoHideFlyoutWindow =>
+        autoHideFlyout is { Visibility: Visibility.Visible } flyout ? flyout.Window : null;
+
     // Shows the auto-hide flyout for the given window, as if its tab had been clicked.
     internal void ShowAutoHideFlyout(ToolWindow window)
     {
@@ -930,6 +934,13 @@ public partial class DockSite : Control, IDockSurface
         if (window is DocumentWindow document)
         {
             ActiveDocument = document;
+        }
+
+        // A floating window is named after the window it is showing, which is the active one while
+        // that window is hosted in it. Only now is it known.
+        foreach (var host in floatingHosts)
+        {
+            host.RefreshCaption();
         }
 
         if (previous is not null)

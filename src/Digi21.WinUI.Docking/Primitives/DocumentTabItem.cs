@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 
@@ -11,7 +12,7 @@ namespace Digi21.WinUI.Docking.Primitives;
 /// tab position, group or window, its pin button pins it to the head of the strip, and its close
 /// button closes it.
 /// </summary>
-public partial class DocumentTabItem : Control
+public partial class DocumentTabItem : Control, IDockingWindowTab
 {
     /// <summary>Identifies the <see cref="Window"/> dependency property.</summary>
     public static readonly DependencyProperty WindowProperty = DependencyProperty.Register(
@@ -49,6 +50,9 @@ public partial class DocumentTabItem : Control
         get => (DockingWindow?)GetValue(WindowProperty);
         set => SetValue(WindowProperty, value);
     }
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new DockingWindowTabItemAutomationPeer(this);
 
     /// <inheritdoc />
     protected override void OnApplyTemplate()
@@ -199,6 +203,11 @@ public partial class DocumentTabItem : Control
             true);
 
         UpdateCommonState();
+
+        if (observed?.IsSelected == true)
+        {
+            DockingWindowTabItemAutomationPeer.NotifySelected(this);
+        }
     }
 
     // Brings the pin button in line with the document: it offers to pin an ordinary tab and to unpin

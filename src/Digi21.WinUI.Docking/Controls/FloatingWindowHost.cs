@@ -205,6 +205,30 @@ internal sealed partial class FloatingWindowHost
             hosted.DockSite = Site;
         }
 
+        ApplyCaption(containers);
+    }
+
+    // Brings the window's title back in line with the window that names it. The dock site calls
+    // this on its own when the active window changes: activating a window selects it first and
+    // makes it active afterwards, so the title the selection produced named the window that was
+    // active until then, and stayed one activation behind. The title is what an automation client
+    // and the taskbar find a floating window by, so it cannot lag.
+    internal void RefreshCaption()
+    {
+        if (closingSelf)
+        {
+            return;
+        }
+
+        var containers = LayoutTree.Containers(root.Child).ToList();
+        if (containers.Count > 0)
+        {
+            ApplyCaption(containers);
+        }
+    }
+
+    private void ApplyCaption(List<DockingWindowContainer> containers)
+    {
         var title = PrimaryWindow(containers)?.Title ?? string.Empty;
         window.Title = title;
 

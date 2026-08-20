@@ -25,6 +25,15 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   application: the content belongs to the host, so it is the host that calls `KeepOpen()`.
 - `DockSite.DocumentTabContextMenuOpening`, raised with the entries of a document tab's context
   menu before it opens, for an application to add its own commands or replace the menu.
+- Automation peers for every tab, so a window that is not the one on show can be reached by UI
+  Automation. A tool window's tab, a document's tab and an auto-hide tab now report
+  `ControlType.TabItem` and answer to the invoke and selection-item patterns, and the pane or strip
+  they belong to reports `ControlType.Tab` with the selection pattern and names the selected tab.
+  Selecting a tab does what clicking it does, and selecting an auto-hide tab opens its flyout —
+  which is what puts the content of a window behind a tab within reach of a screen reader or an
+  automated test, since a window that is not at the front is collapsed and not in the automation
+  tree at all. `DockingWindowTabItemAutomationPeer`, `DockingWindowContainerAutomationPeer`,
+  `AutoHideTabItemAutomationPeer` and `AutoHideTabStripAutomationPeer` are the new public types.
 - Theme keys for the new chrome: `DockingTabPinGlyph`, `DockingTabUnpinGlyph`,
   `DockingPinnedTabStripMaxWidth`, `DockingProvisionalTabStripMaxWidth`, `DockingPinTabButtonName`,
   `DockingUnpinTabButtonName`, `DockingKeepTabOpenName`, `DockingCloseAllTabsName`,
@@ -38,6 +47,14 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   layout with neither is what 1.1 wrote, and 1.1 reads one that has them, ignoring the attributes.
 - Only the primary pointer button starts a window drag, so the secondary one reaches the tab's
   context menu.
+
+### Fixed
+
+- The title of a floating window holding several panels no longer lags one activation behind the
+  panel that is showing. A window is selected before it is made active, and the title was written
+  from the selection, so it named the panel that had been active until then. The title is what the
+  taskbar shows and what UI Automation reports as the window's name, so a client looking for a
+  floating window by the name of the panel in it was finding the wrong window, or none.
 
 ## [1.1.1] - 2026-08-15
 

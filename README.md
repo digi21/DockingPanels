@@ -38,6 +38,9 @@ pin buttons](https://raw.githubusercontent.com/Digi21/DockingPanels/main/assets/
   `SwapChainPanel`, a `WebView2` or anything else with a life cycle of its own.
 - Light, dark, and high-contrast aware out of the box (built on WinUI theme resources), and
   recolorable through the library's own brush keys.
+- Every tab reachable by UI Automation: tabs report themselves as tab items with the invoke and
+  selection-item patterns, and their pane as the selection container, so a screen reader or an
+  automated test can bring a window to the front by name instead of by screen coordinate.
 
 ## Requirements
 
@@ -375,6 +378,45 @@ into `Application.Resources`, which is the only place WinUI honors theme diction
 
 The full list of brushes and metrics, and how to retemplate a control, is in
 [the theming guide](https://github.com/Digi21/DockingPanels/blob/main/docs/theming.md).
+
+### Automating the interface
+
+Every tab is reachable by UI Automation, which is what lets a screen reader — or an automated test —
+bring a window to the front by name instead of by screen coordinate. A tool window's tab, a
+document's tab and an auto-hide tab report `ControlType.TabItem` and answer to the invoke and
+selection-item patterns; the pane or the strip holding them reports `ControlType.Tab` with the
+selection pattern, names the selected tab, and is what a tab points at as its selection container.
+The names come from each window's `Title`.
+
+This matters beyond convenience: only the window a pane is showing is in the visual tree, so nothing
+inside the others is in the automation tree either. Selecting a tab is what puts its window's
+content within reach, and it does exactly what clicking the tab does — including opening the flyout
+of an auto-hidden panel, whose content is not realized at all until it slides out.
+
+```powershell
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$AE = [System.Windows.Automation.AutomationElement]
+$TS = [System.Windows.Automation.TreeScope]
+
+$app = $AE::RootElement.FindFirst($TS::Children,
+    (New-Object System.Windows.Automation.PropertyCondition($AE::ProcessIdProperty, $pid)))
+
+# Descendants, not Children: this also reaches inside the floating windows.
+$tab = $app.FindAll($TS::Descendants, [System.Windows.Automation.Condition]::TrueCondition) |
+    Where-Object { $_.Current.Name -eq 'Classifications' -and
+                   $_.Current.ControlType.ProgrammaticName -eq 'ControlType.TabItem' } |
+    Select-Object -First 1
+
+$tab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+```
+
+Two things about the tree are worth knowing before hunting for a floating window:
+
+- A floating window is *owned* by the main one, so in the automation tree it is a descendant of it,
+  not a sibling under `RootElement`. Enumerating the children of the root does not find it.
+- A floating window's name is the title of the panel showing in it, and changes as its tabs are
+  selected. With several panels inside, looking for it by the name of one that is behind finds
+  nothing — look for the tab, not for the window.
 
 ## Documentation
 

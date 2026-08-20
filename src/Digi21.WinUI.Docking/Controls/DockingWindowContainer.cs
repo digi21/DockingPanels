@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using Digi21.WinUI.Docking.Primitives;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
 using Windows.Foundation;
@@ -133,6 +134,9 @@ public abstract partial class DockingWindowContainer : Control
     internal virtual bool ProvidesWindowCaption => false;
 
     /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new DockingWindowContainerAutomationPeer(this);
+
+    /// <inheritdoc />
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
@@ -176,11 +180,44 @@ public abstract partial class DockingWindowContainer : Control
         }
     }
 
+    // Gets the tab shown for a window, or null when this container shows no tabs for it. This is
+    // how an automation client is told which tab is the selected one.
+    internal Control? TabFor(DockingWindow window)
+    {
+        foreach (var strip in DeclaredStrips())
+        {
+            foreach (var child in strip.Children)
+            {
+                if (child is Control tab
+                    && child is IDockingWindowTab owner
+                    && ReferenceEquals(owner.Window, window))
+                {
+                    return tab;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // Enumerates the strips the template declares, in the order they are drawn — pinned, scrolling,
+    // provisional — whether or not they are showing anything.
+    private IEnumerable<Panel> DeclaredStrips()
+    {
+        foreach (var strip in new[] { pinnedTabStrip, tabStrip, provisionalTabStrip })
+        {
+            if (strip is not null)
+            {
+                yield return strip;
+            }
+        }
+    }
+
     // Enumerates the strips holding the tabs in the order they are drawn — pinned, scrolling,
     // provisional — skipping those with nothing to show.
     private IEnumerable<Panel> Strips()
     {
-        foreach (var strip in new[] { pinnedTabStrip, tabStrip, provisionalTabStrip })
+        foreach (var strip in DeclaredStrips())
         {
             if (strip is { Visibility: Visibility.Visible, ActualWidth: > 0, ActualHeight: > 0 })
             {
