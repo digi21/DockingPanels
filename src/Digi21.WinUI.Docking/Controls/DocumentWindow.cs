@@ -49,7 +49,7 @@ public partial class DocumentWindow : DockingWindow
     /// <remarks>
     /// This has nothing to do with the pin button of a <see cref="ToolWindow"/>'s title bar, which
     /// toggles auto-hiding: see <see cref="DockingWindow.CanAutoHide"/> and
-    /// <see cref="DockingWindow.AutoHide"/>. A document is never auto-hidden and a tool window is
+    /// <see cref="DockingWindow.AutoHide()"/>. A document is never auto-hidden and a tool window is
     /// never pinned in this sense.
     /// </remarks>
     public bool IsPinned

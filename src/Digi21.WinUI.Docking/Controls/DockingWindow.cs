@@ -215,6 +215,10 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     /// Floats the window out of the layout into its own top-level window. The window remembers
     /// where it was docked, so <see cref="Dock"/> puts it back in the same place.
     /// </summary>
+    /// <remarks>
+    /// Deferred while the window is not yet part of a dock site — see
+    /// <see cref="AutoHide(AutoHideScope)"/>.
+    /// </remarks>
     public void Float()
     {
         WhenPartOfADockSite(() =>
@@ -230,11 +234,51 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     /// Collapses this window's container to the nearest auto-hide edge, like unpinning in
     /// Visual Studio. All windows sharing the container are auto-hidden together.
     /// </summary>
-    public void AutoHide()
+    /// <remarks>
+    /// Deferred while the window is not yet part of a dock site — see
+    /// <see cref="AutoHide(AutoHideScope)"/>.
+    /// </remarks>
+    public void AutoHide() => AutoHide(AutoHideScope.Container);
+
+    /// <summary>
+    /// Collapses this window to the nearest auto-hide edge, taking its whole container with it or
+    /// leaving the rest of the container docked, as the scope says.
+    /// </summary>
+    /// <param name="scope">How much of the layout goes to the edge.</param>
+    /// <remarks>
+    /// <para>
+    /// <see cref="AutoHideScope.Window"/> is the programmatic way to unpin a single panel: the
+    /// windows it shared a tab group with stay where they are, and pinning it back returns it to
+    /// that group as a tab. Unpinning from the title bar stays a whole-container gesture, since a
+    /// user dragging panels into one group means them to travel together.
+    /// </para>
+    /// <para>
+    /// Only this window's <see cref="DockingWindow.CanAutoHide"/> is consulted for that scope. A
+    /// whole container also needs every window in it to allow auto-hide, or none of them moves.
+    /// </para>
+    /// <para>
+    /// Like <see cref="Float"/> and <see cref="Dock"/>, the call is deferred while the window is
+    /// not yet part of a dock site, which is the case for a window declared in XAML during the
+    /// dock site's own <c>Loaded</c>. It then runs when the window is loaded, so a layout saved
+    /// immediately after the call still describes the arrangement the call was about to change.
+    /// Save it from the window's own <c>Loaded</c>, or from a
+    /// <c>DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, ...)</c> callback.
+    /// </para>
+    /// </remarks>
+    public void AutoHide(AutoHideScope scope)
     {
         WhenPartOfADockSite(() =>
         {
-            if (CanAutoHide && State == DockingWindowState.Docked && Container is { } container && DockSite is { } site)
+            if (!CanAutoHide || State != DockingWindowState.Docked || Container is not { } container || DockSite is not { } site)
+            {
+                return;
+            }
+
+            if (scope == AutoHideScope.Window)
+            {
+                LayoutManager.AutoHideWindow(site, this);
+            }
+            else
             {
                 LayoutManager.AutoHideContainer(site, container);
             }
@@ -246,6 +290,10 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     /// to the edge it was collapsed to, and a floating window returns to the position it was
     /// floated from, together with the other windows of its floating window.
     /// </summary>
+    /// <remarks>
+    /// Deferred while the window is not yet part of a dock site — see
+    /// <see cref="AutoHide(AutoHideScope)"/>.
+    /// </remarks>
     public void Dock()
     {
         WhenPartOfADockSite(() =>

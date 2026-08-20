@@ -112,6 +112,39 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    // Unpinning one panel out of a shared tab group, which the pin button of a title bar does not
+    // do: that one takes the whole group to the edge, on purpose. An application that hides a panel
+    // when the mode it belongs to ends has to leave the panels beside it alone.
+    private void OnUnpinClassView(object sender, RoutedEventArgs e)
+    {
+        if (ClassView.State == DockingWindowState.AutoHide)
+        {
+            ClassView.Dock();
+            EventLog.Text = $"Class View pinned back — Solution Explorer stayed {SolutionExplorer.State}";
+            return;
+        }
+
+        ClassView.AutoHide(AutoHideScope.Window);
+        EventLog.Text = $"Class View {ClassView.State}, Solution Explorer still {SolutionExplorer.State}";
+    }
+
+    // What a user upgrading sees: a layout saved before a panel existed, loaded while the panel is
+    // open. The file cannot say where a window it never heard of goes, so the window says it —
+    // Output is declared PreferredDockSide="Bottom" and lands there, not at the left edge.
+    private void OnRescueOutput(object sender, RoutedEventArgs e)
+    {
+        Output.Close();
+        var layoutWithoutOutput = serializer.SaveToString(DockSite);
+        DockSite.DockToolWindow(Output, DockSide.Bottom);
+
+        var behavior = serializer.UnresolvedWindowBehavior;
+        serializer.UnresolvedWindowBehavior = UnresolvedWindowBehavior.DockLeft;
+        serializer.LoadFromString(DockSite, layoutWithoutOutput);
+        serializer.UnresolvedWindowBehavior = behavior;
+
+        EventLog.Text = $"Output was not in the layout: rescued to {Output.PreferredDockSide}";
+    }
+
     private void OnFloatOutput(object sender, RoutedEventArgs e)
     {
         if (!Output.IsOpen)

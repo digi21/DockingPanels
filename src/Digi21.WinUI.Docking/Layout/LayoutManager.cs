@@ -464,32 +464,8 @@ internal static class LayoutManager
             return;
         }
 
-        var edge = NearestEdge(site, container);
-        var horizontalEdge = edge is DockSide.Left or DockSide.Right;
-        var size = horizontalEdge ? container.ActualWidth : container.ActualHeight;
-        if (!double.IsFinite(size) || size < 100)
-        {
-            size = 300;
-        }
-
+        var (edge, size, offset) = MeasureForAutoHide(site, container);
         var restoreHint = CaptureRestoreHint(site, container, edge);
-
-        // Position of the container along the edge, so its tabs land under where it was.
-        double offset = 0;
-        try
-        {
-            var reference = (UIElement?)site.LayoutRoot ?? site;
-            var origin = container.TransformToVisual(reference).TransformPoint(default);
-            offset = edge is DockSide.Left or DockSide.Right ? origin.Y : origin.X;
-            if (!double.IsFinite(offset) || offset < 0)
-            {
-                offset = 0;
-            }
-        }
-        catch (ArgumentException)
-        {
-            offset = 0;
-        }
 
         foreach (var window in windows)
         {
@@ -521,6 +497,87 @@ internal static class LayoutManager
             Offset = offset,
         });
         site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
+    }
+
+    // Collapses a single window to the nearest auto-hide edge of its container, leaving the rest
+    // of the container docked.
+    //
+    // The hint is taken from the container the window is leaving, which stays in the layout holding
+    // the other windows, so pinning the panel back returns it to that group as a tab — where the
+    // user left it — instead of rebuilding a pane of its own beside it.
+    //
+    // Only this window's CanAutoHide is consulted, unlike CanAutoHideContainer: nothing is being
+    // decided on behalf of its neighbours, which do not move.
+    internal static void AutoHideWindow(DockSite site, DockingWindow window)
+    {
+        if (window is not ToolWindow { CanAutoHide: true } tool || window.Container is not { } container)
+        {
+            return;
+        }
+
+        if (container.Items.Count <= 1)
+        {
+            // Nothing would be left behind, so this is the ordinary unpin of the whole pane, which
+            // also takes the emptied container out of the layout tree.
+            AutoHideContainer(site, container);
+            return;
+        }
+
+        var (edge, size, offset) = MeasureForAutoHide(site, container);
+        var restoreHint = CaptureRestoreHint(site, container, edge);
+
+        tool.IsRelocating = true;
+        container.Items.Remove(tool);
+        tool.IsRelocating = false;
+
+        tool.State = DockingWindowState.AutoHide;
+        tool.IsOpen = true;
+
+        if (ReferenceEquals(site.ActiveWindow, tool))
+        {
+            site.SetActiveWindow(null);
+        }
+
+        site.AddAutoHideGroup(new AutoHideGroup(edge, [tool], size)
+        {
+            RestoreHint = restoreHint,
+            Offset = offset,
+        });
+        site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
+    }
+
+    // Works out where a container's windows go when they are collapsed: which edge they land on,
+    // how big the flyout has to be, and where along the edge its tabs sit.
+    private static (DockSide Edge, double Size, double Offset) MeasureForAutoHide(
+        DockSite site,
+        DockingWindowContainer container)
+    {
+        var edge = NearestEdge(site, container);
+        var horizontalEdge = edge is DockSide.Left or DockSide.Right;
+        var size = horizontalEdge ? container.ActualWidth : container.ActualHeight;
+        if (!double.IsFinite(size) || size < 100)
+        {
+            size = 300;
+        }
+
+        // Position of the container along the edge, so its tabs land under where it was.
+        double offset = 0;
+        try
+        {
+            var reference = (UIElement?)site.LayoutRoot ?? site;
+            var origin = container.TransformToVisual(reference).TransformPoint(default);
+            offset = edge is DockSide.Left or DockSide.Right ? origin.Y : origin.X;
+            if (!double.IsFinite(offset) || offset < 0)
+            {
+                offset = 0;
+            }
+        }
+        catch (ArgumentException)
+        {
+            offset = 0;
+        }
+
+        return (edge, size, offset);
     }
 
     // Pins an auto-hide group back into the layout at the edge it collapsed from.

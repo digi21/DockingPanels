@@ -30,7 +30,8 @@ pin buttons](https://raw.githubusercontent.com/Digi21/DockingPanels/main/assets/
 - Floating tool windows in real top-level windows, across monitors.
 - Docking *inside* a floating window: it takes drops with its own dock guides and holds a
   layout of split panes and tabs, like a small dock site.
-- Auto-hide (unpin) tool windows to the dock site edges, with a slide-in flyout.
+- Auto-hide (unpin) tool windows to the dock site edges, with a slide-in flyout, by the whole tab
+  group as the user's pin button does, or one panel at a time from the application.
 - Save and restore the docking layout as XML (`DockSiteLayoutSerializer`), including the document
   area, auto-hidden groups, floating window positions and their inner layout.
 - Cancelable close, activation tracking, and layout-change events on `DockSite`.
@@ -221,9 +222,17 @@ when there is no floating window open.
 ### Auto-hide
 
 ```csharp
-outputWindow.AutoHide();   // collapse the whole pane to its nearest edge
-outputWindow.Dock();       // pin it back where it was
+outputWindow.AutoHide();                          // collapse the whole pane to its nearest edge
+outputWindow.AutoHide(AutoHideScope.Window);      // collapse only this panel, leave its tab group docked
+outputWindow.Dock();                              // pin it back where it was
 ```
+
+`AutoHideScope.Window` is the programmatic way to unpin a single panel out of a shared tab group:
+the panels it shares the group with stay docked, and pinning it back returns it to that group as a
+tab, where the user left it. Only that window's own `CanAutoHide` is consulted, since nothing is
+being decided for its neighbours. Unpinning from the title bar stays a whole-group gesture — a user
+who dragged panels into one group means them to travel together — so this is for the application
+that hides a panel of its own accord, when the mode it belongs to ends.
 
 Unpinned windows become tabs on the dock site edge. Pointing at a tab slides its window over the
 layout as a preview, which is not activated and slides back when the pointer leaves; clicking the
@@ -249,6 +258,15 @@ depending on the user leaving the pin alone.
 An application that sets up its initial layout from the dock site's `Loaded` can call these
 straight from there, as many times as it likes: a window whose own `Loaded` has not run yet is not
 attached to its dock site at that moment, and the operation waits for it instead of being dropped.
+
+That wait is worth knowing about when the same code goes on to capture the layout. `AutoHide()`,
+`Float()` and `Dock()` are deferred, not queued behind the save: a `SaveToString` on the next line
+describes the arrangement the calls were about to change, not the one they produce. Capture it from
+the window's own `Loaded`, or from a low-priority dispatcher callback:
+
+```csharp
+DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => defaultLayout = serializer.SaveToString(DockSite));
+```
 
 ### Content with a life cycle of its own
 
@@ -341,8 +359,8 @@ A load rebuilds the layout out of the elements it is already made of, so reloadi
 has not changed moves nothing at all.
 
 What happens to windows that are open but absent from the loaded layout is decided by
-`UnresolvedWindowBehavior`: `Close` (the default) closes them, `DockLeft` keeps them at the left
-edge. Two things are never dropped, whatever the setting says:
+`UnresolvedWindowBehavior`: `Close` (the default) closes them, `DockLeft` keeps them. Two things are
+never dropped, whatever the setting says:
 
 - Windows declared with `CanClose="False"`. The user cannot close them from the interface, so a
   layout file does not get to either — there would be no way back, and saving the layout on the
@@ -350,6 +368,31 @@ edge. Two things are never dropped, whatever the setting says:
 - The `Workspace` and `DocumentHost` elements declared in XAML. They belong to the application
   rather than to the layout, so a layout that does not mention them gets them back at the edge of
   whatever it does describe.
+
+A window kept open this way is docked as a new pane at its `PreferredDockSide`, which is the left
+edge unless the window says otherwise:
+
+```xml
+<docking:ToolWindow x:Name="Camera" Title="Camera" CanClose="False" PreferredDockSide="Bottom" />
+```
+
+Where it lands is the application's business, not the layout file's — the file never heard of this
+window. This is what a panel added to a new version needs: users upgrading have a saved layout from
+before it existed, and without a preference it would appear on the left however far from there the
+application puts everything else. For placement a single edge cannot express — rejoining the tab
+group the panel belongs with — handle `UnresolvedWindowDocking`, which is raised for every window
+being kept open, just before it is placed:
+
+```csharp
+serializer.UnresolvedWindowDocking += (_, e) =>
+{
+    if (e.Window == Camera && Imu.IsOpen)
+    {
+        DockSite.AttachToolWindow(Camera, Imu);   // as a tab of the group it belongs with
+        e.Handled = true;
+    }
+};
+```
 
 ### Theming
 

@@ -25,6 +25,22 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   application: the content belongs to the host, so it is the host that calls `KeepOpen()`.
 - `DockSite.DocumentTabContextMenuOpening`, raised with the entries of a document tab's context
   menu before it opens, for an application to add its own commands or replace the menu.
+- `ToolWindow.PreferredDockSide` says which dock site edge a window belongs at when the library has
+  to place it with nothing else to go on, which is the rescue of an open window a loaded layout does
+  not mention — either because `UnresolvedWindowBehavior` is `DockLeft`, or because the window is
+  declared `CanClose="False"` and closing it would leave the user no way back. Such a window used to
+  land at the left edge always, which is the layout file deciding something it knows nothing about:
+  an application whose panels live at the bottom saw a panel added in a new version appear on the
+  left the first time an older layout was loaded.
+- `DockSiteLayoutSerializer.UnresolvedWindowDocking`, raised for each of those windows just before
+  it is put back, with the edge it is about to take and a `Handled` flag, for the placement a single
+  edge cannot express — docking the panel back beside, or as a tab of, the group it belongs with.
+- `DockingWindow.AutoHide(AutoHideScope)` collapses a single window to the edge, leaving the rest of
+  its tab group docked; pinning it back returns it to that group as a tab. `AutoHide()` keeps taking
+  the whole container, and so does the title bar's pin button: a user who drags panels into one
+  group means them to travel together, so this is for the application that hides a panel of its own
+  accord. Only the window's own `CanAutoHide` is consulted for that scope, since its neighbours do
+  not move.
 - Automation peers for every tab, so a window that is not the one on show can be reached by UI
   Automation. A tool window's tab, a document's tab and an auto-hide tab now report
   `ControlType.TabItem` and answer to the invoke and selection-item patterns, and the pane or strip
@@ -47,6 +63,14 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   layout with neither is what 1.1 wrote, and 1.1 reads one that has them, ignoring the attributes.
 - Only the primary pointer button starts a window drag, so the secondary one reaches the tab's
   context menu.
+
+### Documentation
+
+- `AutoHide()`, `Float()` and `Dock()` say in their own documentation that they are deferred while
+  the window is not yet part of a dock site — the case an application setting up its layout from the
+  dock site's `Loaded` is in — and what that means for the caller that saves the layout next: the
+  saved layout is the one from before the call. The README shows capturing it from a low-priority
+  dispatcher callback instead.
 
 ### Fixed
 

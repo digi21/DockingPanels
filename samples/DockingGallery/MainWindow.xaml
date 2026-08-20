@@ -22,6 +22,8 @@
             <Button Click="OnCloseDocuments" Content="Close All But Pinned" />
             <Button Click="OnReopenSolutionExplorer" Content="Reopen Solution Explorer" />
             <Button Click="OnReopenOutput" Content="Reopen Output" />
+            <Button Click="OnUnpinClassView" Content="Unpin Class View" />
+            <Button Click="OnRescueOutput" Content="Rescue Output" />
             <Button Click="OnFloatOutput" Content="Float Output" />
             <Button Click="OnDockFloating" Content="Dock Floating" />
             <Button Click="OnSaveLayout" Content="Save Layout" />
@@ -109,6 +111,7 @@
                     <docking:ToolWindowContainer x:Name="BottomContainer" docking:DockSite.RelativeSize="0.3">
                         <docking:ToolWindow
                             x:Name="Output"
+                            PreferredDockSide="Bottom"
                             Title="Output"
                             SerializationId="output">
                             <TextBlock

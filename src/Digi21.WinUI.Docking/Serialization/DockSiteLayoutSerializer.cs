@@ -28,6 +28,18 @@ public class DockSiteLayoutSerializer
     public event EventHandler<DocumentResolvingEventArgs>? DocumentResolving;
 
     /// <summary>
+    /// Raised while loading for each open window the layout does not mention and that is kept open
+    /// anyway, just before it is put back into the layout, so the application can say where it
+    /// goes.
+    /// </summary>
+    /// <remarks>
+    /// Raised whichever reason keeps the window open: <see cref="UnresolvedWindowBehavior"/> set to
+    /// <see cref="Serialization.UnresolvedWindowBehavior.DockLeft"/>, or a window declared with
+    /// <c>CanClose="False"</c>, which is kept whatever that setting says.
+    /// </remarks>
+    public event EventHandler<UnresolvedWindowEventArgs>? UnresolvedWindowDocking;
+
+    /// <summary>
     /// Gets or sets what happens to windows that are open but absent from the loaded layout.
     /// The default is <see cref="UnresolvedWindowBehavior.Close"/>.
     /// </summary>
@@ -484,18 +496,36 @@ public class DockSiteLayoutSerializer
         }
     }
 
-    // Puts a window the loaded layout does not mention back into the layout, for
-    // UnresolvedWindowBehavior.DockLeft: documents reopen in the document area, tool windows dock
-    // to the left edge.
-    private static void KeepOpen(DockSite site, DockingWindow window)
+    // Puts a window the loaded layout does not mention back into the layout: documents reopen in
+    // the document area, tool windows dock as a new pane at an edge.
+    //
+    // Which edge is not the layout file's business — the file never heard of this window — so it is
+    // the application's: the window's own PreferredDockSide, which a handler of
+    // UnresolvedWindowDocking can override or take over entirely.
+    private void KeepOpen(DockSite site, DockingWindow window)
     {
+        var args = new UnresolvedWindowEventArgs(window, PreferredSideOf(window));
+        UnresolvedWindowDocking?.Invoke(this, args);
+
+        if (args.Handled)
+        {
+            return;
+        }
+
         if (window is DocumentWindow document && site.DocumentHost is { } host)
         {
             host.OpenDocument(document);
             return;
         }
 
-        LayoutManager.DockToSide(site, window, DockSide.Left);
+        LayoutManager.DockToSide(site, window, args.Side);
+    }
+
+    // The edge a window says it belongs at. Only a tool window has one; a document is placed by its
+    // document area and never by an edge.
+    private static DockSide PreferredSideOf(DockingWindow window)
+    {
+        return window is ToolWindow tool ? tool.PreferredDockSide : DockSide.Left;
     }
 
     private UIElement? Build(
