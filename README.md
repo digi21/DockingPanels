@@ -399,10 +399,41 @@ serializer.UnresolvedWindowDocking += (_, e) =>
 One load can keep several windows open, and it places them one at a time, in the order the dock site
 registered them — tool windows first, then documents. So a handler is looking at a layout that is
 still being assembled: `IsOpen` is true for every window being rescued, including the ones still
-waiting, and `IsPlaced` is what says whether there is anything to dock against yet. Attaching to a
-window whose group is collapsed to an edge does work, and leaves the new panel collapsed with it: it
-becomes a tab of that group, opens in the same flyout, and is pinned back into the layout with the
-rest of it.
+waiting, and `IsPlaced` is what says whether there is anything to dock against yet.
+
+`IsPlaced` is not `Container is not null`, in either direction, and both differences bite in this
+handler:
+
+| The sibling is… | `IsOpen` | `Container` | `IsPlaced` | `AttachToolWindow` |
+| --- | --- | --- | --- | --- |
+| a tab of a pane | `true` | the pane | `true` | joins the pane |
+| collapsed to an auto-hide edge | `true` | `null` | `true` | joins the collapsed group |
+| still waiting to be rescued | `true` | the pane it left, now abandoned | `false` | throws |
+| closed | `false` | `null` | `false` | throws |
+
+The collapsed row is not an edge case: an application whose panels are unpinned when the layout is
+saved reloads into exactly that, so a handler written for panels in plain sight ignores the group it
+should be joining and opens a docked strip beside a set of tabs at the edge. Attaching to a
+collapsed group leaves the new panel collapsed with it — a tab of that group, out in the same
+flyout, pinned back into the layout with the rest of it — which is what "with its own" means when
+its own are at the edge.
+
+Nothing has to be placed for this to work out. When no sibling is available yet, leave `Handled`
+alone and let the window fall to its `PreferredDockSide`: it is placed by the time the next one is
+rescued, and the rest attach to it.
+
+```csharp
+serializer.UnresolvedWindowDocking += (_, e) =>
+{
+    if (e.Window is ToolWindow panel && Panels.FirstOrDefault(p => p.IsPlaced) is { } anchor)
+    {
+        DockSite.AttachToolWindow(panel, anchor);   // docked or collapsed, wherever the group is
+        e.Handled = true;
+    }
+
+    // Otherwise: not handled, so it docks at its PreferredDockSide and anchors the ones after it.
+};
+```
 
 ### Theming
 

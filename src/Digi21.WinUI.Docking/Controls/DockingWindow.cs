@@ -153,7 +153,17 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
         internal set => SetValue(StateProperty, value);
     }
 
-    /// <summary>Gets the container that currently hosts this window, or <see langword="null"/> when closed.</summary>
+    /// <summary>
+    /// Gets the pane that currently hosts this window as a tab, or <see langword="null"/> when
+    /// there is none.
+    /// </summary>
+    /// <remarks>
+    /// There is none in more cases than being closed, so this is the wrong thing to test to find
+    /// out whether a window is in the layout — use <see cref="IsPlaced"/>. A window collapsed to an
+    /// auto-hide edge has no container and is very much in the layout, while a window a load has
+    /// taken out and not put back yet still has the one it came from, and that one is no longer
+    /// part of anything.
+    /// </remarks>
     public DockingWindowContainer? Container { get; internal set; }
 
     /// <summary>
@@ -165,6 +175,12 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     /// Open and placed are not the same thing, and the gap is what a docking call needs to know
     /// about: a window can only be docked beside or attached to one that is <em>placed</em>, since
     /// an unplaced one is nowhere for the new pane or tab to go.
+    /// </para>
+    /// <para>
+    /// Neither is having a <see cref="Container"/> the same thing, in either direction. A window
+    /// collapsed to an edge has none and is placed — <see cref="DockSite.AttachToolWindow"/> takes
+    /// it as a target and joins the new window to its group — and a window still waiting to be
+    /// rescued has one and is not.
     /// </para>
     /// <para>
     /// The gap opens while a layout is being loaded. A load rebuilds the layout tree first and puts
