@@ -106,6 +106,7 @@ public partial class DockSite : Control, IDockSurface
     private readonly HashSet<IRelocatable> pendingRelocations = [];
     private bool relocationFlushScheduled;
     private AutoHideOpenReason autoHideOpenReason;
+    private bool autoHideCollapsing;
     private DispatcherQueueTimer? autoHideCollapseTimer;
     private AutoHideFlyout? autoHideFlyout;
     private ContentPresenter? layoutRootPresenter;
@@ -712,6 +713,10 @@ public partial class DockSite : Control, IDockSurface
 
         CancelAutoHideCollapse();
 
+        // A panel asked for again while it was sliding away comes straight back. It was never
+        // released, so it is still the one the flyout is showing, and the fast path below applies.
+        CancelAutoHideSlide();
+
         if (ReferenceEquals(autoHideFlyout.Window, window))
         {
             // Already showing this window. Re-rooting it would raise Loaded, Unloaded and a
@@ -740,13 +745,9 @@ public partial class DockSite : Control, IDockSurface
 
         // Only a panel that has just come out slides. Repositioning one that is already showing —
         // which happens whenever the area under it is resized — must not replay the animation.
-        if (IsAutoHideAnimated && ScreenInterop.SystemAnimationsEnabled)
+        if (AutoHideSlideDuration is { Ticks: > 0 } duration)
         {
-            var milliseconds = DockingThemeResources.Value("DockingAutoHideSlideMilliseconds", 150.0);
-            if (milliseconds > 0)
-            {
-                autoHideFlyout.SlideIn(group.Edge, TimeSpan.FromMilliseconds(milliseconds));
-            }
+            autoHideFlyout.SlideIn(group.Edge, duration);
         }
 
         // Pointing at a tab shows the panel without disturbing what the user is working in: making
@@ -758,11 +759,72 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
+    // How long an auto-hidden panel takes to slide, or zero when it must not slide at all: the
+    // application turned the animation off, the theme set it to nothing, or Windows has animation
+    // effects off — which the application does not get to overrule.
+    private TimeSpan AutoHideSlideDuration
+    {
+        get
+        {
+            if (!IsAutoHideAnimated || !ScreenInterop.SystemAnimationsEnabled)
+            {
+                return TimeSpan.Zero;
+            }
+
+            var milliseconds = DockingThemeResources.Value("DockingAutoHideSlideMilliseconds", 150.0);
+
+            return milliseconds > 0 ? TimeSpan.FromMilliseconds(milliseconds) : TimeSpan.Zero;
+        }
+    }
+
+    // Puts the panel away the way the user sees it go: sliding back into the edge it came out of,
+    // and released only once it is out of sight.
+    //
+    // Only the dismissal rule comes through here. Everything else that closes the flyout — a layout
+    // being loaded, a window being closed or re-docked, another panel coming out — calls
+    // HideAutoHideFlyout, which cancels the slide and does the work at once. An animation is a
+    // courtesy to the eye; nothing that needs the window back may wait for one.
+    private void CollapseAutoHideFlyout()
+    {
+        if (autoHideCollapsing)
+        {
+            // Already on its way out. A second trigger must not restart the slide, which would look
+            // like the panel jumping back out to leave again.
+            return;
+        }
+
+        if (autoHideFlyout?.Window is not { } shown
+            || AutoHideSlideDuration is not { Ticks: > 0 } duration
+            || FindAutoHideGroup(shown) is not { } group
+            || !autoHideFlyout.SlideOut(group.Edge, duration, HideAutoHideFlyout))
+        {
+            HideAutoHideFlyout();
+            return;
+        }
+
+        autoHideCollapsing = true;
+    }
+
+    // Abandons a collapse that is under way, leaving the panel on screen where it is. The panel was
+    // never released, so there is nothing to bring back.
+    private void CancelAutoHideSlide()
+    {
+        if (autoHideCollapsing)
+        {
+            autoHideCollapsing = false;
+            autoHideFlyout?.CancelSlide();
+        }
+    }
+
     // Called by the flyout and the auto-hide tabs when the pointer arrives. Anything the pointer
     // can reach on its way between the tab and the panel counts as staying in.
     internal void NotifyAutoHidePointerEntered()
     {
         CancelAutoHideCollapse();
+
+        // The pointer came back while the panel was sliding away. It stays, and it stays where it
+        // is rather than sliding back out from an edge it never reached.
+        CancelAutoHideSlide();
     }
 
     // Called when the pointer leaves the flyout or a tab. The move from one to the other raises an
@@ -817,7 +879,7 @@ public partial class DockSite : Control, IDockSurface
 
         if (AutoHideDismissPolicy.ShouldCollapse(autoHideOpenReason, trigger, IsFocusInsideAutoHideFlyout()))
         {
-            HideAutoHideFlyout();
+            CollapseAutoHideFlyout();
         }
     }
 
@@ -892,10 +954,17 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
-    // Hides the auto-hide flyout if it is open.
+    // Hides the auto-hide flyout if it is open, at once and without ceremony. This is what puts the
+    // window back in its group, so it is also the end of an animated collapse.
     internal void HideAutoHideFlyout()
     {
         CancelAutoHideCollapse();
+
+        // Whatever the flyout was doing, it is over. Called from the end of a slide, this is the
+        // tidy-up of the very slide that called it; called from anywhere else, it is what stops one
+        // in its tracks.
+        autoHideCollapsing = false;
+        autoHideFlyout?.CancelSlide();
 
         if (autoHideFlyout?.Window is { } shown)
         {

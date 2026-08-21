@@ -245,12 +245,16 @@ into where it is.
 <docking:DockSite AutoHideOpenTrigger="Click">
 ```
 
-The panel slides out from its edge as it appears. `DockSite.IsAutoHideAnimated="False"` turns that
-off, and the `DockingAutoHideSlideMilliseconds` theme resource changes its length; a user who has
+The panel slides out from its edge as it appears, and back into it when it is put away — the second
+half is what tells the user where the panel went. `DockSite.IsAutoHideAnimated="False"` turns both
+off, and the `DockingAutoHideSlideMilliseconds` theme resource changes their length; a user who has
 turned animation effects off in Windows — in Settings, or through battery saver, or over a remote
 session — gets panels that appear at once whatever the application asked for. The slide is a render
 transform over content that is already laid out at its final size, so it costs no layout passes and
-the panel is on screen and in the automation tree from the first frame, not at the end.
+the panel is on screen and in the automation tree from the first frame, not at the end. Only the
+user's own dismissal waits for the animation: anything that needs the window back at once — a layout
+being loaded, a window being closed or re-docked, `Dock()`, another panel coming out — takes it
+immediately, and a panel claimed again on its way out simply stays.
 
 `AutoHideOpenTrigger` decides whether pointing is enough. `Pointer`, the default, is the preview
 above; `Click` means only a click opens a panel, so a pointer crossing the edge on its way somewhere

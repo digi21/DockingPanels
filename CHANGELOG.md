@@ -47,8 +47,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Asking for the group a panel belongs with is a question the group's state does not change the
   answer to, and refusing was worst exactly where it mattered — a layout being loaded that has the
   group unpinned.
-- An auto-hidden panel now slides out from its edge instead of appearing at once, as it does in
-  Visual Studio. `DockSite.IsAutoHideAnimated` turns it off and the `DockingAutoHideSlideMilliseconds`
+- An auto-hidden panel now slides out from its edge instead of appearing at once, and slides back
+  into it when the user's pointer or focus dismisses it, as it does in Visual Studio. Only that
+  dismissal waits for the animation: everything else that closes the flyout — a layout being loaded,
+  a window closed or re-docked, another panel coming out — releases the window at once, and a panel
+  asked for again on its way out stays where it is. `DockSite.IsAutoHideAnimated` turns it off and the `DockingAutoHideSlideMilliseconds`
   theme resource changes its length, but Windows has the last word: with animation effects off — in
   Settings, or through battery saver, or over a remote session — the panel appears at once whatever
   the application asked for. The slide is a render transform over content already laid out at its

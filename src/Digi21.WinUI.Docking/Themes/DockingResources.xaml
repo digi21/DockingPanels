@@ -211,7 +211,8 @@
     <x:Double x:Key="DockingSplitterGripThickness">1</x:Double>
 
     <!--
-        How long an auto-hidden panel takes to slide out from its edge, in milliseconds. Zero makes
+        How long an auto-hidden panel takes to slide out from its edge and back into it, in
+        milliseconds. Zero makes
         panels appear at once without turning the animation off across the application. Windows
         still has the last word: with animation effects off, nothing slides whatever this says.
     -->

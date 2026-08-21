@@ -18,6 +18,7 @@ public partial class AutoHideFlyout : Control
 {
     private ToolWindow? window;
     private Storyboard? slide;
+    private long slideGeneration;
 
     // Owned host for the shown window; survives template re-application (see ToolWindowContainer).
     private readonly Grid windowHost = new();
@@ -102,12 +103,45 @@ public partial class AutoHideFlyout : Control
     // in the automation tree from the first frame rather than at the end of the animation.
     internal void SlideIn(DockSide edge, TimeSpan duration)
     {
+        Slide(edge, duration, arriving: true, onCompleted: null);
+    }
+
+    // Slides the panel back into its edge and calls onCompleted once it is out of sight, which is
+    // where the caller puts the window away for real.
+    //
+    // Returns false when there is nothing to animate, and then the callback is not called either:
+    // the caller does its own work at once, which is the same thing it does when the animation is
+    // turned off. The callback of a slide that is cancelled — see CancelSlide — never runs at all,
+    // since cancelling means something else has taken over the flyout.
+    internal bool SlideOut(DockSide edge, TimeSpan duration, Action onCompleted)
+    {
+        return Slide(edge, duration, arriving: false, onCompleted);
+    }
+
+    // Stops a slide in progress and puts the panel back at rest where it belongs, unclipped and
+    // untransformed. Anything that needs the flyout right now calls this first: the slide is
+    // abandoned where it is rather than played out, and its callback is dropped.
+    internal void CancelSlide()
+    {
+        slideGeneration++;
         slide?.Stop();
         slide = null;
 
+        if (GetTemplateRoot() is FrameworkElement root)
+        {
+            root.RenderTransform = null;
+        }
+
+        Clip = null;
+    }
+
+    private bool Slide(DockSide edge, TimeSpan duration, bool arriving, Action? onCompleted)
+    {
+        CancelSlide();
+
         if (GetTemplateRoot() is not FrameworkElement root)
         {
-            return;
+            return false;
         }
 
         var vertical = edge is DockSide.Top or DockSide.Bottom;
@@ -116,10 +150,12 @@ public partial class AutoHideFlyout : Control
         {
             // Nothing to slide across: the dock site sizes the flyout before showing it, so this is
             // a flyout that is not on screen at all.
-            return;
+            return false;
         }
 
-        var from = edge is DockSide.Left or DockSide.Top ? -distance : distance;
+        var offset = edge is DockSide.Left or DockSide.Top ? -distance : distance;
+        var (from, to) = arriving ? (offset, 0.0) : (0.0, offset);
+
         var transform = new TranslateTransform();
         root.RenderTransform = transform;
         Clip = new RectangleGeometry { Rect = new Rect(0, 0, Width, Height) };
@@ -129,12 +165,14 @@ public partial class AutoHideFlyout : Control
         animation.KeyFrames.Add(new SplineDoubleKeyFrame
         {
             KeyTime = duration,
-            Value = 0,
+            Value = to,
 
-            // The curve Fluent uses for something arriving on screen: quick to start, settling at
-            // the end. Taken from the system rather than invented so the panel moves like the rest
-            // of the shell.
-            KeySpline = new KeySpline { ControlPoint1 = new Point(0.1, 0.9), ControlPoint2 = new Point(0.2, 1.0) },
+            // The curves Fluent uses: something arriving is quick to start and settles at the end,
+            // something leaving does the opposite. Taken from the system rather than invented, so
+            // the panel moves like the rest of the shell.
+            KeySpline = arriving
+                ? new KeySpline { ControlPoint1 = new Point(0.1, 0.9), ControlPoint2 = new Point(0.2, 1.0) }
+                : new KeySpline { ControlPoint1 = new Point(0.7, 0.0), ControlPoint2 = new Point(1.0, 0.5) },
         });
 
         Storyboard.SetTarget(animation, transform);
@@ -142,25 +180,25 @@ public partial class AutoHideFlyout : Control
 
         var storyboard = new Storyboard();
         storyboard.Children.Add(animation);
-        storyboard.Completed += (_, _) => EndSlide(root);
+
+        // The generation is what tells a natural end from a stale one: a stopped storyboard is not
+        // guaranteed to stay quiet, and a callback that ran after something else had taken the
+        // flyout over would put away a panel that is on screen again.
+        var generation = slideGeneration;
+        storyboard.Completed += (_, _) =>
+        {
+            if (generation != slideGeneration)
+            {
+                return;
+            }
+
+            CancelSlide();
+            onCompleted?.Invoke();
+        };
+
         slide = storyboard;
         storyboard.Begin();
-    }
-
-    // Puts the panel back exactly as it was before the slide. Also called when the flyout is
-    // released mid-animation, so a panel that is put away halfway through does not leave the next
-    // one clipped or shifted.
-    private void EndSlide(FrameworkElement? root)
-    {
-        slide?.Stop();
-        slide = null;
-
-        if ((root ?? GetTemplateRoot() as FrameworkElement) is { } child)
-        {
-            child.RenderTransform = null;
-        }
-
-        Clip = null;
+        return true;
     }
 
     private UIElement? GetTemplateRoot()
@@ -171,7 +209,7 @@ public partial class AutoHideFlyout : Control
     // Releases the hosted window so it can be re-docked or shown elsewhere.
     internal void Release()
     {
-        EndSlide(null);
+        CancelSlide();
 
         if (window is not null)
         {
