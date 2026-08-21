@@ -145,8 +145,29 @@ internal static class ScreenInterop
         internal int Y;
     }
 
+    // Whether Windows is currently animating client areas — the "Animation effects" switch in
+    // Settings, which battery saver and a remote session also turn off behind the user's back.
+    // Asked of the system every time rather than cached: the setting changes while an application
+    // runs, and a user who has just asked for stillness should not have to restart it.
+    //
+    // Read through SPI_GETCLIENTAREAANIMATION, the same source WinUI's own controls consult. A
+    // failure to read it is taken as a yes, which is the setting's own default.
+    internal static bool SystemAnimationsEnabled
+    {
+        get
+        {
+            const uint SPI_GETCLIENTAREAANIMATION = 0x1042;
+
+            return !SystemParametersInfo(SPI_GETCLIENTAREAANIMATION, 0, out var enabled, 0) || enabled;
+        }
+    }
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool GetCursorPos(out NativePoint point);
+
+    [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SystemParametersInfo(uint action, uint param, [MarshalAs(UnmanagedType.Bool)] out bool value, uint update);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool ClientToScreen(IntPtr hWnd, ref NativePoint point);

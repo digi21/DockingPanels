@@ -211,6 +211,13 @@
     <x:Double x:Key="DockingSplitterGripThickness">1</x:Double>
 
     <!--
+        How long an auto-hidden panel takes to slide out from its edge, in milliseconds. Zero makes
+        panels appear at once without turning the animation off across the application. Windows
+        still has the last word: with animation effects off, nothing slides whatever this says.
+    -->
+    <x:Double x:Key="DockingAutoHideSlideMilliseconds">150</x:Double>
+
+    <!--
         Icons. The glyphs are Segoe Fluent Icons code points; replacing the font family means
         replacing the glyphs with the corresponding code points of the new font.
     -->

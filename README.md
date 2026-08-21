@@ -30,8 +30,9 @@ pin buttons](https://raw.githubusercontent.com/Digi21/DockingPanels/main/assets/
 - Floating tool windows in real top-level windows, across monitors.
 - Docking *inside* a floating window: it takes drops with its own dock guides and holds a
   layout of split panes and tabs, like a small dock site.
-- Auto-hide (unpin) tool windows to the dock site edges, with a slide-in flyout, by the whole tab
-  group as the user's pin button does, or one panel at a time from the application.
+- Auto-hide (unpin) tool windows to the dock site edges, with a flyout that slides out from the
+  edge, by the whole tab group as the user's pin button does, or one panel at a time from the
+  application.
 - Save and restore the docking layout as XML (`DockSiteLayoutSerializer`), including the document
   area, auto-hidden groups, floating window positions and their inner layout.
 - Cancelable close, activation tracking, and layout-change events on `DockSite`.
@@ -243,6 +244,13 @@ into where it is.
 ```xml
 <docking:DockSite AutoHideOpenTrigger="Click">
 ```
+
+The panel slides out from its edge as it appears. `DockSite.IsAutoHideAnimated="False"` turns that
+off, and the `DockingAutoHideSlideMilliseconds` theme resource changes its length; a user who has
+turned animation effects off in Windows — in Settings, or through battery saver, or over a remote
+session — gets panels that appear at once whatever the application asked for. The slide is a render
+transform over content that is already laid out at its final size, so it costs no layout passes and
+the panel is on screen and in the automation tree from the first frame, not at the end.
 
 `AutoHideOpenTrigger` decides whether pointing is enough. `Pointer`, the default, is the preview
 above; `Click` means only a click opens a panel, so a pointer crossing the edge on its way somewhere

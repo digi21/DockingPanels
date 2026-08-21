@@ -156,6 +156,7 @@ These are the same in every theme, so declare them directly in `Application.Reso
 | `DockingDropPreviewOpacity` | `x:Double` | `0.3` |
 | `DockingSplitterThickness` | `x:Double` | `6` |
 | `DockingSplitterGripThickness` | `x:Double` | `1` |
+| `DockingAutoHideSlideMilliseconds` | `x:Double` | `150` |
 | `DockingPaneBorderThickness` | `Thickness` | `1` |
 | `DockingPaneCornerRadius` | `CornerRadius` | `0` |
 | `DockingDocumentTabCornerRadius` | `CornerRadius` | `4,4,0,0` |
@@ -171,6 +172,12 @@ draggable band — and `DockingSplitterGripThickness` is the line drawn inside i
 from the resources by the layout code, because a splitter is sized by the panel that arranges it
 rather than by a template of its own. That also means they are resolved once, on the first layout
 pass, and are not re-read afterwards.
+
+`DockingAutoHideSlideMilliseconds` is how long an auto-hidden panel takes to slide out from its
+edge. Zero makes panels appear at once while leaving the animation on everywhere else, which is
+what `DockSite.IsAutoHideAnimated="False"` does for a whole dock site. Neither is needed to respect
+a user who has turned animation effects off in Windows: the panel appears at once for them whatever
+these say.
 
 `DockingPinnedTabStripMaxWidth` and `DockingProvisionalTabStripMaxWidth` bound the two fixed ends of
 a document strip: the block of pinned tabs at its head and the provisional (preview) tab at its end.

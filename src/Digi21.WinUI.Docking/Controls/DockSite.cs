@@ -84,6 +84,13 @@ public partial class DockSite : Control, IDockSurface
         typeof(DockSite),
         new PropertyMetadata(Docking.AutoHideOpenTrigger.Pointer));
 
+    /// <summary>Identifies the <see cref="IsAutoHideAnimated"/> dependency property.</summary>
+    public static readonly DependencyProperty IsAutoHideAnimatedProperty = DependencyProperty.Register(
+        nameof(IsAutoHideAnimated),
+        typeof(bool),
+        typeof(DockSite),
+        new PropertyMetadata(true));
+
     /// <summary>Identifies the <see cref="AutoHideCloseDelay"/> dependency property.</summary>
     public static readonly DependencyProperty AutoHideCloseDelayProperty = DependencyProperty.Register(
         nameof(AutoHideCloseDelay),
@@ -258,6 +265,24 @@ public partial class DockSite : Control, IDockSurface
     {
         get => (AutoHideOpenTrigger)GetValue(AutoHideOpenTriggerProperty);
         set => SetValue(AutoHideOpenTriggerProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether an auto-hidden panel slides out from its edge
+    /// instead of appearing at once. Enabled by default.
+    /// </summary>
+    /// <remarks>
+    /// Windows has the last word: with animation effects turned off — in Settings, or by battery
+    /// saver, or because the application is running over a remote session — the panel appears at
+    /// once whatever this says. The slide is a render transform, so the panel's content is laid out
+    /// once, at its final size, and is on screen and in the automation tree from the first frame
+    /// rather than at the end of the animation. Its duration is the
+    /// <c>DockingAutoHideSlideMilliseconds</c> theme resource.
+    /// </remarks>
+    public bool IsAutoHideAnimated
+    {
+        get => (bool)GetValue(IsAutoHideAnimatedProperty);
+        set => SetValue(IsAutoHideAnimatedProperty, value);
     }
 
     /// <summary>Gets the currently active window, or <see langword="null"/> when none is active.</summary>
@@ -712,6 +737,17 @@ public partial class DockSite : Control, IDockSurface
         PositionAutoHideFlyout(group);
         autoHideFlyout.Visibility = Visibility.Visible;
         autoHideOpenReason = reason;
+
+        // Only a panel that has just come out slides. Repositioning one that is already showing —
+        // which happens whenever the area under it is resized — must not replay the animation.
+        if (IsAutoHideAnimated && ScreenInterop.SystemAnimationsEnabled)
+        {
+            var milliseconds = DockingThemeResources.Value("DockingAutoHideSlideMilliseconds", 150.0);
+            if (milliseconds > 0)
+            {
+                autoHideFlyout.SlideIn(group.Edge, TimeSpan.FromMilliseconds(milliseconds));
+            }
+        }
 
         // Pointing at a tab shows the panel without disturbing what the user is working in: making
         // it the active window would move the focus, fire WindowActivated, and take the previous

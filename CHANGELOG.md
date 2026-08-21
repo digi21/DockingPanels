@@ -47,6 +47,13 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Asking for the group a panel belongs with is a question the group's state does not change the
   answer to, and refusing was worst exactly where it mattered — a layout being loaded that has the
   group unpinned.
+- An auto-hidden panel now slides out from its edge instead of appearing at once, as it does in
+  Visual Studio. `DockSite.IsAutoHideAnimated` turns it off and the `DockingAutoHideSlideMilliseconds`
+  theme resource changes its length, but Windows has the last word: with animation effects off — in
+  Settings, or through battery saver, or over a remote session — the panel appears at once whatever
+  the application asked for. The slide is a render transform over content already laid out at its
+  final size, so it costs no layout passes and the panel is in the automation tree from the first
+  frame rather than at the end of the animation.
 - `DockSite.AutoHideOpenTrigger` decides what it takes for an auto-hidden panel to slide out:
   `Pointer`, the default and what the library has always done, or `Click`, where pointing at a tab
   does nothing and only a click opens the panel — so a pointer crossing the edge on its way
