@@ -77,6 +77,13 @@ public partial class DockSite : Control, IDockSurface
         typeof(DockSite),
         new PropertyMetadata(null));
 
+    /// <summary>Identifies the <see cref="AutoHideOpenTrigger"/> dependency property.</summary>
+    public static readonly DependencyProperty AutoHideOpenTriggerProperty = DependencyProperty.Register(
+        nameof(AutoHideOpenTrigger),
+        typeof(AutoHideOpenTrigger),
+        typeof(DockSite),
+        new PropertyMetadata(Docking.AutoHideOpenTrigger.Pointer));
+
     /// <summary>Identifies the <see cref="AutoHideCloseDelay"/> dependency property.</summary>
     public static readonly DependencyProperty AutoHideCloseDelayProperty = DependencyProperty.Register(
         nameof(AutoHideCloseDelay),
@@ -235,6 +242,22 @@ public partial class DockSite : Control, IDockSurface
     {
         get => (TimeSpan)GetValue(AutoHideCloseDelayProperty);
         set => SetValue(AutoHideCloseDelayProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets what it takes for an auto-hidden panel to slide out: pointing at its tab, which
+    /// is the default, or clicking it.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Docking.AutoHideOpenTrigger.Click"/> is for an application whose edges the
+    /// pointer crosses on its way to something else, and for users who would rather nothing moved
+    /// until they asked. It governs the pointer and nothing else: clicking a tab, activating a
+    /// window from code and selecting a tab through UI Automation open the panel either way.
+    /// </remarks>
+    public AutoHideOpenTrigger AutoHideOpenTrigger
+    {
+        get => (AutoHideOpenTrigger)GetValue(AutoHideOpenTriggerProperty);
+        set => SetValue(AutoHideOpenTriggerProperty, value);
     }
 
     /// <summary>Gets the currently active window, or <see langword="null"/> when none is active.</summary>
@@ -640,6 +663,11 @@ public partial class DockSite : Control, IDockSurface
     // later, so it is recorded here and nowhere else.
     internal void ShowAutoHideFlyout(ToolWindow window, AutoHideOpenReason reason)
     {
+        if (!AutoHideOpenPolicy.ShouldOpen(AutoHideOpenTrigger, reason))
+        {
+            return;
+        }
+
         if (autoHideFlyout is null || layoutRootPresenter is null
             || FindAutoHideGroup(window) is not { } group)
         {

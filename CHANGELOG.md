@@ -47,6 +47,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Asking for the group a panel belongs with is a question the group's state does not change the
   answer to, and refusing was worst exactly where it mattered — a layout being loaded that has the
   group unpinned.
+- `DockSite.AutoHideOpenTrigger` decides what it takes for an auto-hidden panel to slide out:
+  `Pointer`, the default and what the library has always done, or `Click`, where pointing at a tab
+  does nothing and only a click opens the panel — so a pointer crossing the edge on its way
+  somewhere else leaves the layout alone. It governs the pointer alone: clicking a tab, activating a
+  window from code and selecting a tab through UI Automation open the panel under either setting.
 - `DockingWindow.AutoHide(AutoHideScope)` collapses a single window to the edge, leaving the rest of
   its tab group docked; pinning it back returns it to that group as a tab. `AutoHide()` keeps taking
   the whole container, and so does the title bar's pin button: a user who drags panels into one

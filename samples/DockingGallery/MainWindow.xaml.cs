@@ -2,6 +2,7 @@ using Digi21.WinUI.Docking;
 using Digi21.WinUI.Docking.Serialization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 
 namespace DockingGallery;
 
@@ -177,6 +178,18 @@ public sealed partial class MainWindow : Window
             : ElementTheme.Dark;
 
         EventLog.Text = $"Theme: {RootGrid.RequestedTheme}";
+    }
+
+    // Visual Studio's own edges do not open on the way past: the panel waits to be asked for. Which
+    // it is depends on the application — an edge the pointer crosses often is one that should stay
+    // still — so it is a setting and not a rule.
+    private void OnToggleAutoHideTrigger(object sender, RoutedEventArgs e)
+    {
+        DockSite.AutoHideOpenTrigger = ((ToggleButton)sender).IsChecked == true
+            ? AutoHideOpenTrigger.Click
+            : AutoHideOpenTrigger.Pointer;
+
+        EventLog.Text = $"Auto-hide tabs open on: {DockSite.AutoHideOpenTrigger}";
     }
 
     private void OnWindowEvent(object? sender, DockingWindowEventArgs e)

@@ -241,6 +241,18 @@ focus with it — empty chrome, a splitter, a control that refuses focus — lea
 into where it is.
 
 ```xml
+<docking:DockSite AutoHideOpenTrigger="Click">
+```
+
+`AutoHideOpenTrigger` decides whether pointing is enough. `Pointer`, the default, is the preview
+above; `Click` means only a click opens a panel, so a pointer crossing the edge on its way somewhere
+else leaves the layout alone — worth having when the edges are near controls the user reaches for
+often, or for users who would rather nothing moved until they asked. It governs the pointer and
+nothing else: clicking a tab, `Activate()` from code, and a UI Automation client selecting the tab
+open the panel either way. A panel opened by clicking was asked for, so `AutoHideCloseDelay` has
+nothing to cushion under `Click`.
+
+```xml
 <docking:DockSite AutoHideCloseDelay="0:0:0.35">
 ```
 

@@ -33,6 +33,7 @@
                 Content="Load Layout"
                 IsEnabled="False" />
             <Button Click="OnToggleTheme" Content="Toggle Theme" />
+            <ToggleButton Click="OnToggleAutoHideTrigger" Content="Click To Open Panels" />
             <TextBlock
                 x:Name="EventLog"
                 VerticalAlignment="Center"
