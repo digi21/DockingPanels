@@ -164,8 +164,115 @@ internal static class LayoutManager
         var surface = LayoutTree.Locate(site, target)?.Surface ?? site;
         var wasOpen = window.IsOpen;
         Detach(site, window);
-        target.Items.Insert(ClampIndex(target, index), window);
+        target.Items.Insert(ClampIndex(target, window, index), window);
         FinishDock(surface, window, wasOpen);
+    }
+
+    // Attaches a window to a group that is collapsed to an edge, as a tab of that group.
+    //
+    // Attaching to a window is asking for the group it belongs with, and a group at an edge is
+    // still that group: the window joins it, comes out in the same flyout, and is pinned back into
+    // the layout with the rest of it. The alternative — refusing, because a collapsed group has no
+    // container to insert a tab into — would make "put this panel with its own" fail for no reason
+    // the caller could see, and exactly when a layout being loaded says the group is unpinned.
+    internal static void AttachToAutoHideGroup(DockSite site, ToolWindow window, AutoHideGroup group)
+    {
+        if (group.Windows.Contains(window))
+        {
+            return;
+        }
+
+        var wasOpen = window.IsOpen;
+        Detach(site, window);
+
+        window.IsRelocating = false;
+        window.DockSite = site;
+        window.State = DockingWindowState.AutoHide;
+        window.IsOpen = true;
+
+        site.RegisterWindow(window);
+        group.Windows.Add(window);
+        site.RefreshAutoHideStrips();
+        site.NotifyRelocated(window);
+
+        if (wasOpen)
+        {
+            site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
+        }
+        else
+        {
+            site.NotifyWindowOpened(window);
+        }
+    }
+
+    // Moves a document to the block its state puts it in, which is what pinning, unpinning and
+    // promoting a tab amount to once the flag itself has changed.
+    internal static void MoveToOwnBlock(DocumentWindow document)
+    {
+        if (document.Container is not DocumentContainer container)
+        {
+            return;
+        }
+
+        var from = container.Items.IndexOf(document);
+        if (from < 0)
+        {
+            return;
+        }
+
+        if (!Move(container, document, from, DocumentTabOrder.TargetIndexFor(container.TabZones(), from)))
+        {
+            // The document is already where its new state puts it — the first tab pinned, say, or
+            // the last one previewed — but its tab still has to move to the other strip and change
+            // how it is drawn.
+            container.RefreshTabs();
+        }
+    }
+
+    // Promotes every other provisional document of the group the given one is in, so that a group
+    // never shows two provisional tabs.
+    //
+    // Promoting, not closing: closing the document that was being previewed is what opening another
+    // one in preview does, and that is ReplaceProvisionalDocument's job. Setting the property by
+    // hand only moves tabs about.
+    internal static void PromoteOtherProvisionalDocuments(DocumentWindow document)
+    {
+        if (document.Container is not DocumentContainer container)
+        {
+            return;
+        }
+
+        foreach (var other in container.Items.OfType<DocumentWindow>().ToList())
+        {
+            if (!ReferenceEquals(other, document) && other.IsProvisional)
+            {
+                other.IsProvisional = false;
+            }
+        }
+    }
+
+    // Makes room for a new provisional document in a group: the one being previewed is closed, the
+    // way opening a second preview replaces the first in Visual Studio.
+    //
+    // Through DockingWindow.Close, so an application that will not let the document go — CanClose
+    // cleared, or a canceled WindowClosing — is obeyed; the document is promoted then, which leaves
+    // the group with one provisional tab either way.
+    private static void ReplaceProvisionalDocument(DocumentContainer container, DocumentWindow incoming)
+    {
+        foreach (var previous in container.Items.OfType<DocumentWindow>().ToList())
+        {
+            if (ReferenceEquals(previous, incoming) || !previous.IsProvisional)
+            {
+                continue;
+            }
+
+            previous.Close();
+
+            if (previous.IsOpen)
+            {
+                previous.IsProvisional = false;
+            }
+        }
     }
 
     // Moves a tab to another position inside its own container.
@@ -179,21 +286,59 @@ internal static class LayoutManager
 
         // The insertion index counts the window itself while it is still in the list.
         var to = Math.Clamp(index > from ? index - 1 : index, 0, container.Items.Count - 1);
+
+        // A document only ever moves within its own block: dragging a pinned tab past the block does
+        // not unpin it, nor does dragging a normal tab to the far left pin it. The provisional tab
+        // is the exception — dragging it is one of the gestures that promotes it — and the drop has
+        // promoted it by the time this runs.
+        if (container is DocumentContainer group)
+        {
+            to = DocumentTabOrder.ClampMove(group.TabZones(), from, to);
+        }
+
+        if (Move(container, window, from, to))
+        {
+            container.Select(window);
+        }
+    }
+
+    // Moves a tab from one position of its container to another, without announcing a close and a
+    // reopen on the way.
+    private static bool Move(DockingWindowContainer container, DockingWindow window, int from, int to)
+    {
         if (to == from)
         {
-            return;
+            return false;
         }
+
+        // Taking the window out of Items leaves the container without a selection for an instant,
+        // and it falls back to whichever tab is at that position; putting the window back does not
+        // undo that. Moving a tab must not change which one is shown.
+        var wasSelected = ReferenceEquals(container.SelectedItem, window);
 
         window.IsRelocating = true;
         container.Items.RemoveAt(from);
         container.Items.Insert(to, window);
         window.IsRelocating = false;
-        container.Select(window);
+
+        if (wasSelected)
+        {
+            container.Select(window);
+        }
+
         window.DockSite?.NotifyLayoutChanged(LayoutChangeKind.WindowDocked);
+        return true;
     }
 
-    private static int ClampIndex(DockingWindowContainer container, int index)
+    // Where a window joining a container lands: the end of the tabs, the position asked for, or —
+    // in a document group — the same bounded by the block the document belongs to.
+    private static int ClampIndex(DockingWindowContainer container, DockingWindow window, int index)
     {
+        if (container is DocumentContainer group)
+        {
+            return DocumentTabOrder.ClampInsertion(group.TabZones(), DocumentContainer.ZoneOf(window), index);
+        }
+
         return index < 0 ? container.Items.Count : Math.Clamp(index, 0, container.Items.Count);
     }
 
@@ -206,14 +351,14 @@ internal static class LayoutManager
 
     // Opens a document as a tab of the document area's active group, creating the first group when
     // the area is empty.
-    internal static void OpenDocument(DocumentHost host, DocumentWindow document)
+    internal static void OpenDocument(DocumentHost host, DocumentWindow document, bool provisional = false)
     {
         // The document area does not know its dock site: it is found through the tree it hangs
         // from, or through the document itself when it has been open before.
-        OpenDocument(host.FindSurface()?.Site ?? document.DockSite, host, document);
+        OpenDocument(host.FindSurface()?.Site ?? document.DockSite, host, document, provisional);
     }
 
-    internal static void OpenDocument(DockSite? site, DocumentHost host, DocumentWindow document)
+    internal static void OpenDocument(DockSite? site, DocumentHost host, DocumentWindow document, bool provisional = false)
     {
         if (site is null || LayoutTree.Locate(site, host)?.Surface is not { } surface)
         {
@@ -222,9 +367,19 @@ internal static class LayoutManager
 
         if (host.ActiveGroup is { } group)
         {
+            // Before the flag is set, so that the document being previewed is still the one this
+            // replaces, and before the attach, so that the tab lands in a settled strip.
+            if (provisional)
+            {
+                ReplaceProvisionalDocument(group, document);
+            }
+
+            document.IsProvisional = provisional;
             AttachAsTab(site, document, group);
             return;
         }
+
+        document.IsProvisional = provisional;
 
         var wasOpen = document.IsOpen;
         Detach(site, document);
@@ -346,32 +501,8 @@ internal static class LayoutManager
             return;
         }
 
-        var edge = NearestEdge(site, container);
-        var horizontalEdge = edge is DockSide.Left or DockSide.Right;
-        var size = horizontalEdge ? container.ActualWidth : container.ActualHeight;
-        if (!double.IsFinite(size) || size < 100)
-        {
-            size = 300;
-        }
-
+        var (edge, size, offset) = MeasureForAutoHide(site, container);
         var restoreHint = CaptureRestoreHint(site, container, edge);
-
-        // Position of the container along the edge, so its tabs land under where it was.
-        double offset = 0;
-        try
-        {
-            var reference = (UIElement?)site.LayoutRoot ?? site;
-            var origin = container.TransformToVisual(reference).TransformPoint(default);
-            offset = edge is DockSide.Left or DockSide.Right ? origin.Y : origin.X;
-            if (!double.IsFinite(offset) || offset < 0)
-            {
-                offset = 0;
-            }
-        }
-        catch (ArgumentException)
-        {
-            offset = 0;
-        }
 
         foreach (var window in windows)
         {
@@ -403,6 +534,87 @@ internal static class LayoutManager
             Offset = offset,
         });
         site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
+    }
+
+    // Collapses a single window to the nearest auto-hide edge of its container, leaving the rest
+    // of the container docked.
+    //
+    // The hint is taken from the container the window is leaving, which stays in the layout holding
+    // the other windows, so pinning the panel back returns it to that group as a tab — where the
+    // user left it — instead of rebuilding a pane of its own beside it.
+    //
+    // Only this window's CanAutoHide is consulted, unlike CanAutoHideContainer: nothing is being
+    // decided on behalf of its neighbours, which do not move.
+    internal static void AutoHideWindow(DockSite site, DockingWindow window)
+    {
+        if (window is not ToolWindow { CanAutoHide: true } tool || window.Container is not { } container)
+        {
+            return;
+        }
+
+        if (container.Items.Count <= 1)
+        {
+            // Nothing would be left behind, so this is the ordinary unpin of the whole pane, which
+            // also takes the emptied container out of the layout tree.
+            AutoHideContainer(site, container);
+            return;
+        }
+
+        var (edge, size, offset) = MeasureForAutoHide(site, container);
+        var restoreHint = CaptureRestoreHint(site, container, edge);
+
+        tool.IsRelocating = true;
+        container.Items.Remove(tool);
+        tool.IsRelocating = false;
+
+        tool.State = DockingWindowState.AutoHide;
+        tool.IsOpen = true;
+
+        if (ReferenceEquals(site.ActiveWindow, tool))
+        {
+            site.SetActiveWindow(null);
+        }
+
+        site.AddAutoHideGroup(new AutoHideGroup(edge, [tool], size)
+        {
+            RestoreHint = restoreHint,
+            Offset = offset,
+        });
+        site.NotifyLayoutChanged(LayoutChangeKind.WindowAutoHidden);
+    }
+
+    // Works out where a container's windows go when they are collapsed: which edge they land on,
+    // how big the flyout has to be, and where along the edge its tabs sit.
+    private static (DockSide Edge, double Size, double Offset) MeasureForAutoHide(
+        DockSite site,
+        DockingWindowContainer container)
+    {
+        var edge = NearestEdge(site, container);
+        var horizontalEdge = edge is DockSide.Left or DockSide.Right;
+        var size = horizontalEdge ? container.ActualWidth : container.ActualHeight;
+        if (!double.IsFinite(size) || size < 100)
+        {
+            size = 300;
+        }
+
+        // Position of the container along the edge, so its tabs land under where it was.
+        double offset = 0;
+        try
+        {
+            var reference = (UIElement?)site.LayoutRoot ?? site;
+            var origin = container.TransformToVisual(reference).TransformPoint(default);
+            offset = edge is DockSide.Left or DockSide.Right ? origin.Y : origin.X;
+            if (!double.IsFinite(offset) || offset < 0)
+            {
+                offset = 0;
+            }
+        }
+        catch (ArgumentException)
+        {
+            offset = 0;
+        }
+
+        return (edge, size, offset);
     }
 
     // Pins an auto-hide group back into the layout at the edge it collapsed from.
@@ -673,15 +885,20 @@ internal static class LayoutManager
         DockingWindowContainer container,
         int index = -1)
     {
-        var position = ClampIndex(container, index);
+        var position = index;
 
         foreach (var window in windows)
         {
+            var at = ClampIndex(container, window, position);
+
             window.IsRelocating = true;
-            container.Items.Insert(Math.Clamp(position, 0, container.Items.Count), window);
+            container.Items.Insert(at, window);
             window.IsRelocating = false;
             site.NotifyRelocated(window);
-            position++;
+
+            // Windows asked for at a position keep their order after it; windows appended stay
+            // appended, each to the end of the block it belongs to.
+            position = index < 0 ? -1 : at + 1;
         }
     }
 

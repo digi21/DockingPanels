@@ -77,6 +77,20 @@ public partial class DockSite : Control, IDockSurface
         typeof(DockSite),
         new PropertyMetadata(null));
 
+    /// <summary>Identifies the <see cref="AutoHideOpenTrigger"/> dependency property.</summary>
+    public static readonly DependencyProperty AutoHideOpenTriggerProperty = DependencyProperty.Register(
+        nameof(AutoHideOpenTrigger),
+        typeof(AutoHideOpenTrigger),
+        typeof(DockSite),
+        new PropertyMetadata(Docking.AutoHideOpenTrigger.Pointer));
+
+    /// <summary>Identifies the <see cref="IsAutoHideAnimated"/> dependency property.</summary>
+    public static readonly DependencyProperty IsAutoHideAnimatedProperty = DependencyProperty.Register(
+        nameof(IsAutoHideAnimated),
+        typeof(bool),
+        typeof(DockSite),
+        new PropertyMetadata(true));
+
     /// <summary>Identifies the <see cref="AutoHideCloseDelay"/> dependency property.</summary>
     public static readonly DependencyProperty AutoHideCloseDelayProperty = DependencyProperty.Register(
         nameof(AutoHideCloseDelay),
@@ -92,6 +106,7 @@ public partial class DockSite : Control, IDockSurface
     private readonly HashSet<IRelocatable> pendingRelocations = [];
     private bool relocationFlushScheduled;
     private AutoHideOpenReason autoHideOpenReason;
+    private bool autoHideCollapsing;
     private DispatcherQueueTimer? autoHideCollapseTimer;
     private AutoHideFlyout? autoHideFlyout;
     private ContentPresenter? layoutRootPresenter;
@@ -209,6 +224,13 @@ public partial class DockSite : Control, IDockSurface
     public event EventHandler<LayoutChangedEventArgs>? LayoutChanged;
 
     /// <summary>
+    /// Raised just before a document tab shows its context menu, with the entries the library
+    /// provides already in <see cref="DocumentTabContextMenuEventArgs.Items"/>, so an application
+    /// can add its own commands, reorder them or replace the menu.
+    /// </summary>
+    public event EventHandler<DocumentTabContextMenuEventArgs>? DocumentTabContextMenuOpening;
+
+    /// <summary>
     /// Gets or sets the root element of the docking layout tree.
     /// </summary>
     public UIElement? Child
@@ -228,6 +250,40 @@ public partial class DockSite : Control, IDockSurface
     {
         get => (TimeSpan)GetValue(AutoHideCloseDelayProperty);
         set => SetValue(AutoHideCloseDelayProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets what it takes for an auto-hidden panel to slide out: pointing at its tab, which
+    /// is the default, or clicking it.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Docking.AutoHideOpenTrigger.Click"/> is for an application whose edges the
+    /// pointer crosses on its way to something else, and for users who would rather nothing moved
+    /// until they asked. It governs the pointer and nothing else: clicking a tab, activating a
+    /// window from code and selecting a tab through UI Automation open the panel either way.
+    /// </remarks>
+    public AutoHideOpenTrigger AutoHideOpenTrigger
+    {
+        get => (AutoHideOpenTrigger)GetValue(AutoHideOpenTriggerProperty);
+        set => SetValue(AutoHideOpenTriggerProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether an auto-hidden panel slides out from its edge
+    /// instead of appearing at once. Enabled by default.
+    /// </summary>
+    /// <remarks>
+    /// Windows has the last word: with animation effects turned off — in Settings, or by battery
+    /// saver, or because the application is running over a remote session — the panel appears at
+    /// once whatever this says. The slide is a render transform, so the panel's content is laid out
+    /// once, at its final size, and is on screen and in the automation tree from the first frame
+    /// rather than at the end of the animation. Its duration is the
+    /// <c>DockingAutoHideSlideMilliseconds</c> theme resource.
+    /// </remarks>
+    public bool IsAutoHideAnimated
+    {
+        get => (bool)GetValue(IsAutoHideAnimatedProperty);
+        set => SetValue(IsAutoHideAnimatedProperty, value);
     }
 
     /// <summary>Gets the currently active window, or <see langword="null"/> when none is active.</summary>
@@ -383,37 +439,77 @@ public partial class DockSite : Control, IDockSurface
     /// Docks a tool window as a new pane beside the container of another window.
     /// </summary>
     /// <param name="window">The window to dock.</param>
-    /// <param name="target">An open window whose container is the dock target.</param>
+    /// <param name="target">A window that is placed in the layout, whose container is the dock target.</param>
     /// <param name="side">The side of the target to dock to.</param>
+    /// <exception cref="InvalidOperationException">
+    /// The target has no container to dock beside: it is closed, it is collapsed to an auto-hide
+    /// edge, or it is a window a layout being loaded has not put back yet. Test
+    /// <see cref="DockingWindow.IsPlaced"/> — not <see cref="DockingWindow.IsOpen"/> — before
+    /// docking against a window whose state is not yours to know.
+    /// </exception>
     public void DockToolWindow(ToolWindow window, DockingWindow target, DockSide side)
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(target);
 
-        if (target.Container is not { } container)
+        if (PaneOf(target) is not { } container)
         {
-            throw new InvalidOperationException("The target window is not open, so there is no container to dock beside.");
+            throw new InvalidOperationException(
+                FindAutoHideGroup(target) is not null
+                    ? "The target window is collapsed to an auto-hide edge, so it has no pane to dock beside. Attach the window to it instead, or pin the target back first."
+                    : "The target window is not placed in the layout, so there is no container to dock beside.");
         }
 
         LayoutManager.DockRelativeTo(this, window, container, side);
     }
 
     /// <summary>
-    /// Attaches a tool window as a new tab in the container of another window.
+    /// Attaches a tool window as a new tab beside another window, wherever that window is: in its
+    /// container, or in its group if the group is collapsed to an auto-hide edge.
     /// </summary>
     /// <param name="window">The window to attach.</param>
-    /// <param name="target">An open window whose container receives the new tab.</param>
+    /// <param name="target">A window that is placed in the layout, whose group receives the new tab.</param>
+    /// <remarks>
+    /// Attaching to a collapsed group leaves the new window collapsed with it: it becomes a tab of
+    /// the same edge group, opens in the same flyout, and is pinned back into the layout with the
+    /// rest of it. Asking for the group a window belongs with is a question the group's state does
+    /// not change the answer to.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// The target is not placed in the layout: it is closed, or it is a window a layout being
+    /// loaded has not put back yet. Test <see cref="DockingWindow.IsPlaced"/> — not
+    /// <see cref="DockingWindow.IsOpen"/> — before attaching to a window whose state is not yours
+    /// to know.
+    /// </exception>
     public void AttachToolWindow(ToolWindow window, DockingWindow target)
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(target);
 
-        if (target.Container is not { } container)
+        if (PaneOf(target) is { } container)
         {
-            throw new InvalidOperationException("The target window is not open, so there is no container to attach to.");
+            LayoutManager.AttachAsTab(this, window, container);
+            return;
         }
 
-        LayoutManager.AttachAsTab(this, window, container);
+        if (FindAutoHideGroup(target) is { } group)
+        {
+            LayoutManager.AttachToAutoHideGroup(this, window, group);
+            return;
+        }
+
+        throw new InvalidOperationException("The target window is not placed in the layout, so there is nothing to attach it to.");
+    }
+
+    // The pane a window is in, and only when that pane is still part of the layout. A window a load
+    // has taken out and not put back yet still holds the container it was in, and inserting a tab
+    // into that one would show it nowhere: refusing is what turns a panel that silently disappears
+    // into a mistake the caller can see.
+    private DockingWindowContainer? PaneOf(DockingWindow target)
+    {
+        return target.Container is { } container && LayoutTree.Locate(this, container) is not null
+            ? container
+            : null;
     }
 
     /// <summary>
@@ -422,7 +518,19 @@ public partial class DockSite : Control, IDockSurface
     /// </summary>
     /// <param name="document">The document to open.</param>
     /// <exception cref="InvalidOperationException">The layout has no <see cref="DocumentHost"/>.</exception>
-    public void OpenDocument(DocumentWindow document)
+    public void OpenDocument(DocumentWindow document) => OpenDocument(document, provisional: false);
+
+    /// <summary>
+    /// Opens a document in the document area, optionally as the provisional (preview) document of
+    /// its active group.
+    /// </summary>
+    /// <param name="document">The document to open.</param>
+    /// <param name="provisional">
+    /// <see langword="true"/> to open it in preview, which closes the document the group was
+    /// previewing; <see langword="false"/> to open an ordinary tab.
+    /// </param>
+    /// <exception cref="InvalidOperationException">The layout has no <see cref="DocumentHost"/>.</exception>
+    public void OpenDocument(DocumentWindow document, bool provisional)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -431,7 +539,7 @@ public partial class DockSite : Control, IDockSurface
             throw new InvalidOperationException("The layout of this dock site has no DocumentHost to open documents in.");
         }
 
-        LayoutManager.OpenDocument(this, host, document);
+        LayoutManager.OpenDocument(this, host, document, provisional);
     }
 
     /// <summary>
@@ -567,6 +675,10 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
+    // The auto-hidden window whose panel is currently out, if any.
+    internal ToolWindow? AutoHideFlyoutWindow =>
+        autoHideFlyout is { Visibility: Visibility.Visible } flyout ? flyout.Window : null;
+
     // Shows the auto-hide flyout for the given window, as if its tab had been clicked.
     internal void ShowAutoHideFlyout(ToolWindow window)
     {
@@ -577,6 +689,11 @@ public partial class DockSite : Control, IDockSurface
     // later, so it is recorded here and nowhere else.
     internal void ShowAutoHideFlyout(ToolWindow window, AutoHideOpenReason reason)
     {
+        if (!AutoHideOpenPolicy.ShouldOpen(AutoHideOpenTrigger, reason))
+        {
+            return;
+        }
+
         if (autoHideFlyout is null || layoutRootPresenter is null
             || FindAutoHideGroup(window) is not { } group)
         {
@@ -595,6 +712,10 @@ public partial class DockSite : Control, IDockSurface
         }
 
         CancelAutoHideCollapse();
+
+        // A panel asked for again while it was sliding away comes straight back. It was never
+        // released, so it is still the one the flyout is showing, and the fast path below applies.
+        CancelAutoHideSlide();
 
         if (ReferenceEquals(autoHideFlyout.Window, window))
         {
@@ -622,6 +743,13 @@ public partial class DockSite : Control, IDockSurface
         autoHideFlyout.Visibility = Visibility.Visible;
         autoHideOpenReason = reason;
 
+        // Only a panel that has just come out slides. Repositioning one that is already showing —
+        // which happens whenever the area under it is resized — must not replay the animation.
+        if (AutoHideSlideDuration is { Ticks: > 0 } duration)
+        {
+            autoHideFlyout.SlideIn(group.Edge, duration);
+        }
+
         // Pointing at a tab shows the panel without disturbing what the user is working in: making
         // it the active window would move the focus, fire WindowActivated, and take the previous
         // window's title bar out of its active state, all for a preview the pointer dismisses.
@@ -631,11 +759,72 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
+    // How long an auto-hidden panel takes to slide, or zero when it must not slide at all: the
+    // application turned the animation off, the theme set it to nothing, or Windows has animation
+    // effects off — which the application does not get to overrule.
+    private TimeSpan AutoHideSlideDuration
+    {
+        get
+        {
+            if (!IsAutoHideAnimated || !ScreenInterop.SystemAnimationsEnabled)
+            {
+                return TimeSpan.Zero;
+            }
+
+            var milliseconds = DockingThemeResources.Value("DockingAutoHideSlideMilliseconds", 150.0);
+
+            return milliseconds > 0 ? TimeSpan.FromMilliseconds(milliseconds) : TimeSpan.Zero;
+        }
+    }
+
+    // Puts the panel away the way the user sees it go: sliding back into the edge it came out of,
+    // and released only once it is out of sight.
+    //
+    // Only the dismissal rule comes through here. Everything else that closes the flyout — a layout
+    // being loaded, a window being closed or re-docked, another panel coming out — calls
+    // HideAutoHideFlyout, which cancels the slide and does the work at once. An animation is a
+    // courtesy to the eye; nothing that needs the window back may wait for one.
+    private void CollapseAutoHideFlyout()
+    {
+        if (autoHideCollapsing)
+        {
+            // Already on its way out. A second trigger must not restart the slide, which would look
+            // like the panel jumping back out to leave again.
+            return;
+        }
+
+        if (autoHideFlyout?.Window is not { } shown
+            || AutoHideSlideDuration is not { Ticks: > 0 } duration
+            || FindAutoHideGroup(shown) is not { } group
+            || !autoHideFlyout.SlideOut(group.Edge, duration, HideAutoHideFlyout))
+        {
+            HideAutoHideFlyout();
+            return;
+        }
+
+        autoHideCollapsing = true;
+    }
+
+    // Abandons a collapse that is under way, leaving the panel on screen where it is. The panel was
+    // never released, so there is nothing to bring back.
+    private void CancelAutoHideSlide()
+    {
+        if (autoHideCollapsing)
+        {
+            autoHideCollapsing = false;
+            autoHideFlyout?.CancelSlide();
+        }
+    }
+
     // Called by the flyout and the auto-hide tabs when the pointer arrives. Anything the pointer
     // can reach on its way between the tab and the panel counts as staying in.
     internal void NotifyAutoHidePointerEntered()
     {
         CancelAutoHideCollapse();
+
+        // The pointer came back while the panel was sliding away. It stays, and it stays where it
+        // is rather than sliding back out from an edge it never reached.
+        CancelAutoHideSlide();
     }
 
     // Called when the pointer leaves the flyout or a tab. The move from one to the other raises an
@@ -690,7 +879,7 @@ public partial class DockSite : Control, IDockSurface
 
         if (AutoHideDismissPolicy.ShouldCollapse(autoHideOpenReason, trigger, IsFocusInsideAutoHideFlyout()))
         {
-            HideAutoHideFlyout();
+            CollapseAutoHideFlyout();
         }
     }
 
@@ -765,10 +954,17 @@ public partial class DockSite : Control, IDockSurface
         }
     }
 
-    // Hides the auto-hide flyout if it is open.
+    // Hides the auto-hide flyout if it is open, at once and without ceremony. This is what puts the
+    // window back in its group, so it is also the end of an animated collapse.
     internal void HideAutoHideFlyout()
     {
         CancelAutoHideCollapse();
+
+        // Whatever the flyout was doing, it is over. Called from the end of a slide, this is the
+        // tidy-up of the very slide that called it; called from anywhere else, it is what stops one
+        // in its tracks.
+        autoHideCollapsing = false;
+        autoHideFlyout?.CancelSlide();
 
         if (autoHideFlyout?.Window is { } shown)
         {
@@ -913,6 +1109,13 @@ public partial class DockSite : Control, IDockSurface
             ActiveDocument = document;
         }
 
+        // A floating window is named after the window it is showing, which is the active one while
+        // that window is hosted in it. Only now is it known.
+        foreach (var host in floatingHosts)
+        {
+            host.RefreshCaption();
+        }
+
         if (previous is not null)
         {
             previous.IsActive = false;
@@ -954,6 +1157,12 @@ public partial class DockSite : Control, IDockSurface
 
         WindowClosed?.Invoke(this, new DockingWindowEventArgs(window));
         LayoutChanged?.Invoke(this, new LayoutChangedEventArgs(LayoutChangeKind.WindowClosed));
+    }
+
+    // Lets the application edit the entries of a document tab's context menu before it opens.
+    internal void RaiseDocumentTabContextMenuOpening(DocumentWindow document, IList<MenuFlyoutItemBase> items)
+    {
+        DocumentTabContextMenuOpening?.Invoke(this, new DocumentTabContextMenuEventArgs(document, items));
     }
 
     internal void NotifyLayoutChanged(LayoutChangeKind kind)

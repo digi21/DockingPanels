@@ -22,11 +22,17 @@ pin buttons](https://raw.githubusercontent.com/Digi21/DockingPanels/main/assets/
 - Multiple tool windows in one container become tabs; switching tabs preserves control state.
 - Tabbed MDI document area (`DocumentHost`): documents open as tabs, split into as many tab
   groups as needed, are reordered by dragging their tabs, and can be floated out.
+- Pinned document tabs, as in Visual Studio: they keep their own block at the head of the strip,
+  stay in view when it overflows, and survive a mass close.
+- A provisional (preview) document tab, as in Visual Studio: one at a time at the end of the strip,
+  in italics, replaced by the next preview until something promotes it.
 - Drag & drop re-docking with Visual Studio-style dock guides and drop previews.
 - Floating tool windows in real top-level windows, across monitors.
 - Docking *inside* a floating window: it takes drops with its own dock guides and holds a
   layout of split panes and tabs, like a small dock site.
-- Auto-hide (unpin) tool windows to the dock site edges, with a slide-in flyout.
+- Auto-hide (unpin) tool windows to the dock site edges, with a flyout that slides out from the
+  edge, by the whole tab group as the user's pin button does, or one panel at a time from the
+  application.
 - Save and restore the docking layout as XML (`DockSiteLayoutSerializer`), including the document
   area, auto-hidden groups, floating window positions and their inner layout.
 - Cancelable close, activation tracking, and layout-change events on `DockSite`.
@@ -34,6 +40,9 @@ pin buttons](https://raw.githubusercontent.com/Digi21/DockingPanels/main/assets/
   `SwapChainPanel`, a `WebView2` or anything else with a life cycle of its own.
 - Light, dark, and high-contrast aware out of the box (built on WinUI theme resources), and
   recolorable through the library's own brush keys.
+- Every tab reachable by UI Automation: tabs report themselves as tab items with the invoke and
+  selection-item patterns, and their pane as the selection container, so a screen reader or an
+  automated test can bring a window to the front by name instead of by screen coordinate.
 
 ## Requirements
 
@@ -117,6 +126,58 @@ var active = dockSite.ActiveDocument;       // last activated document
 var open = dockSite.DocumentHost?.Documents;     // documents across all tab groups
 ```
 
+#### Pinned tabs
+
+A document whose `IsPinned` is set keeps its tab at the head of its group, in a block of its own
+with its own order, outside the part of the strip that scrolls: pinning a tab is how the user keeps
+it in reach while opening any number of others. Dragging never crosses the two blocks, so pinning
+stays an explicit gesture — the tab's pin button, or its context menu.
+
+```csharp
+document.Pin();                             // or document.IsPinned = true, in XAML or a binding
+document.Unpin();
+
+// What a "Close All Tabs" command calls. Pinned documents survive every scope but All.
+dockSite.DocumentHost?.CloseDocuments(DocumentCloseScope.AllButPinned);
+```
+
+Right-clicking a tab shows the pin and close commands. `DockSite.DocumentTabContextMenuOpening`
+hands the application that list of entries before the menu opens, to add its own commands, reorder
+them, or empty it and put its own menu there.
+
+> `IsPinned` is a document's tab, not a tool window's pin button: that one auto-hides the panel and
+> is `CanAutoHide` / `AutoHide()` / `Dock()`. Visual Studio draws both with a pushpin; the library
+> keeps the two apart everywhere, theme keys included.
+
+#### The provisional (preview) tab
+
+A document opened in preview takes the tab at the **end** of the strip, in italics, one per group:
+opening another in preview replaces it instead of leaving a tab behind, which is what makes browsing
+through files with single clicks bearable. It is promoted to an ordinary tab — moving left with the
+rest — by double-clicking it, dragging it, pinning it, or "keep open" in its context menu.
+
+```csharp
+dockSite.OpenDocument(document, provisional: true);   // replaces the one being previewed
+dockSite.OpenDocument(document);                      // an ordinary tab, and promotes it if it was the preview
+
+document.KeepOpen();                                  // or document.IsProvisional = false
+```
+
+Which documents open in preview is the application's decision, exactly as in Visual Studio, where it
+is a single click in Solution Explorer, Go To Definition, a search result or the debugger.
+
+**Editing the document is the one promotion gesture the library cannot own**: the content is yours,
+so nothing in the library can tell an edit from a keystroke a read-only viewer handles itself. Call
+`KeepOpen()` when your document becomes dirty — one line where you already track that:
+
+```csharp
+editor.TextChanged += (_, _) => document.KeepOpen();
+```
+
+The document being replaced is closed through the usual path, so `CanClose` and a canceled
+`DockSite.WindowClosing` hold: a document that refuses to close is promoted instead, and the group
+is left with one provisional tab either way.
+
 An application without documents can use `Workspace` instead: a plain content area that tool
 windows dock around. Both can appear in the same layout.
 
@@ -162,15 +223,46 @@ when there is no floating window open.
 ### Auto-hide
 
 ```csharp
-outputWindow.AutoHide();   // collapse the whole pane to its nearest edge
-outputWindow.Dock();       // pin it back where it was
+outputWindow.AutoHide();                          // collapse the whole pane to its nearest edge
+outputWindow.AutoHide(AutoHideScope.Window);      // collapse only this panel, leave its tab group docked
+outputWindow.Dock();                              // pin it back where it was
 ```
+
+`AutoHideScope.Window` is the programmatic way to unpin a single panel out of a shared tab group:
+the panels it shares the group with stay docked, and pinning it back returns it to that group as a
+tab, where the user left it. Only that window's own `CanAutoHide` is consulted, since nothing is
+being decided for its neighbours. Unpinning from the title bar stays a whole-group gesture — a user
+who dragged panels into one group means them to travel together — so this is for the application
+that hides a panel of its own accord, when the mode it belongs to ends.
 
 Unpinned windows become tabs on the dock site edge. Pointing at a tab slides its window over the
 layout as a preview, which is not activated and slides back when the pointer leaves; clicking the
 tab opens it for real, and then it stays until the focus goes somewhere else. A click that takes no
 focus with it — empty chrome, a splitter, a control that refuses focus — leaves a panel being typed
 into where it is.
+
+```xml
+<docking:DockSite AutoHideOpenTrigger="Click">
+```
+
+The panel slides out from its edge as it appears, and back into it when it is put away — the second
+half is what tells the user where the panel went. `DockSite.IsAutoHideAnimated="False"` turns both
+off, and the `DockingAutoHideSlideMilliseconds` theme resource changes their length; a user who has
+turned animation effects off in Windows — in Settings, or through battery saver, or over a remote
+session — gets panels that appear at once whatever the application asked for. The slide is a render
+transform over content that is already laid out at its final size, so it costs no layout passes and
+the panel is on screen and in the automation tree from the first frame, not at the end. Only the
+user's own dismissal waits for the animation: anything that needs the window back at once — a layout
+being loaded, a window being closed or re-docked, `Dock()`, another panel coming out — takes it
+immediately, and a panel claimed again on its way out simply stays.
+
+`AutoHideOpenTrigger` decides whether pointing is enough. `Pointer`, the default, is the preview
+above; `Click` means only a click opens a panel, so a pointer crossing the edge on its way somewhere
+else leaves the layout alone — worth having when the edges are near controls the user reaches for
+often, or for users who would rather nothing moved until they asked. It governs the pointer and
+nothing else: clicking a tab, `Activate()` from code, and a UI Automation client selecting the tab
+open the panel either way. A panel opened by clicking was asked for, so `AutoHideCloseDelay` has
+nothing to cushion under `Click`.
 
 ```xml
 <docking:DockSite AutoHideCloseDelay="0:0:0.35">
@@ -190,6 +282,15 @@ depending on the user leaving the pin alone.
 An application that sets up its initial layout from the dock site's `Loaded` can call these
 straight from there, as many times as it likes: a window whose own `Loaded` has not run yet is not
 attached to its dock site at that moment, and the operation waits for it instead of being dropped.
+
+That wait is worth knowing about when the same code goes on to capture the layout. `AutoHide()`,
+`Float()` and `Dock()` are deferred, not queued behind the save: a `SaveToString` on the next line
+describes the arrangement the calls were about to change, not the one they produce. Capture it from
+the window's own `Loaded`, or from a low-priority dispatcher callback:
+
+```csharp
+DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => defaultLayout = serializer.SaveToString(DockSite));
+```
 
 ### Content with a life cycle of its own
 
@@ -272,9 +373,9 @@ Restoring the saved layout from the dock site's `Loaded` works, which is where a
 usually has one to restore into. Every element the load moves raises `Relocated` once the tree has
 settled — see below — so content with a life cycle of its own comes back with it.
 
-Only the structure is saved (splits, proportions, tab order, selection, the document tab groups,
-auto-hidden groups, the screen bounds of floating windows together with the layout inside them,
-and `CanAutoHide` for the windows that forbid it). Window instances and their content are matched by id and reused, so control state survives
+Only the structure is saved (splits, proportions, tab order, selection, the document tab groups
+with which of their tabs are pinned and which one is provisional, auto-hidden groups, the screen bounds of floating windows
+together with the layout inside them, and `CanAutoHide` for the windows that forbid it). Window instances and their content are matched by id and reused, so control state survives
 a reload. Floating windows are restored on a monitor that exists, so a layout saved with two
 monitors still loads on one. Layouts written by earlier versions are still read.
 
@@ -282,8 +383,8 @@ A load rebuilds the layout out of the elements it is already made of, so reloadi
 has not changed moves nothing at all.
 
 What happens to windows that are open but absent from the loaded layout is decided by
-`UnresolvedWindowBehavior`: `Close` (the default) closes them, `DockLeft` keeps them at the left
-edge. Two things are never dropped, whatever the setting says:
+`UnresolvedWindowBehavior`: `Close` (the default) closes them, `DockLeft` keeps them. Two things are
+never dropped, whatever the setting says:
 
 - Windows declared with `CanClose="False"`. The user cannot close them from the interface, so a
   layout file does not get to either — there would be no way back, and saving the layout on the
@@ -291,6 +392,72 @@ edge. Two things are never dropped, whatever the setting says:
 - The `Workspace` and `DocumentHost` elements declared in XAML. They belong to the application
   rather than to the layout, so a layout that does not mention them gets them back at the edge of
   whatever it does describe.
+
+A window kept open this way is docked as a new pane at its `PreferredDockSide`, which is the left
+edge unless the window says otherwise:
+
+```xml
+<docking:ToolWindow x:Name="Camera" Title="Camera" CanClose="False" PreferredDockSide="Bottom" />
+```
+
+Where it lands is the application's business, not the layout file's — the file never heard of this
+window. This is what a panel added to a new version needs: users upgrading have a saved layout from
+before it existed, and without a preference it would appear on the left however far from there the
+application puts everything else. For placement a single edge cannot express — rejoining the tab
+group the panel belongs with — handle `UnresolvedWindowDocking`, which is raised for every window
+being kept open, just before it is placed:
+
+```csharp
+serializer.UnresolvedWindowDocking += (_, e) =>
+{
+    // IsPlaced, not IsOpen: a sibling this same load is also rescuing is open and still out of
+    // the layout. Attaching to one that is not placed throws.
+    if (e.Window == Camera && Imu.IsPlaced)
+    {
+        DockSite.AttachToolWindow(Camera, Imu);   // as a tab of the group it belongs with
+        e.Handled = true;
+    }
+};
+```
+
+One load can keep several windows open, and it places them one at a time, in the order the dock site
+registered them — tool windows first, then documents. So a handler is looking at a layout that is
+still being assembled: `IsOpen` is true for every window being rescued, including the ones still
+waiting, and `IsPlaced` is what says whether there is anything to dock against yet.
+
+`IsPlaced` is not `Container is not null`, in either direction, and both differences bite in this
+handler:
+
+| The sibling is… | `IsOpen` | `Container` | `IsPlaced` | `AttachToolWindow` |
+| --- | --- | --- | --- | --- |
+| a tab of a pane | `true` | the pane | `true` | joins the pane |
+| collapsed to an auto-hide edge | `true` | `null` | `true` | joins the collapsed group |
+| still waiting to be rescued | `true` | the pane it left, now abandoned | `false` | throws |
+| closed | `false` | `null` | `false` | throws |
+
+The collapsed row is not an edge case: an application whose panels are unpinned when the layout is
+saved reloads into exactly that, so a handler written for panels in plain sight ignores the group it
+should be joining and opens a docked strip beside a set of tabs at the edge. Attaching to a
+collapsed group leaves the new panel collapsed with it — a tab of that group, out in the same
+flyout, pinned back into the layout with the rest of it — which is what "with its own" means when
+its own are at the edge.
+
+Nothing has to be placed for this to work out. When no sibling is available yet, leave `Handled`
+alone and let the window fall to its `PreferredDockSide`: it is placed by the time the next one is
+rescued, and the rest attach to it.
+
+```csharp
+serializer.UnresolvedWindowDocking += (_, e) =>
+{
+    if (e.Window is ToolWindow panel && Panels.FirstOrDefault(p => p.IsPlaced) is { } anchor)
+    {
+        DockSite.AttachToolWindow(panel, anchor);   // docked or collapsed, wherever the group is
+        e.Handled = true;
+    }
+
+    // Otherwise: not handled, so it docks at its PreferredDockSide and anchors the ones after it.
+};
+```
 
 ### Theming
 
@@ -319,6 +486,45 @@ into `Application.Resources`, which is the only place WinUI honors theme diction
 
 The full list of brushes and metrics, and how to retemplate a control, is in
 [the theming guide](https://github.com/Digi21/DockingPanels/blob/main/docs/theming.md).
+
+### Automating the interface
+
+Every tab is reachable by UI Automation, which is what lets a screen reader — or an automated test —
+bring a window to the front by name instead of by screen coordinate. A tool window's tab, a
+document's tab and an auto-hide tab report `ControlType.TabItem` and answer to the invoke and
+selection-item patterns; the pane or the strip holding them reports `ControlType.Tab` with the
+selection pattern, names the selected tab, and is what a tab points at as its selection container.
+The names come from each window's `Title`.
+
+This matters beyond convenience: only the window a pane is showing is in the visual tree, so nothing
+inside the others is in the automation tree either. Selecting a tab is what puts its window's
+content within reach, and it does exactly what clicking the tab does — including opening the flyout
+of an auto-hidden panel, whose content is not realized at all until it slides out.
+
+```powershell
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$AE = [System.Windows.Automation.AutomationElement]
+$TS = [System.Windows.Automation.TreeScope]
+
+$app = $AE::RootElement.FindFirst($TS::Children,
+    (New-Object System.Windows.Automation.PropertyCondition($AE::ProcessIdProperty, $pid)))
+
+# Descendants, not Children: this also reaches inside the floating windows.
+$tab = $app.FindAll($TS::Descendants, [System.Windows.Automation.Condition]::TrueCondition) |
+    Where-Object { $_.Current.Name -eq 'Classifications' -and
+                   $_.Current.ControlType.ProgrammaticName -eq 'ControlType.TabItem' } |
+    Select-Object -First 1
+
+$tab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+```
+
+Two things about the tree are worth knowing before hunting for a floating window:
+
+- A floating window is *owned* by the main one, so in the automation tree it is a descendant of it,
+  not a sibling under `RootElement`. Enumerating the children of the root does not find it.
+- A floating window's name is the title of the panel showing in it, and changes as its tabs are
+  selected. With several panels inside, looking for it by the name of one that is behind finds
+  nothing — look for the tab, not for the window.
 
 ## Documentation
 

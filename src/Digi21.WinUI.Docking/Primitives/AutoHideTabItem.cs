@@ -1,6 +1,7 @@
 using Digi21.WinUI.Docking.Interaction;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -55,6 +56,9 @@ public partial class AutoHideTabItem : Control
     }
 
     private bool IsVertical => Edge is DockSide.Left or DockSide.Right;
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new AutoHideTabItemAutomationPeer(this);
 
     /// <inheritdoc />
     protected override void OnApplyTemplate()

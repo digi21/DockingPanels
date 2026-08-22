@@ -190,6 +190,8 @@
     <x:Double x:Key="DockingTitleBarHeight">32</x:Double>
     <x:Double x:Key="DockingCaptionHeight">32</x:Double>
     <x:Double x:Key="DockingDocumentTabHeight">30</x:Double>
+    <x:Double x:Key="DockingPinnedTabStripMaxWidth">400</x:Double>
+    <x:Double x:Key="DockingProvisionalTabStripMaxWidth">240</x:Double>
     <x:Double x:Key="DockingToolWindowTabHeight">28</x:Double>
     <x:Double x:Key="DockingGuideSize">40</x:Double>
     <x:Double x:Key="DockingGuideClusterSize">128</x:Double>
@@ -209,6 +211,14 @@
     <x:Double x:Key="DockingSplitterGripThickness">1</x:Double>
 
     <!--
+        How long an auto-hidden panel takes to slide out from its edge and back into it, in
+        milliseconds. Zero makes
+        panels appear at once without turning the animation off across the application. Windows
+        still has the last word: with animation effects off, nothing slides whatever this says.
+    -->
+    <x:Double x:Key="DockingAutoHideSlideMilliseconds">150</x:Double>
+
+    <!--
         Icons. The glyphs are Segoe Fluent Icons code points; replacing the font family means
         replacing the glyphs with the corresponding code points of the new font.
     -->
@@ -216,8 +226,16 @@
     <x:Double x:Key="DockingIconFontSize">10</x:Double>
     <x:Double x:Key="DockingGuideIconFontSize">14</x:Double>
     <x:String x:Key="DockingCloseGlyph">&#xE8BB;</x:String>
+
+    <!--
+        The pin glyphs of a tool window's title bar, which auto-hides it and pins it back, and the
+        pin glyphs of a document tab, which fix it at the head of the strip. Two different things
+        that Visual Studio also draws with a pushpin: keep them apart when redefining either.
+    -->
     <x:String x:Key="DockingPinGlyph">&#xE718;</x:String>
     <x:String x:Key="DockingUnpinGlyph">&#xE77A;</x:String>
+    <x:String x:Key="DockingTabPinGlyph">&#xE718;</x:String>
+    <x:String x:Key="DockingTabUnpinGlyph">&#xE77A;</x:String>
     <x:String x:Key="DockingGuideCenterGlyph">&#xE8A9;</x:String>
     <x:String x:Key="DockingGuideLeftGlyph">&#xE76B;</x:String>
     <x:String x:Key="DockingGuideTopGlyph">&#xE70E;</x:String>
@@ -240,5 +258,16 @@
     <x:String x:Key="DockingCloseButtonName">Close</x:String>
     <x:String x:Key="DockingAutoHideButtonName">Auto-hide</x:String>
     <x:String x:Key="DockingDockButtonName">Dock</x:String>
+
+    <!--
+        The document tab's own pin button and the commands of its context menu. "Pin" here fixes the
+        tab at the head of the strip; auto-hiding is what the two names above are for.
+    -->
+    <x:String x:Key="DockingPinTabButtonName">Pin tab</x:String>
+    <x:String x:Key="DockingUnpinTabButtonName">Unpin tab</x:String>
+    <x:String x:Key="DockingKeepTabOpenName">Keep open</x:String>
+    <x:String x:Key="DockingCloseAllTabsName">Close all tabs</x:String>
+    <x:String x:Key="DockingCloseAllButPinnedTabsName">Close all but pinned</x:String>
+    <x:String x:Key="DockingCloseAllButThisTabName">Close all but this</x:String>
 
 </ResourceDictionary>

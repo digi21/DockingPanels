@@ -402,20 +402,62 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
+                            <!--
+                                Three strips, not one. The pinned tabs and the provisional one sit
+                                in columns of their own, outside the scroller, so a strip long
+                                enough to overflow scrolls the ordinary tabs between them while
+                                those stay in view — which is the whole point of pinning a tab and
+                                the only thing that makes "at the end of the strip" mean anything.
+                                Each is as wide as its tabs need, bounded by its own theme key so it
+                                cannot take the whole strip; past that it scrolls on its own.
+                            -->
                             <Border
                                 Background="{ThemeResource DockingTabStripBackgroundBrush}"
                                 BorderBrush="{ThemeResource DockingTabStripBorderBrush}"
                                 BorderThickness="0,0,0,1">
-                                <ScrollViewer
-                                    HorizontalScrollBarVisibility="Auto"
-                                    HorizontalScrollMode="Auto"
-                                    VerticalScrollBarVisibility="Disabled"
-                                    VerticalScrollMode="Disabled">
-                                    <StackPanel
-                                        x:Name="PART_TabStrip"
-                                        Orientation="Horizontal"
-                                        Spacing="2" />
-                                </ScrollViewer>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ScrollViewer
+                                        MaxWidth="{ThemeResource DockingPinnedTabStripMaxWidth}"
+                                        Margin="0,0,2,0"
+                                        HorizontalScrollBarVisibility="Auto"
+                                        HorizontalScrollMode="Auto"
+                                        VerticalScrollBarVisibility="Disabled"
+                                        VerticalScrollMode="Disabled">
+                                        <StackPanel
+                                            x:Name="PART_PinnedTabStrip"
+                                            Orientation="Horizontal"
+                                            Spacing="2" />
+                                    </ScrollViewer>
+                                    <ScrollViewer
+                                        Grid.Column="1"
+                                        HorizontalScrollBarVisibility="Auto"
+                                        HorizontalScrollMode="Auto"
+                                        VerticalScrollBarVisibility="Disabled"
+                                        VerticalScrollMode="Disabled">
+                                        <StackPanel
+                                            x:Name="PART_TabStrip"
+                                            Orientation="Horizontal"
+                                            Spacing="2" />
+                                    </ScrollViewer>
+                                    <ScrollViewer
+                                        Grid.Column="2"
+                                        MaxWidth="{ThemeResource DockingProvisionalTabStripMaxWidth}"
+                                        Margin="2,0,0,0"
+                                        HorizontalScrollBarVisibility="Auto"
+                                        HorizontalScrollMode="Auto"
+                                        VerticalScrollBarVisibility="Disabled"
+                                        VerticalScrollMode="Disabled">
+                                        <StackPanel
+                                            x:Name="PART_ProvisionalTabStrip"
+                                            Orientation="Horizontal"
+                                            Spacing="2" />
+                                    </ScrollViewer>
+                                </Grid>
                             </Border>
                             <ContentPresenter x:Name="PART_ContentHost" Grid.Row="1" />
                         </Grid>
@@ -448,6 +490,19 @@
                                 </VisualState>
                                 <VisualState x:Name="Pressed" />
                             </VisualStateGroup>
+                            <!--
+                                The provisional (preview) document's tab is drawn in italics, which
+                                is how Visual Studio says a tab is going to be replaced by the next
+                                preview rather than kept.
+                            -->
+                            <VisualStateGroup x:Name="PreviewStates">
+                                <VisualState x:Name="Committed" />
+                                <VisualState x:Name="Provisional">
+                                    <VisualState.Setters>
+                                        <Setter Target="PART_Title.FontStyle" Value="Italic" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
                             <VisualStateGroup x:Name="SelectionStates">
                                 <VisualState x:Name="Unselected" />
                                 <VisualState x:Name="Selected">
@@ -461,6 +516,7 @@
                                         <Setter Target="Root.Background" Value="{ThemeResource DockingDocumentTabActiveBackgroundBrush}" />
                                         <Setter Target="PART_Title.Foreground" Value="{ThemeResource DockingDocumentTabActiveForegroundBrush}" />
                                         <Setter Target="PART_CloseButton.Foreground" Value="{ThemeResource DockingDocumentTabActiveForegroundBrush}" />
+                                        <Setter Target="PART_PinTabButton.Foreground" Value="{ThemeResource DockingDocumentTabActiveForegroundBrush}" />
                                         <Setter Target="PART_CloseButton.Opacity" Value="1" />
                                     </VisualState.Setters>
                                 </VisualState>
@@ -469,6 +525,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock
                             x:Name="PART_Title"
@@ -476,9 +533,32 @@
                             Foreground="{TemplateBinding Foreground}"
                             Style="{ThemeResource DockingTabTextStyle}"
                             TextTrimming="CharacterEllipsis" />
+
+                        <!--
+                            The pin button's glyph, name and opacity are driven from code: a pinned
+                            tab shows it at all times, since that is what tells the tab apart when
+                            the pointer is elsewhere, and it offers to unpin instead of to pin.
+                        -->
+                        <Button
+                            x:Name="PART_PinTabButton"
+                            Grid.Column="1"
+                            Width="20"
+                            Height="20"
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="{TemplateBinding Foreground}"
+                            IsTabStop="False"
+                            Opacity="0">
+                            <FontIcon
+                                FontFamily="{ThemeResource DockingIconFontFamily}"
+                                FontSize="{ThemeResource DockingIconFontSize}"
+                                Glyph="{ThemeResource DockingTabPinGlyph}" />
+                        </Button>
                         <Button
                             x:Name="PART_CloseButton"
-                            Grid.Column="1"
+                            Grid.Column="2"
                             Width="20"
                             Height="20"
                             Padding="0"

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using Digi21.WinUI.Docking.Primitives;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
 using Windows.Foundation;
@@ -45,6 +46,8 @@ public abstract partial class DockingWindowContainer : Control
     // that this grid is plugged into.
     private readonly Grid windowsHost = new();
     private ContentPresenter? contentSlot;
+    private Panel? pinnedTabStrip;
+    private Panel? provisionalTabStrip;
     private Panel? tabStrip;
     private ToolWindowTitleBar? titleBar;
     private bool syncingSelection;
@@ -75,6 +78,9 @@ public abstract partial class DockingWindowContainer : Control
         set => SetValue(SelectedItemProperty, value);
     }
 
+    // Rebuilds the tabs, for a change that alters how a window is shown without altering Items.
+    internal void RefreshTabs() => Rebuild();
+
     // Makes the given window the selected tab of this container.
     internal void Select(DockingWindow window)
     {
@@ -92,10 +98,43 @@ public abstract partial class DockingWindowContainer : Control
     /// <param name="count">The number of windows currently hosted.</param>
     protected abstract bool ShowTabs(int count);
 
+    /// <summary>
+    /// Tells whether a window's tab goes into the fixed strip that a template can declare as
+    /// <c>PART_PinnedTabStrip</c>, ahead of the scrolling one, instead of into the scrolling strip.
+    /// </summary>
+    /// <param name="window">The window the tab represents.</param>
+    /// <remarks>
+    /// Only <see cref="DocumentContainer"/> answers <see langword="true"/>, for the documents whose
+    /// tab is pinned. A template without that part puts every tab in the scrolling strip.
+    /// </remarks>
+    protected virtual bool BelongsToPinnedStrip(DockingWindow window) => false;
+
+    /// <summary>
+    /// Tells whether a window's tab goes into the fixed strip that a template can declare as
+    /// <c>PART_ProvisionalTabStrip</c>, past the scrolling one, instead of into the scrolling strip.
+    /// </summary>
+    /// <param name="window">The window the tab represents.</param>
+    /// <remarks>
+    /// Only <see cref="DocumentContainer"/> answers <see langword="true"/>, for the provisional
+    /// document. A template without that part puts every tab in the scrolling strip.
+    /// </remarks>
+    protected virtual bool BelongsToProvisionalStrip(DockingWindow window) => false;
+
+    /// <summary>
+    /// Puts <see cref="Items"/> back in the order this kind of container keeps them in, before the
+    /// selection and the tabs are brought up to date. Called whenever the collection changes.
+    /// </summary>
+    protected virtual void CoerceItemOrder()
+    {
+    }
+
     // Gets a value indicating whether this container's own title bar can act as the caption of a
     // floating window holding nothing but it. A floating window whose only pane has no caption of
     // its own gets one, or it could not be moved.
     internal virtual bool ProvidesWindowCaption => false;
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new DockingWindowContainerAutomationPeer(this);
 
     /// <inheritdoc />
     protected override void OnApplyTemplate()
@@ -115,26 +154,75 @@ public abstract partial class DockingWindowContainer : Control
             contentSlot.Content = windowsHost;
         }
 
+        pinnedTabStrip = GetTemplateChild("PART_PinnedTabStrip") as Panel;
         tabStrip = GetTemplateChild("PART_TabStrip") as Panel;
+        provisionalTabStrip = GetTemplateChild("PART_ProvisionalTabStrip") as Panel;
         titleBar = GetTemplateChild("PART_TitleBar") as ToolWindowTitleBar;
 
         Rebuild();
     }
 
     // Gets the bounds of the tab strip in this container's coordinates, or an empty rectangle when
-    // no strip is shown.
+    // no strip is shown. A container whose template splits the tabs into a pinned strip and a
+    // scrolling one reports both together: as far as a drag is concerned they are one strip.
     internal Rect TabStripBounds
     {
         get
         {
-            if (tabStrip is not { Visibility: Visibility.Visible } strip
-                || strip.ActualWidth <= 0
-                || strip.ActualHeight <= 0)
+            var bounds = Rect.Empty;
+
+            foreach (var strip in Strips())
             {
-                return Rect.Empty;
+                bounds.Union(BoundsOf(strip));
             }
 
-            return BoundsOf(strip);
+            return bounds;
+        }
+    }
+
+    // Gets the tab shown for a window, or null when this container shows no tabs for it. This is
+    // how an automation client is told which tab is the selected one.
+    internal Control? TabFor(DockingWindow window)
+    {
+        foreach (var strip in DeclaredStrips())
+        {
+            foreach (var child in strip.Children)
+            {
+                if (child is Control tab
+                    && child is IDockingWindowTab owner
+                    && ReferenceEquals(owner.Window, window))
+                {
+                    return tab;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // Enumerates the strips the template declares, in the order they are drawn — pinned, scrolling,
+    // provisional — whether or not they are showing anything.
+    private IEnumerable<Panel> DeclaredStrips()
+    {
+        foreach (var strip in new[] { pinnedTabStrip, tabStrip, provisionalTabStrip })
+        {
+            if (strip is not null)
+            {
+                yield return strip;
+            }
+        }
+    }
+
+    // Enumerates the strips holding the tabs in the order they are drawn — pinned, scrolling,
+    // provisional — skipping those with nothing to show.
+    private IEnumerable<Panel> Strips()
+    {
+        foreach (var strip in DeclaredStrips())
+        {
+            if (strip is { Visibility: Visibility.Visible, ActualWidth: > 0, ActualHeight: > 0 })
+            {
+                yield return strip;
+            }
         }
     }
 
@@ -183,19 +271,22 @@ public abstract partial class DockingWindowContainer : Control
     }
 
     // Gets the bounds of the tabs, in this container's coordinates and in tab order.
+    //
+    // The pinned strip comes first, which is both where it is drawn and — because Items keeps the
+    // pinned windows at its head — the same order as Items, so an index into this list is an index
+    // into Items.
     private List<Rect> TabBounds()
     {
         var bounds = new List<Rect>(items.Count);
-        if (tabStrip is null)
-        {
-            return bounds;
-        }
 
-        foreach (var child in tabStrip.Children)
+        foreach (var strip in Strips())
         {
-            if (child is FrameworkElement tab)
+            foreach (var child in strip.Children)
             {
-                bounds.Add(BoundsOf(tab));
+                if (child is FrameworkElement tab)
+                {
+                    bounds.Add(BoundsOf(tab));
+                }
             }
         }
 
@@ -234,6 +325,7 @@ public abstract partial class DockingWindowContainer : Control
             }
         }
 
+        CoerceItemOrder();
         CoerceSelection();
         Rebuild();
         ItemsChanged?.Invoke(this, EventArgs.Empty);
@@ -328,25 +420,50 @@ public abstract partial class DockingWindowContainer : Control
             }
         }
 
-        if (tabStrip is not null)
-        {
-            tabStrip.Children.Clear();
-            if (ShowTabs(items.Count))
-            {
-                foreach (var window in items)
-                {
-                    tabStrip.Children.Add(CreateTab(window));
-                }
+        pinnedTabStrip?.Children.Clear();
+        tabStrip?.Children.Clear();
+        provisionalTabStrip?.Children.Clear();
 
-                tabStrip.Visibility = Visibility.Visible;
-            }
-            else
+        if (ShowTabs(items.Count))
+        {
+            foreach (var window in items)
             {
-                tabStrip.Visibility = Visibility.Collapsed;
+                StripFor(window)?.Children.Add(CreateTab(window));
             }
         }
 
+        // An empty fixed strip is collapsed rather than left at zero width, so its column takes no
+        // room at all while nothing is pinned and nothing is being previewed.
+        SetStripVisibility(pinnedTabStrip, pinnedTabStrip?.Children.Count > 0);
+        SetStripVisibility(tabStrip, ShowTabs(items.Count));
+        SetStripVisibility(provisionalTabStrip, provisionalTabStrip?.Children.Count > 0);
+
         ApplySelection();
+    }
+
+    // The strip a window's tab is put in. A template that declares none of the fixed strips puts
+    // every tab in the scrolling one, which is what a pane of tool windows does.
+    private Panel? StripFor(DockingWindow window)
+    {
+        if (pinnedTabStrip is not null && BelongsToPinnedStrip(window))
+        {
+            return pinnedTabStrip;
+        }
+
+        if (provisionalTabStrip is not null && BelongsToProvisionalStrip(window))
+        {
+            return provisionalTabStrip;
+        }
+
+        return tabStrip;
+    }
+
+    private static void SetStripVisibility(Panel? strip, bool visible)
+    {
+        if (strip is not null)
+        {
+            strip.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 
     private void ApplySelection()

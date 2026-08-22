@@ -148,12 +148,15 @@ These are the same in every theme, so declare them directly in `Application.Reso
 | `DockingTitleBarHeight` | `x:Double` | `32` |
 | `DockingCaptionHeight` | `x:Double` | `32` |
 | `DockingDocumentTabHeight` | `x:Double` | `30` |
+| `DockingPinnedTabStripMaxWidth` | `x:Double` | `400` |
+| `DockingProvisionalTabStripMaxWidth` | `x:Double` | `240` |
 | `DockingToolWindowTabHeight` | `x:Double` | `28` |
 | `DockingGuideSize` | `x:Double` | `40` |
 | `DockingGuideClusterSize` | `x:Double` | `128` |
 | `DockingDropPreviewOpacity` | `x:Double` | `0.3` |
 | `DockingSplitterThickness` | `x:Double` | `6` |
 | `DockingSplitterGripThickness` | `x:Double` | `1` |
+| `DockingAutoHideSlideMilliseconds` | `x:Double` | `150` |
 | `DockingPaneBorderThickness` | `Thickness` | `1` |
 | `DockingPaneCornerRadius` | `CornerRadius` | `0` |
 | `DockingDocumentTabCornerRadius` | `CornerRadius` | `4,4,0,0` |
@@ -169,6 +172,21 @@ draggable band — and `DockingSplitterGripThickness` is the line drawn inside i
 from the resources by the layout code, because a splitter is sized by the panel that arranges it
 rather than by a template of its own. That also means they are resolved once, on the first layout
 pass, and are not re-read afterwards.
+
+`DockingAutoHideSlideMilliseconds` is how long an auto-hidden panel takes to slide out from its
+edge. Zero makes panels appear at once while leaving the animation on everywhere else, which is
+what `DockSite.IsAutoHideAnimated="False"` does for a whole dock site. Neither is needed to respect
+a user who has turned animation effects off in Windows: the panel appears at once for them whatever
+these say.
+
+`DockingPinnedTabStripMaxWidth` and `DockingProvisionalTabStripMaxWidth` bound the two fixed ends of
+a document strip: the block of pinned tabs at its head and the provisional (preview) tab at its end.
+Both sit outside the scroller, which is what keeps them in view when the ordinary tabs overflow. Up
+to those widths each takes only what its tabs need; past them, it scrolls on its own.
+
+The provisional tab is drawn in italics by the `Provisional` state of the `PreviewStates` group in
+the `DocumentTabItem` template. Retemplate the tab to say it differently — a dog-ear, a lighter
+foreground — since a state, unlike a brush, is not something a key can redefine.
 
 `DockingPaneCornerRadius` is the one to use for rounded panes. Setting `CornerRadius` on a
 container in XAML works too, but only for the containers you declared: the panes the user creates
@@ -192,6 +210,8 @@ Replacing the font means replacing the glyphs with the code points of the new on
 | `DockingCloseGlyph` | `x:String` | `&#xE8BB;` |
 | `DockingPinGlyph` | `x:String` | `&#xE718;` |
 | `DockingUnpinGlyph` | `x:String` | `&#xE77A;` |
+| `DockingTabPinGlyph` | `x:String` | `&#xE718;` |
+| `DockingTabUnpinGlyph` | `x:String` | `&#xE77A;` |
 | `DockingGuideCenterGlyph` | `x:String` | `&#xE8A9;` |
 | `DockingGuideLeftGlyph` | `x:String` | `&#xE76B;` |
 | `DockingGuideTopGlyph` | `x:String` | `&#xE70E;` |
@@ -204,6 +224,12 @@ than a glyph — a `PathIcon`, an image — needs a retemplate.
 
 The pin button takes `DockingPinGlyph` while its window is docked and `DockingUnpinGlyph` while it
 is collapsed to an edge, since the same button does the opposite thing in each state.
+
+**Two different pins, four keys.** `DockingPinGlyph` and `DockingUnpinGlyph` belong to a tool
+window's title bar, where the button auto-hides the panel and pins it back. `DockingTabPinGlyph`
+and `DockingTabUnpinGlyph` belong to a document tab, where pinning fixes the tab at the head of the
+strip and has nothing to do with auto-hiding. Visual Studio draws both with a pushpin, which is why
+they default to the same glyphs; redefine the pair you actually mean.
 
 ## Names
 
@@ -220,9 +246,19 @@ along with the colors:
 | `DockingCloseButtonName` | `x:String` | `Close` |
 | `DockingAutoHideButtonName` | `x:String` | `Auto-hide` |
 | `DockingDockButtonName` | `x:String` | `Dock` |
+| `DockingPinTabButtonName` | `x:String` | `Pin tab` |
+| `DockingUnpinTabButtonName` | `x:String` | `Unpin tab` |
+| `DockingKeepTabOpenName` | `x:String` | `Keep open` |
+| `DockingCloseAllTabsName` | `x:String` | `Close all tabs` |
+| `DockingCloseAllButPinnedTabsName` | `x:String` | `Close all but pinned` |
+| `DockingCloseAllButThisTabName` | `x:String` | `Close all but this` |
 
-The pin button takes whichever of the last two matches what clicking it would do, the same way it
-picks its glyph. Tabs are named after the window they carry, so they need no key of their own.
+A tool window's pin button takes whichever of `DockingAutoHideButtonName` and
+`DockingDockButtonName` matches what clicking it would do, the same way it picks its glyph. A
+document tab's pin button does the same with the two `…TabButtonName` keys, and the rest name the
+commands of the document tab's context menu — `DockingKeepTabOpenName` appearing only while the tab
+is the provisional one. Tabs themselves are named after the window they
+carry, so they need no key of their own.
 
 ## Text
 

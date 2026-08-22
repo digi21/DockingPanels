@@ -2,6 +2,7 @@ using Digi21.WinUI.Docking;
 using Digi21.WinUI.Docking.Serialization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 
 namespace DockingGallery;
 
@@ -43,20 +44,57 @@ public sealed partial class MainWindow : Window
         EventLog.Text = $"Opened {id}";
     }
 
+    // What a single click in a file list does in Visual Studio: the document opens in preview,
+    // replacing whatever was being previewed instead of leaving a tab behind. Which documents open
+    // this way is the application's decision, which is why it is a flag on the call.
+    private void OnPreviewDocument(object sender, RoutedEventArgs e)
+    {
+        var id = $"untitled{++newDocumentCount}";
+        Documents.OpenDocument(CreateDocument(id, $"Untitled {newDocumentCount}"), provisional: true);
+        EventLog.Text = $"Previewing {id} — type in it and it is kept";
+    }
+
+    // The same thing the tab's own pin button does, from the outside: pinning is a property of the
+    // document, so a toolbar, a command or a binding can drive it.
+    private void OnPinDocument(object sender, RoutedEventArgs e)
+    {
+        if (DockSite.ActiveDocument is { } document)
+        {
+            document.IsPinned = !document.IsPinned;
+            EventLog.Text = $"{document.Title} {(document.IsPinned ? "pinned" : "unpinned")}";
+        }
+    }
+
+    // What a File menu's "Close All Tabs" does. Which documents survive is the library's rule, not
+    // this application's: pinning a tab is what spares it.
+    private void OnCloseDocuments(object sender, RoutedEventArgs e)
+    {
+        Documents.CloseDocuments(DocumentCloseScope.AllButPinned);
+        EventLog.Text = $"{Documents.Documents.Count()} document(s) left";
+    }
+
     private static DocumentWindow CreateDocument(string id, string title)
     {
-        return new DocumentWindow
+        var editor = new TextBox
+        {
+            AcceptsReturn = true,
+            BorderThickness = new Thickness(0),
+            PlaceholderText = "Type here",
+            TextWrapping = TextWrapping.Wrap,
+        };
+
+        var document = new DocumentWindow
         {
             Title = title,
             SerializationId = id,
-            Content = new TextBox
-            {
-                AcceptsReturn = true,
-                BorderThickness = new Thickness(0),
-                PlaceholderText = "Type here",
-                TextWrapping = TextWrapping.Wrap,
-            },
+            Content = editor,
         };
+
+        // The promotion gesture the library cannot own: only the application knows what editing its
+        // document means. The other four — double click, drag, pin, "keep open" — are the tab's own.
+        editor.TextChanged += (_, _) => document.KeepOpen();
+
+        return document;
     }
 
     private void OnSaveLayout(object sender, RoutedEventArgs e)
@@ -73,6 +111,39 @@ public sealed partial class MainWindow : Window
             serializer.LoadFromString(DockSite, savedLayout);
             EventLog.Text = "Layout loaded";
         }
+    }
+
+    // Unpinning one panel out of a shared tab group, which the pin button of a title bar does not
+    // do: that one takes the whole group to the edge, on purpose. An application that hides a panel
+    // when the mode it belongs to ends has to leave the panels beside it alone.
+    private void OnUnpinClassView(object sender, RoutedEventArgs e)
+    {
+        if (ClassView.State == DockingWindowState.AutoHide)
+        {
+            ClassView.Dock();
+            EventLog.Text = $"Class View pinned back — Solution Explorer stayed {SolutionExplorer.State}";
+            return;
+        }
+
+        ClassView.AutoHide(AutoHideScope.Window);
+        EventLog.Text = $"Class View {ClassView.State}, Solution Explorer still {SolutionExplorer.State}";
+    }
+
+    // What a user upgrading sees: a layout saved before a panel existed, loaded while the panel is
+    // open. The file cannot say where a window it never heard of goes, so the window says it —
+    // Output is declared PreferredDockSide="Bottom" and lands there, not at the left edge.
+    private void OnRescueOutput(object sender, RoutedEventArgs e)
+    {
+        Output.Close();
+        var layoutWithoutOutput = serializer.SaveToString(DockSite);
+        DockSite.DockToolWindow(Output, DockSide.Bottom);
+
+        var behavior = serializer.UnresolvedWindowBehavior;
+        serializer.UnresolvedWindowBehavior = UnresolvedWindowBehavior.DockLeft;
+        serializer.LoadFromString(DockSite, layoutWithoutOutput);
+        serializer.UnresolvedWindowBehavior = behavior;
+
+        EventLog.Text = $"Output was not in the layout: rescued to {Output.PreferredDockSide}";
     }
 
     private void OnFloatOutput(object sender, RoutedEventArgs e)
@@ -107,6 +178,18 @@ public sealed partial class MainWindow : Window
             : ElementTheme.Dark;
 
         EventLog.Text = $"Theme: {RootGrid.RequestedTheme}";
+    }
+
+    // Visual Studio's own edges do not open on the way past: the panel waits to be asked for. Which
+    // it is depends on the application — an edge the pointer crosses often is one that should stay
+    // still — so it is a setting and not a rule.
+    private void OnToggleAutoHideTrigger(object sender, RoutedEventArgs e)
+    {
+        DockSite.AutoHideOpenTrigger = ((ToggleButton)sender).IsChecked == true
+            ? AutoHideOpenTrigger.Click
+            : AutoHideOpenTrigger.Pointer;
+
+        EventLog.Text = $"Auto-hide tabs open on: {DockSite.AutoHideOpenTrigger}";
     }
 
     private void OnWindowEvent(object? sender, DockingWindowEventArgs e)

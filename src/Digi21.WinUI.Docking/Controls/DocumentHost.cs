@@ -88,6 +88,60 @@ public partial class DocumentHost : Control, ILayoutHost, IRelocatable
         LayoutManager.OpenDocument(this, document);
     }
 
+    /// <summary>
+    /// Opens a document, optionally as the group's provisional (preview) document: the tab Visual
+    /// Studio shows at the end of the strip in italics, one at a time.
+    /// </summary>
+    /// <param name="document">The document to open.</param>
+    /// <param name="provisional">
+    /// <see langword="true"/> to open it in preview, which closes the document the group was
+    /// previewing; <see langword="false"/> to open an ordinary tab, which also promotes the
+    /// document when it was the one being previewed.
+    /// </param>
+    /// <remarks>
+    /// Which documents open in preview is the application's decision — in Visual Studio a single
+    /// click in Solution Explorer, Go To Definition, a search result or the debugger. The document
+    /// being replaced is closed through <see cref="DockingWindow.Close"/>, so an application that
+    /// will not let it go keeps it: it is promoted instead of closed, and the group is left with
+    /// one provisional tab either way. See <see cref="DocumentWindow.IsProvisional"/>.
+    /// </remarks>
+    public void OpenDocument(DocumentWindow document, bool provisional)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        LayoutManager.OpenDocument(this, document, provisional);
+    }
+
+    /// <summary>
+    /// Closes the documents of this area in one go, the way "Close All Tabs" does in Visual Studio.
+    /// </summary>
+    /// <param name="scope">Which documents to close.</param>
+    /// <remarks>
+    /// Pinned documents survive every scope but <see cref="DocumentCloseScope.All"/>: that is what
+    /// pinning a tab is for. Each document is closed on its own, so a document the application will
+    /// not let go of — one with <see cref="DockingWindow.CanClose"/> cleared, or one a handler of
+    /// <see cref="DockSite.WindowClosing"/> cancels — stays open while the rest close.
+    /// </remarks>
+    public void CloseDocuments(DocumentCloseScope scope)
+    {
+        var active = this.FindSurface()?.Site.ActiveDocument;
+
+        // Over a snapshot: closing a document takes it out of the group being enumerated.
+        foreach (var document in Documents.ToList())
+        {
+            if (scope != DocumentCloseScope.All && document.IsPinned)
+            {
+                continue;
+            }
+
+            if (scope == DocumentCloseScope.AllButActive && ReferenceEquals(document, active))
+            {
+                continue;
+            }
+
+            document.Close();
+        }
+    }
+
     UIElement? ILayoutHost.LayoutChild
     {
         get => Child;

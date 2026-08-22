@@ -5,6 +5,113 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Document tabs can be pinned, as in Visual Studio. A pinned tab keeps its own block at the head of
+  its group, in its own order, outside the part of the strip that scrolls, so it stays in view
+  however many documents are open. `DocumentWindow.IsPinned`, `Pin()` and `Unpin()` are the API;
+  the tab's pin button and its new context menu are the gesture. Dragging never moves a tab from
+  one block to the other.
+- `DocumentHost.CloseDocuments(DocumentCloseScope)` closes the documents of an area in one go —
+  `All`, `AllButPinned` or `AllButActive` — which is what pinned tabs survive. Each document is
+  closed on its own, so `CanClose` and a canceled `DockSite.WindowClosing` still hold.
+- A provisional (preview) document tab, the other half of Visual Studio's tab behaviour: one per
+  group, at the end of the strip, drawn in italics, and replaced by the next preview instead of
+  leaving a tab behind. `DocumentWindow.IsProvisional` and `KeepOpen()` are the API,
+  `OpenDocument(document, provisional: true)` opens one, and double-clicking the tab, dragging it,
+  pinning it or "keep open" promote it. Editing the document promotes it too, from one line in the
+  application: the content belongs to the host, so it is the host that calls `KeepOpen()`.
+- `DockSite.DocumentTabContextMenuOpening`, raised with the entries of a document tab's context
+  menu before it opens, for an application to add its own commands or replace the menu.
+- `ToolWindow.PreferredDockSide` says which dock site edge a window belongs at when the library has
+  to place it with nothing else to go on, which is the rescue of an open window a loaded layout does
+  not mention — either because `UnresolvedWindowBehavior` is `DockLeft`, or because the window is
+  declared `CanClose="False"` and closing it would leave the user no way back. Such a window used to
+  land at the left edge always, which is the layout file deciding something it knows nothing about:
+  an application whose panels live at the bottom saw a panel added in a new version appear on the
+  left the first time an older layout was loaded.
+- `DockSiteLayoutSerializer.UnresolvedWindowDocking`, raised for each of those windows just before
+  it is put back, with the edge it is about to take and a `Handled` flag, for the placement a single
+  edge cannot express — docking the panel back beside, or as a tab of, the group it belongs with.
+  One load can keep several windows open and places them one at a time, in the order the dock site
+  registered them, so a handler docking against a sibling is looking at a layout still being
+  assembled: the event's documentation says so, and `IsPlaced` is how a handler asks.
+- `DockingWindow.IsPlaced` tells whether a window is in the layout right now — in a pane that is
+  part of the tree, in a floating window, or collapsed to an edge — which `IsOpen` does not. A
+  window a load has taken out and not put back yet is open, and is still holding the container it
+  came from, and that container is no longer part of anything.
+- `DockSite.AttachToolWindow` accepts a target whose group is collapsed to an auto-hide edge: the
+  window joins that group, opens in the same flyout and is pinned back into the layout with it.
+  Asking for the group a panel belongs with is a question the group's state does not change the
+  answer to, and refusing was worst exactly where it mattered — a layout being loaded that has the
+  group unpinned.
+- An auto-hidden panel now slides out from its edge instead of appearing at once, and slides back
+  into it when the user's pointer or focus dismisses it, as it does in Visual Studio. Only that
+  dismissal waits for the animation: everything else that closes the flyout — a layout being loaded,
+  a window closed or re-docked, another panel coming out — releases the window at once, and a panel
+  asked for again on its way out stays where it is. `DockSite.IsAutoHideAnimated` turns it off and the `DockingAutoHideSlideMilliseconds`
+  theme resource changes its length, but Windows has the last word: with animation effects off — in
+  Settings, or through battery saver, or over a remote session — the panel appears at once whatever
+  the application asked for. The slide is a render transform over content already laid out at its
+  final size, so it costs no layout passes and the panel is in the automation tree from the first
+  frame rather than at the end of the animation.
+- `DockSite.AutoHideOpenTrigger` decides what it takes for an auto-hidden panel to slide out:
+  `Pointer`, the default and what the library has always done, or `Click`, where pointing at a tab
+  does nothing and only a click opens the panel — so a pointer crossing the edge on its way
+  somewhere else leaves the layout alone. It governs the pointer alone: clicking a tab, activating a
+  window from code and selecting a tab through UI Automation open the panel under either setting.
+- `DockingWindow.AutoHide(AutoHideScope)` collapses a single window to the edge, leaving the rest of
+  its tab group docked; pinning it back returns it to that group as a tab. `AutoHide()` keeps taking
+  the whole container, and so does the title bar's pin button: a user who drags panels into one
+  group means them to travel together, so this is for the application that hides a panel of its own
+  accord. Only the window's own `CanAutoHide` is consulted for that scope, since its neighbours do
+  not move.
+- Automation peers for every tab, so a window that is not the one on show can be reached by UI
+  Automation. A tool window's tab, a document's tab and an auto-hide tab now report
+  `ControlType.TabItem` and answer to the invoke and selection-item patterns, and the pane or strip
+  they belong to reports `ControlType.Tab` with the selection pattern and names the selected tab.
+  Selecting a tab does what clicking it does, and selecting an auto-hide tab opens its flyout —
+  which is what puts the content of a window behind a tab within reach of a screen reader or an
+  automated test, since a window that is not at the front is collapsed and not in the automation
+  tree at all. `DockingWindowTabItemAutomationPeer`, `DockingWindowContainerAutomationPeer`,
+  `AutoHideTabItemAutomationPeer` and `AutoHideTabStripAutomationPeer` are the new public types.
+- Theme keys for the new chrome: `DockingTabPinGlyph`, `DockingTabUnpinGlyph`,
+  `DockingPinnedTabStripMaxWidth`, `DockingProvisionalTabStripMaxWidth`, `DockingPinTabButtonName`,
+  `DockingUnpinTabButtonName`, `DockingKeepTabOpenName`, `DockingCloseAllTabsName`,
+  `DockingCloseAllButPinnedTabsName` and `DockingCloseAllButThisTabName`. The existing
+  `DockingPinGlyph` / `DockingUnpinGlyph` keep meaning a tool window's auto-hide button.
+
+### Changed
+
+- Layouts record which document tabs are pinned and which one is provisional, in new `IsPinned` and
+  `IsProvisional` attributes written only for the tabs that are. The format version does not move: a
+  layout with neither is what 1.1 wrote, and 1.1 reads one that has them, ignoring the attributes.
+- Only the primary pointer button starts a window drag, so the secondary one reaches the tab's
+  context menu.
+
+### Documentation
+
+- `AutoHide()`, `Float()` and `Dock()` say in their own documentation that they are deferred while
+  the window is not yet part of a dock site — the case an application setting up its layout from the
+  dock site's `Loaded` is in — and what that means for the caller that saves the layout next: the
+  saved layout is the one from before the call. The README shows capturing it from a low-priority
+  dispatcher callback instead.
+
+### Fixed
+
+- `DockSite.AttachToolWindow` and `DockToolWindow(window, target, side)` no longer take a target that
+  holds a container the layout has abandoned. They used to insert the tab into it, and the window
+  reported itself docked while being displayed nowhere — silently, and only reachable from a handler
+  of the new `UnresolvedWindowDocking` acting on a window not yet put back. They now throw, saying
+  the target is not placed in the layout.
+- The title of a floating window holding several panels no longer lags one activation behind the
+  panel that is showing. A window is selected before it is made active, and the title was written
+  from the selection, so it named the panel that had been active until then. The title is what the
+  taskbar shows and what UI Automation reports as the window's name, so a client looking for a
+  floating window by the name of the panel in it was finding the wrong window, or none.
+
 ## [1.1.1] - 2026-08-15
 
 ### Fixed

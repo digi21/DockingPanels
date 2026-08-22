@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 
@@ -8,9 +9,10 @@ namespace Digi21.WinUI.Docking.Primitives;
 /// <summary>
 /// A tab shown along the top of a <see cref="DocumentContainer"/> for one of its documents.
 /// Clicking it selects and activates the document, dragging it moves the document to another
-/// tab position, group or window, and its close button closes it.
+/// tab position, group or window, its pin button pins it to the head of the strip, and its close
+/// button closes it.
 /// </summary>
-public partial class DocumentTabItem : Control
+public partial class DocumentTabItem : Control, IDockingWindowTab
 {
     /// <summary>Identifies the <see cref="Window"/> dependency property.</summary>
     public static readonly DependencyProperty WindowProperty = DependencyProperty.Register(
@@ -19,12 +21,16 @@ public partial class DocumentTabItem : Control
         typeof(DocumentTabItem),
         new PropertyMetadata(null, (d, _) => ((DocumentTabItem)d).OnWindowChanged()));
 
+    private readonly MenuFlyout contextMenu = new();
     private DockingWindow? observed;
     private long titleToken = -1;
     private long isSelectedToken = -1;
     private long isActiveToken = -1;
     private long canCloseToken = -1;
+    private long isPinnedToken = -1;
+    private long isProvisionalToken = -1;
     private TextBlock? titleText;
+    private Button? pinButton;
     private Button? closeButton;
     private bool pointerOver;
 
@@ -33,6 +39,9 @@ public partial class DocumentTabItem : Control
     {
         DefaultStyleKey = typeof(DocumentTabItem);
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
+
+        contextMenu.Opening += OnContextMenuOpening;
+        ContextFlyout = contextMenu;
     }
 
     /// <summary>Gets or sets the document this tab represents.</summary>
@@ -41,6 +50,9 @@ public partial class DocumentTabItem : Control
         get => (DockingWindow?)GetValue(WindowProperty);
         set => SetValue(WindowProperty, value);
     }
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new DockingWindowTabItemAutomationPeer(this);
 
     /// <inheritdoc />
     protected override void OnApplyTemplate()
@@ -52,12 +64,23 @@ public partial class DocumentTabItem : Control
             closeButton.Click -= OnCloseClick;
         }
 
+        if (pinButton is not null)
+        {
+            pinButton.Click -= OnPinClick;
+        }
+
         titleText = GetTemplateChild("PART_Title") as TextBlock;
+        pinButton = GetTemplateChild("PART_PinTabButton") as Button;
         closeButton = GetTemplateChild("PART_CloseButton") as Button;
 
         if (closeButton is not null)
         {
             closeButton.Click += OnCloseClick;
+        }
+
+        if (pinButton is not null)
+        {
+            pinButton.Click += OnPinClick;
         }
 
         Update();
@@ -99,6 +122,18 @@ public partial class DocumentTabItem : Control
         UpdateCommonState();
     }
 
+    /// <inheritdoc />
+    protected override void OnDoubleTapped(DoubleTappedRoutedEventArgs e)
+    {
+        base.OnDoubleTapped(e);
+
+        // Double-clicking a preview keeps it, as double-clicking a file in Solution Explorer does.
+        if (observed is DocumentWindow document)
+        {
+            document.KeepOpen();
+        }
+    }
+
     private void OnWindowChanged()
     {
         if (observed is not null)
@@ -107,6 +142,12 @@ public partial class DocumentTabItem : Control
             observed.UnregisterPropertyChangedCallback(DockingWindow.IsSelectedProperty, isSelectedToken);
             observed.UnregisterPropertyChangedCallback(DockingWindow.IsActiveProperty, isActiveToken);
             observed.UnregisterPropertyChangedCallback(DockingWindow.CanCloseProperty, canCloseToken);
+
+            if (observed is DocumentWindow previous)
+            {
+                previous.UnregisterPropertyChangedCallback(DocumentWindow.IsPinnedProperty, isPinnedToken);
+                previous.UnregisterPropertyChangedCallback(DocumentWindow.IsProvisionalProperty, isProvisionalToken);
+            }
         }
 
         observed = Window;
@@ -117,6 +158,12 @@ public partial class DocumentTabItem : Control
             isSelectedToken = observed.RegisterPropertyChangedCallback(DockingWindow.IsSelectedProperty, (_, _) => Update());
             isActiveToken = observed.RegisterPropertyChangedCallback(DockingWindow.IsActiveProperty, (_, _) => Update());
             canCloseToken = observed.RegisterPropertyChangedCallback(DockingWindow.CanCloseProperty, (_, _) => Update());
+
+            if (observed is DocumentWindow document)
+            {
+                isPinnedToken = document.RegisterPropertyChangedCallback(DocumentWindow.IsPinnedProperty, (_, _) => Update());
+                isProvisionalToken = document.RegisterPropertyChangedCallback(DocumentWindow.IsProvisionalProperty, (_, _) => Update());
+            }
         }
 
         Update();
@@ -138,6 +185,13 @@ public partial class DocumentTabItem : Control
             closeButton.Visibility = observed?.CanClose == true ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        UpdatePinButton();
+
+        VisualStateManager.GoToState(
+            this,
+            observed is DocumentWindow { IsProvisional: true } ? "Provisional" : "Committed",
+            true);
+
         VisualStateManager.GoToState(
             this,
             observed switch
@@ -149,15 +203,142 @@ public partial class DocumentTabItem : Control
             true);
 
         UpdateCommonState();
+
+        if (observed?.IsSelected == true)
+        {
+            DockingWindowTabItemAutomationPeer.NotifySelected(this);
+        }
+    }
+
+    // Brings the pin button in line with the document: it offers to pin an ordinary tab and to unpin
+    // a pinned one, and a pinned tab shows it at all times, since that is what says the tab is
+    // pinned when the pointer is elsewhere.
+    private void UpdatePinButton()
+    {
+        if (pinButton is null)
+        {
+            return;
+        }
+
+        if (observed is not DocumentWindow document)
+        {
+            pinButton.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        pinButton.Visibility = Visibility.Visible;
+
+        if (pinButton.Content is FontIcon icon)
+        {
+            icon.Glyph = document.IsPinned
+                ? DockingThemeResources.Value("DockingTabUnpinGlyph", "\uE77A")
+                : DockingThemeResources.Value("DockingTabPinGlyph", "\uE718");
+        }
+
+        var name = PinCommandName(document);
+        AutomationProperties.SetName(pinButton, name);
+        ToolTipService.SetToolTip(pinButton, name);
+    }
+
+    private static string PinCommandName(DocumentWindow document)
+    {
+        return document.IsPinned
+            ? DockingThemeResources.Value("DockingUnpinTabButtonName", "Unpin tab")
+            : DockingThemeResources.Value("DockingPinTabButtonName", "Pin tab");
     }
 
     private void UpdateCommonState()
     {
         VisualStateManager.GoToState(this, pointerOver ? "PointerOver" : "Normal", true);
+
+        if (pinButton is not null)
+        {
+            var pinned = observed is DocumentWindow { IsPinned: true };
+            pinButton.Opacity = pinned || pointerOver || observed?.IsSelected == true ? 1 : 0;
+        }
+    }
+
+    private void OnPinClick(object sender, RoutedEventArgs e)
+    {
+        if (observed is DocumentWindow document)
+        {
+            document.IsPinned = !document.IsPinned;
+        }
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
     {
         Window?.Close();
+    }
+
+    // Fills the tab's context menu just before it opens, then lets the application have the list:
+    // whatever it leaves there is what the menu shows.
+    private void OnContextMenuOpening(object? sender, object e)
+    {
+        contextMenu.Items.Clear();
+
+        if (observed is not DocumentWindow document)
+        {
+            return;
+        }
+
+        var host = this.FindLayoutHost() as DocumentHost;
+        var items = new List<MenuFlyoutItemBase>();
+
+        // Only while there is a preview to keep: on an ordinary tab the command would do nothing.
+        if (document.IsProvisional)
+        {
+            items.Add(Command(
+                DockingThemeResources.Value("DockingKeepTabOpenName", "Keep open"),
+                document.KeepOpen));
+        }
+
+        items.Add(Command(PinCommandName(document), () => document.IsPinned = !document.IsPinned));
+
+        if (document.CanClose)
+        {
+            items.Add(new MenuFlyoutSeparator());
+            items.Add(Command(
+                DockingThemeResources.Value("DockingCloseButtonName", "Close"),
+                document.Close));
+        }
+
+        if (host is not null)
+        {
+            if (items is not [.., MenuFlyoutSeparator])
+            {
+                items.Add(new MenuFlyoutSeparator());
+            }
+
+            items.Add(Command(
+                DockingThemeResources.Value("DockingCloseAllTabsName", "Close all tabs"),
+                () => host.CloseDocuments(DocumentCloseScope.All)));
+            items.Add(Command(
+                DockingThemeResources.Value("DockingCloseAllButPinnedTabsName", "Close all but pinned"),
+                () => host.CloseDocuments(DocumentCloseScope.AllButPinned)));
+            items.Add(Command(
+                DockingThemeResources.Value("DockingCloseAllButThisTabName", "Close all but this"),
+                () =>
+                {
+                    // "This" is the tab the menu was opened on, which right-clicking it has already
+                    // made the active document.
+                    document.Activate();
+                    host.CloseDocuments(DocumentCloseScope.AllButActive);
+                }));
+        }
+
+        document.DockSite?.RaiseDocumentTabContextMenuOpening(document, items);
+
+        foreach (var item in items)
+        {
+            contextMenu.Items.Add(item);
+        }
+    }
+
+    private static MenuFlyoutItem Command(string text, Action execute)
+    {
+        var item = new MenuFlyoutItem { Text = text };
+        item.Click += (_, _) => execute();
+        return item;
     }
 }

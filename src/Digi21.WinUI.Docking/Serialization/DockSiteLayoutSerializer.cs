@@ -28,6 +28,28 @@ public class DockSiteLayoutSerializer
     public event EventHandler<DocumentResolvingEventArgs>? DocumentResolving;
 
     /// <summary>
+    /// Raised while loading for each open window the layout does not mention and that is kept open
+    /// anyway, just before it is put back into the layout, so the application can say where it
+    /// goes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Raised whichever reason keeps the window open: <see cref="UnresolvedWindowBehavior"/> set to
+    /// <see cref="Serialization.UnresolvedWindowBehavior.DockLeft"/>, or a window declared with
+    /// <c>CanClose="False"</c>, which is kept whatever that setting says.
+    /// </para>
+    /// <para>
+    /// Several windows can be kept open by one load, and they are placed one at a time, in the
+    /// order the dock site registered them — tool windows first, then documents. A handler that
+    /// docks a window against another one is therefore not looking at a settled layout: a sibling
+    /// later in that order is still out of it, open but not yet placed. Test
+    /// <see cref="DockingWindow.IsPlaced"/> rather than <see cref="DockingWindow.IsOpen"/>, which
+    /// is true for every window being rescued, including those still waiting.
+    /// </para>
+    /// </remarks>
+    public event EventHandler<UnresolvedWindowEventArgs>? UnresolvedWindowDocking;
+
+    /// <summary>
     /// Gets or sets what happens to windows that are open but absent from the loaded layout.
     /// The default is <see cref="UnresolvedWindowBehavior.Close"/>.
     /// </summary>
@@ -205,7 +227,11 @@ public class DockSiteLayoutSerializer
                 };
                 foreach (var document in group.Items)
                 {
-                    groupNode.Windows.Add(new LayoutWindowEntry(RequireId(document), document.State.ToString()));
+                    groupNode.Windows.Add(new LayoutWindowEntry(
+                        RequireId(document),
+                        document.State.ToString(),
+                        IsPinned: document is DocumentWindow { IsPinned: true },
+                        IsProvisional: document is DocumentWindow { IsProvisional: true }));
                 }
 
                 return groupNode;
@@ -311,7 +337,7 @@ public class DockSiteLayoutSerializer
         foreach (var groupNode in layout.AutoHideGroups)
         {
             var groupWindows = new List<ToolWindow>();
-            var pinnedWindows = new List<ToolWindow>();
+            var redockedWindows = new List<ToolWindow>();
             foreach (var entry in groupNode.Windows)
             {
                 if (ResolveToolWindow(entry.Id, index) is { } window && !used.Contains(window))
@@ -329,7 +355,7 @@ public class DockSiteLayoutSerializer
                         // panel docked. Honoring the file would strand it: with auto-hide off its
                         // title bar has no pin button, so nothing in the interface could bring it
                         // back. It goes back into the layout instead, which the user can undo.
-                        pinnedWindows.Add(window);
+                        redockedWindows.Add(window);
                         continue;
                     }
 
@@ -353,13 +379,13 @@ public class DockSiteLayoutSerializer
                     groupNode.RestoreRelativeSize);
             }
 
-            if (pinnedWindows.Count > 0)
+            if (redockedWindows.Count > 0)
             {
                 // Down the same path as pinning the group from its edge, so a layout being
                 // migrated puts the panel back beside the neighbour the file names, at the size it
                 // records, instead of wherever a fresh dock would land it. When that neighbour is
                 // gone the group's own edge takes over, which is still what the file asked for.
-                LayoutManager.RestoreWindows(site, pinnedWindows, restoreHint, groupNode.Edge);
+                LayoutManager.RestoreWindows(site, redockedWindows, restoreHint, groupNode.Edge);
             }
 
             if (groupWindows.Count > 0)
@@ -452,6 +478,26 @@ public class DockSiteLayoutSerializer
     // Applies what the layout says about auto-hiding, if it says anything. A file written before
     // the attribute existed leaves the window exactly as the application declared it, which is what
     // keeps those files loading unchanged.
+    // Restores which document tab is pinned and which one is being previewed, once the documents are
+    // in the group they belong to: both move a tab to one end of its group, so the flags have to be
+    // set where they can be acted on. Applied in the order the file lists them, which is the order
+    // each block keeps, so a layout whose blocks were mixed up by hand still settles into three.
+    //
+    // A file marking several provisional documents in one group — only a hand-edited one can — ends
+    // up with the last of them provisional and the rest promoted, which is the group's own rule
+    // applying rather than the file being trusted.
+    private static void ApplyTabZone(List<LayoutWindowEntry> entries, List<DockingWindow> windows)
+    {
+        foreach (var entry in entries)
+        {
+            if (windows.FirstOrDefault(window => window.SerializationId == entry.Id) is DocumentWindow document)
+            {
+                document.IsPinned = entry.IsPinned;
+                document.IsProvisional = entry.IsProvisional && !entry.IsPinned;
+            }
+        }
+    }
+
     private static void ApplyCanAutoHide(DockingWindow window, LayoutWindowEntry entry)
     {
         if (entry.CanAutoHide is { } canAutoHide && window is ToolWindow tool)
@@ -460,18 +506,36 @@ public class DockSiteLayoutSerializer
         }
     }
 
-    // Puts a window the loaded layout does not mention back into the layout, for
-    // UnresolvedWindowBehavior.DockLeft: documents reopen in the document area, tool windows dock
-    // to the left edge.
-    private static void KeepOpen(DockSite site, DockingWindow window)
+    // Puts a window the loaded layout does not mention back into the layout: documents reopen in
+    // the document area, tool windows dock as a new pane at an edge.
+    //
+    // Which edge is not the layout file's business — the file never heard of this window — so it is
+    // the application's: the window's own PreferredDockSide, which a handler of
+    // UnresolvedWindowDocking can override or take over entirely.
+    private void KeepOpen(DockSite site, DockingWindow window)
     {
+        var args = new UnresolvedWindowEventArgs(window, PreferredSideOf(window));
+        UnresolvedWindowDocking?.Invoke(this, args);
+
+        if (args.Handled)
+        {
+            return;
+        }
+
         if (window is DocumentWindow document && site.DocumentHost is { } host)
         {
             host.OpenDocument(document);
             return;
         }
 
-        LayoutManager.DockToSide(site, window, DockSide.Left);
+        LayoutManager.DockToSide(site, window, args.Side);
+    }
+
+    // The edge a window says it belongs at. Only a tool window has one; a document is placed by its
+    // document area and never by an edge.
+    private static DockSide PreferredSideOf(DockingWindow window)
+    {
+        return window is ToolWindow tool ? tool.PreferredDockSide : DockSide.Left;
     }
 
     private UIElement? Build(
@@ -574,6 +638,7 @@ public class DockSiteLayoutSerializer
         var container = rebuild.TakeContainer<T>(windows);
         DockSite.SetRelativeSize(container, relativeSize);
         rebuild.SetItems(container, windows);
+        ApplyTabZone(entries, windows);
 
         if (selectedId is not null
             && container.Items.FirstOrDefault(w => w.SerializationId == selectedId) is { } selected)

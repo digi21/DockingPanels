@@ -30,8 +30,10 @@ public enum UnresolvedWindowBehavior
     Close,
 
     /// <summary>
-    /// Keep the window open: tool windows dock to the left edge of the dock site, documents
-    /// reopen in the document area.
+    /// Keep the window open: a tool window docks as a new pane at its
+    /// <see cref="ToolWindow.PreferredDockSide"/> — the left edge, which the name is after, unless
+    /// the window says otherwise — and a document reopens in the document area. Handlers of
+    /// <see cref="DockSiteLayoutSerializer.UnresolvedWindowDocking"/> get the last word.
     /// </summary>
     DockLeft,
 }

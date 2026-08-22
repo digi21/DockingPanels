@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 
@@ -9,7 +10,7 @@ namespace Digi21.WinUI.Docking.Primitives;
 /// A tab shown at the bottom of a <see cref="ToolWindowContainer"/> when it hosts multiple
 /// tool windows. Clicking the tab selects and activates its window.
 /// </summary>
-public partial class ToolWindowTabItem : Control
+public partial class ToolWindowTabItem : Control, IDockingWindowTab
 {
     /// <summary>Identifies the <see cref="Window"/> dependency property.</summary>
     public static readonly DependencyProperty WindowProperty = DependencyProperty.Register(
@@ -37,6 +38,9 @@ public partial class ToolWindowTabItem : Control
         get => (DockingWindow?)GetValue(WindowProperty);
         set => SetValue(WindowProperty, value);
     }
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new DockingWindowTabItemAutomationPeer(this);
 
     /// <inheritdoc />
     protected override void OnApplyTemplate()
@@ -111,8 +115,15 @@ public partial class ToolWindowTabItem : Control
         }
 
         AutomationProperties.SetName(this, title);
-        VisualStateManager.GoToState(this, observed?.IsSelected == true ? "Selected" : "Unselected", true);
+
+        var isSelected = observed?.IsSelected == true;
+        VisualStateManager.GoToState(this, isSelected ? "Selected" : "Unselected", true);
         UpdateCommonState();
+
+        if (isSelected)
+        {
+            DockingWindowTabItemAutomationPeer.NotifySelected(this);
+        }
     }
 
     private void UpdateCommonState()
