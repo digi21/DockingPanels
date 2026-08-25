@@ -24,6 +24,8 @@ public partial class AutoHideFlyout : Control
     private readonly Grid windowHost = new();
     private ContentPresenter? contentSlot;
     private ToolWindowTitleBar? titleBar;
+    private FrameworkElement? frame;
+    private AutoHideResizeGrip? resizer;
 
     /// <summary>Initializes a new instance of the <see cref="AutoHideFlyout"/> class.</summary>
     public AutoHideFlyout()
@@ -34,6 +36,10 @@ public partial class AutoHideFlyout : Control
 
     // Gets the window currently shown by the flyout, if any.
     internal ToolWindow? Window => window;
+
+    // The dock site the flyout belongs to. The site's template puts the flyout on its own overlay
+    // canvas, so this is never null once the flyout is on screen.
+    internal DockSite? Site => this.FindAncestor<DockSite>();
 
     /// <inheritdoc />
     protected override void OnPointerEntered(PointerRoutedEventArgs e)
@@ -69,6 +75,72 @@ public partial class AutoHideFlyout : Control
         }
 
         titleBar = GetTemplateChild("PART_TitleBar") as ToolWindowTitleBar;
+        frame = GetTemplateChild("PART_Frame") as FrameworkElement;
+        resizer = GetTemplateChild("PART_Resizer") as AutoHideResizeGrip;
+    }
+
+    // Puts the resize grip on the side the panel comes out of, and keeps the panel's own frame off
+    // it: the grip is a strip of the flyout rather than something laid over the content, so a
+    // control at the panel's edge stays clickable.
+    //
+    // Called by the dock site every time it places the flyout, which is also every time the area
+    // under it changes size, so it is written to be worth calling twice.
+    internal void SetEdge(DockSide edge)
+    {
+        if (resizer is null)
+        {
+            return;
+        }
+
+        resizer.Edge = edge;
+
+        var thickness = SplitContainer.SplitterThickness;
+
+        resizer.Width = edge is DockSide.Left or DockSide.Right ? thickness : double.NaN;
+        resizer.Height = edge is DockSide.Top or DockSide.Bottom ? thickness : double.NaN;
+        resizer.HorizontalAlignment = edge switch
+        {
+            DockSide.Left => HorizontalAlignment.Right,
+            DockSide.Right => HorizontalAlignment.Left,
+            _ => HorizontalAlignment.Stretch,
+        };
+        resizer.VerticalAlignment = edge switch
+        {
+            DockSide.Top => VerticalAlignment.Bottom,
+            DockSide.Bottom => VerticalAlignment.Top,
+            _ => VerticalAlignment.Stretch,
+        };
+
+        if (frame is not null)
+        {
+            frame.Margin = edge switch
+            {
+                DockSide.Left => new Thickness(0, 0, thickness, 0),
+                DockSide.Right => new Thickness(thickness, 0, 0, 0),
+                DockSide.Top => new Thickness(0, 0, 0, thickness),
+                _ => new Thickness(0, thickness, 0, 0),
+            };
+        }
+    }
+
+    // The grip has been taken hold of. The dock site settles the panel first: a drag is not
+    // something a preview may be dismissed in the middle of.
+    internal void BeginResize()
+    {
+        Site?.NotifyAutoHideResizeStarted();
+    }
+
+    // Called for every frame of the drag with the size the pointer is asking for. How much of it
+    // the layout can give is the dock site's to decide.
+    internal void Resize(double size)
+    {
+        Site?.ResizeAutoHideFlyout(size);
+    }
+
+    // The grip has been let go.
+    internal void EndResize()
+    {
+        Site?.NotifyAutoHideResizeCompleted();
     }
 
     // Shows the given auto-hidden window. The dock site sizes and places the flyout, and does it

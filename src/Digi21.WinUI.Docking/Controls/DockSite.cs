@@ -922,9 +922,12 @@ public partial class DockSite : Control, IDockSurface
         var cellWidth = layoutRootPresenter.ActualWidth;
         var cellHeight = layoutRootPresenter.ActualHeight;
         var horizontal = group.Edge is DockSide.Left or DockSide.Right;
-        var size = Math.Min(group.Size, (horizontal ? cellWidth : cellHeight) * 0.8);
+        var size = AutoHideResizePolicy.Clamp(group.Size, horizontal ? cellWidth : cellHeight);
 
         var (width, height) = horizontal ? (size, cellHeight) : (cellWidth, size);
+
+        // The grip goes on the side the panel came out of, which is only known here.
+        autoHideFlyout.SetEdge(group.Edge);
 
         autoHideFlyout.Width = width;
         autoHideFlyout.Height = height;
@@ -934,6 +937,56 @@ public partial class DockSite : Control, IDockSurface
             .TransformPoint(new Windows.Foundation.Point(0, 0));
         Canvas.SetLeft(autoHideFlyout, origin.X + (group.Edge == DockSide.Right ? cellWidth - width : 0));
         Canvas.SetTop(autoHideFlyout, origin.Y + (group.Edge == DockSide.Bottom ? cellHeight - height : 0));
+    }
+
+    // Resizes the panel that is out to the size its grip is being dragged to, within what the
+    // layout can give. The size belongs to the auto-hide group and not to this visit, so the panel
+    // opens at its new size next time and is saved that way with the layout.
+    internal void ResizeAutoHideFlyout(double size)
+    {
+        if (autoHideFlyout?.Window is not { } shown
+            || layoutRootPresenter is null
+            || FindAutoHideGroup(shown) is not { } group)
+        {
+            return;
+        }
+
+        var horizontal = group.Edge is DockSide.Left or DockSide.Right;
+        var available = horizontal ? layoutRootPresenter.ActualWidth : layoutRootPresenter.ActualHeight;
+        var clamped = AutoHideResizePolicy.Clamp(size, available);
+
+        // A drag delivers a frame's worth of movement at a time, and most of them ask for a size
+        // the clamp has already refused. Re-placing the flyout for those would re-arrange the
+        // panel's content for nothing.
+        if (Math.Abs(clamped - group.Size) < 0.5)
+        {
+            return;
+        }
+
+        group.Size = clamped;
+        PositionAutoHideFlyout(group);
+    }
+
+    // The panel's grip has been taken hold of. Reaching for it is asking for the panel as plainly
+    // as clicking inside it, so a preview becomes a panel the user is working in — otherwise the
+    // pointer leaving the flyout on the way out of the drag would put away what is being resized.
+    internal void NotifyAutoHideResizeStarted()
+    {
+        CancelAutoHideCollapse();
+        CancelAutoHideSlide();
+
+        // Settles a slide that is still arriving, too: the panel is being dragged, so it belongs
+        // where the layout says rather than a few pixels short of it.
+        autoHideFlyout?.CancelSlide();
+
+        autoHideOpenReason = AutoHideOpenReason.Activation;
+    }
+
+    // The drag is over. The layout has been changing all along, but it is announced once here: an
+    // application that saves its layout on every change would otherwise save one per frame.
+    internal void NotifyAutoHideResizeCompleted()
+    {
+        NotifyLayoutChanged(LayoutChangeKind.AutoHidePanelResized);
     }
 
     private void OnLayoutRootSizeChanged(object sender, SizeChangedEventArgs e)

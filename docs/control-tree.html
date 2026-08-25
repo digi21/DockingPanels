@@ -136,7 +136,7 @@
         </div>
         <div>
           <p class="eyebrow">Host 3 &middot; auto-hide flyout</p>
-          <p><span class="node k-tpl">AutoHideFlyout</span> contains a private grid that displays one <code>ToolWindow</code> at a time. Auto-hide is available only in <code>DockSite</code>. Floating windows do not have auto-hide strips or a flyout.</p>
+          <p><span class="node k-tpl">AutoHideFlyout</span> contains a private grid that displays one <code>ToolWindow</code> at a time, and an <code>AutoHideResizeGrip</code> along the edge it came out of, which resizes it without pinning it back. Auto-hide is available only in <code>DockSite</code>. Floating windows do not have auto-hide strips or a flyout.</p>
         </div>
       </div>
     </section>
@@ -574,6 +574,7 @@
             <tr><td><code>DocumentTabItem</code></td><td><code>DocumentContainer.CreateTab</code></td><td>top <code>PART_TabStrip</code>; always visible</td></tr>
             <tr><td><code>DockSplitter</code></td><td><code>SplitContainer.ReconcileSplitters</code></td><td>after all panes in <code>SplitContainer.Children</code></td></tr>
             <tr><td><code>DockGuide</code>, <code>DockGuidePanel</code></td><td>control template</td><td>overlay canvas in <code>DockSite</code> and <code>FloatingWindowRoot</code></td></tr>
+            <tr><td><code>AutoHideResizeGrip</code></td><td>control template</td><td><code>PART_Resizer</code> in <code>AutoHideFlyout</code>; placed on the group's edge by <code>SetEdge</code></td></tr>
             <tr><td><code>AutoHideTabItem</code></td><td><code>AutoHideTabStrip</code> code</td><td>inside one <code>StackPanel</code> per group, in the <code>AutoHideStripPanel</code> that fills <code>PART_Items</code></td></tr>
             <tr><td><code>FloatingWindowCaption</code></td><td>control template</td><td><code>FloatingWindowRoot</code>; visible only when the window contains multiple panes</td></tr>
           </tbody>
