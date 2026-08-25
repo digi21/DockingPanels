@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- An open auto-hidden panel can be resized by dragging its inner edge, the way a docked pane is
+  resized by its splitter, and stays auto-hidden while it happens: a panel opened for one look at
+  something too wide for it can be widened without being pinned back into the layout. Taking hold
+  of the edge settles the panel as clicking inside it does, so a preview is not dismissed halfway
+  through the drag. The size belongs to the group of tabs, so the panel opens at it next time and
+  it is saved with the layout, and it is kept between the size of a docked pane and four fifths of
+  the area the panel slides over. `LayoutChanged` reports it once per drag as the new
+  `LayoutChangeKind.AutoHidePanelResized`, not once per frame.
+
 ## [1.2.0] - 2026-08-22
 
 ### Added
@@ -259,6 +272,7 @@ a real application, and the private `0.1.0-dev.*` packages were where it changed
 - Windows App SDK 1.8 or later, .NET 8 or later, and Windows 10 version 1809 (build 17763) or
   later.
 
+[Unreleased]: https://github.com/Digi21/DockingPanels/compare/v1.2.0...HEAD
 [1.2.0]: https://github.com/Digi21/DockingPanels/releases/tag/v1.2.0
 [1.1.1]: https://github.com/Digi21/DockingPanels/releases/tag/v1.1.1
 [1.1.0]: https://github.com/Digi21/DockingPanels/releases/tag/v1.1.0

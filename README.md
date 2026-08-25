@@ -275,6 +275,16 @@ back, for the pointer that crosses outside the panel on its way to a control nea
 Returning within it keeps the panel open. It has no effect on a panel opened by clicking, which the
 pointer does not dismiss at all.
 
+An open panel is resized by dragging its inner edge, the way a docked pane is resized by its
+splitter, and it stays auto-hidden while it happens: the panel opened for one quick look at
+something too wide for it can be widened without being pinned back into the layout. Reaching for
+the edge settles the panel the way clicking inside it does, so a preview being resized is not
+dismissed halfway through the drag. The new size belongs to the group of tabs and not to that
+visit — the panel opens at it next time, and it is written to the layout file — and it is kept
+between the size of a docked pane and four fifths of the area the panel slides over, so a layout
+saved on a wide screen cannot cover a narrow one. `LayoutChanged` reports it once per drag, as
+`AutoHidePanelResized`, rather than once per frame.
+
 Set `CanAutoHide="False"` (or `CanFloat="False"`) on a tool window to hide the affordance and block
 the operation. `CanAutoHide` covers the whole tab group: a group holding one window that must stay
 docked shows no pin button at all, rather than one that does nothing. The flag is saved with the

@@ -55,6 +55,9 @@ public enum LayoutChangeKind
 
     /// <summary>A full layout was loaded, e.g. by the layout serializer.</summary>
     LayoutLoaded,
+
+    /// <summary>An open auto-hidden panel was resized by dragging its inner edge.</summary>
+    AutoHidePanelResized,
 }
 
 /// <summary>

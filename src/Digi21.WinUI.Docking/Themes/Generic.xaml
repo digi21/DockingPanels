@@ -29,6 +29,7 @@
     <Style BasedOn="{StaticResource DefaultAutoHideTabStripStyle}" TargetType="primitives:AutoHideTabStrip" />
     <Style BasedOn="{StaticResource DefaultAutoHideTabItemStyle}" TargetType="primitives:AutoHideTabItem" />
     <Style BasedOn="{StaticResource DefaultAutoHideFlyoutStyle}" TargetType="primitives:AutoHideFlyout" />
+    <Style BasedOn="{StaticResource DefaultAutoHideResizeGripStyle}" TargetType="primitives:AutoHideResizeGrip" />
 
     <Style x:Key="DefaultDockSiteStyle" TargetType="docking:DockSite">
         <Setter Property="Background" Value="{ThemeResource DockingSiteBackgroundBrush}" />
@@ -748,20 +749,25 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:AutoHideFlyout">
-                    <Border
-                        Background="{ThemeResource DockingFlyoutBackgroundBrush}"
-                        BorderBrush="{ThemeResource DockingFlyoutBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="{ThemeResource DockingFlyoutCornerRadius}">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <primitives:ToolWindowTitleBar x:Name="PART_TitleBar" />
-                            <ContentPresenter x:Name="PART_ContentHost" Grid.Row="1" />
-                        </Grid>
-                    </Border>
+                    <!--  The grip is a strip of the panel, not an overlay: the frame is given a margin on that side.  -->
+                    <Grid>
+                        <Border
+                            x:Name="PART_Frame"
+                            Background="{ThemeResource DockingFlyoutBackgroundBrush}"
+                            BorderBrush="{ThemeResource DockingFlyoutBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{ThemeResource DockingFlyoutCornerRadius}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <primitives:ToolWindowTitleBar x:Name="PART_TitleBar" />
+                                <ContentPresenter x:Name="PART_ContentHost" Grid.Row="1" />
+                            </Grid>
+                        </Border>
+                        <primitives:AutoHideResizeGrip x:Name="PART_Resizer" />
+                    </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -838,6 +844,36 @@
                             HorizontalAlignment="Center"
                             VerticalAlignment="Bottom"
                             Side="Bottom" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DefaultAutoHideResizeGripStyle" TargetType="primitives:AutoHideResizeGrip">
+        <!--  Transparent, not unset: the grip needs a filled background to be hit-testable.  -->
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:AutoHideResizeGrip">
+                    <Grid x:Name="Root" Background="{TemplateBinding Background}">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="GripLine.Fill" Value="{ThemeResource DockingSplitterPointerOverBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="GripLine.Fill" Value="{ThemeResource DockingSplitterPressedBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <Rectangle x:Name="GripLine" Fill="{ThemeResource DockingSplitterBrush}" />
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
