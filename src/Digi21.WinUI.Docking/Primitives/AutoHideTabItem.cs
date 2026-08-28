@@ -11,8 +11,9 @@ namespace Digi21.WinUI.Docking.Primitives;
 
 /// <summary>
 /// A tab in an <see cref="AutoHideTabStrip"/> representing one auto-hidden tool window.
-/// Clicking it opens the window's flyout. On vertical edges the whole tab is rotated 90°
-/// (WinUI 3 has no LayoutTransform, so the rotation is done in measure/arrange).
+/// Clicking it opens the window's flyout, and clicking it again puts the panel away. On vertical
+/// edges the whole tab is rotated 90° (WinUI 3 has no LayoutTransform, so the rotation is done in
+/// measure/arrange).
 /// </summary>
 public partial class AutoHideTabItem : Control
 {
@@ -93,9 +94,11 @@ public partial class AutoHideTabItem : Control
     {
         base.OnPointerPressed(e);
 
+        // The tab is a switch, not just a way in: pressing it while its panel is already out for
+        // real puts the panel away again.
         if (Window is { } window)
         {
-            this.FindAncestor<DockSite>()?.ShowAutoHideFlyout(window, AutoHideOpenReason.Activation);
+            this.FindAncestor<DockSite>()?.ToggleAutoHideFlyout(window);
         }
     }
 

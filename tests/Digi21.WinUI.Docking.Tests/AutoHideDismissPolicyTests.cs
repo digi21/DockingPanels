@@ -51,6 +51,23 @@ public class AutoHideDismissPolicyTests
         Assert.True(ShouldCollapse(AutoHideOpenReason.Hover, AutoHideDismissTrigger.PointerPressedOutside, focusInside: false));
     }
 
+    [Fact]
+    public void PressingTheTabOfAPanelOpenedForReal_CollapsesIt()
+    {
+        // The tab is a toggle. The panel goes away even while the user is typing into it: nothing
+        // else about the gesture could be what they meant.
+        Assert.True(ShouldCollapse(AutoHideOpenReason.Activation, AutoHideDismissTrigger.TabPressed, focusInside: false));
+        Assert.True(ShouldCollapse(AutoHideOpenReason.Activation, AutoHideDismissTrigger.TabPressed, focusInside: true));
+    }
+
+    [Fact]
+    public void PressingTheTabOfAPreview_LeavesItOpen()
+    {
+        // The panel is only out because the pointer is on the tab; the press is what asks to keep
+        // it, and closing it here would make a panel impossible to open with a click.
+        Assert.False(ShouldCollapse(AutoHideOpenReason.Hover, AutoHideDismissTrigger.TabPressed, focusInside: false));
+    }
+
     private static bool ShouldCollapse(AutoHideOpenReason reason, AutoHideDismissTrigger trigger, bool focusInside)
     {
         return AutoHideDismissPolicy.ShouldCollapse(reason, trigger, focusInside);

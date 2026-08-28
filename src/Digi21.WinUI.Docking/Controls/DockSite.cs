@@ -685,6 +685,28 @@ public partial class DockSite : Control, IDockSurface
         ShowAutoHideFlyout(window, AutoHideOpenReason.Activation);
     }
 
+    // Called when an auto-hide tab is pressed. The tab is the panel's switch: it brings the panel
+    // out, and pressing it again while that same panel is out for real puts it back — otherwise the
+    // only way to close a panel opened from its tab is to click somewhere else, which is what
+    // Visual Studio does not make the user do.
+    internal void ToggleAutoHideFlyout(ToolWindow window)
+    {
+        // A panel on its way back into the edge is not one to put away again: the press means the
+        // user wants it after all, so it comes back out through the ordinary path.
+        if (!autoHideCollapsing
+            && ReferenceEquals(AutoHideFlyoutWindow, window)
+            && AutoHideDismissPolicy.ShouldCollapse(
+                autoHideOpenReason,
+                AutoHideDismissTrigger.TabPressed,
+                IsFocusInsideAutoHideFlyout()))
+        {
+            CollapseAutoHideFlyout();
+            return;
+        }
+
+        ShowAutoHideFlyout(window, AutoHideOpenReason.Activation);
+    }
+
     // Shows the auto-hide flyout for the given window. How it was opened decides how it closes
     // later, so it is recorded here and nowhere else.
     internal void ShowAutoHideFlyout(ToolWindow window, AutoHideOpenReason reason)

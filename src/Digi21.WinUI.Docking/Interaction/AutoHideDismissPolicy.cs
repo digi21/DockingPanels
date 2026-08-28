@@ -24,6 +24,9 @@ internal enum AutoHideDismissTrigger
 
     // The focus moved to an element outside the flyout.
     FocusMovedOutside,
+
+    // The tab of the panel on show was pressed again.
+    TabPressed,
 }
 
 // Decides whether an open auto-hide flyout collapses back to its edge. This is the whole rule, kept
@@ -48,6 +51,12 @@ internal static class AutoHideDismissPolicy
             // When it does not — empty chrome, a splitter, a control that refuses focus — a flyout
             // holding the focus stays, and one that never had it collapses as before.
             AutoHideDismissTrigger.PointerPressedOutside => !focusInside,
+
+            // A tab is a toggle, as in Visual Studio: the panel it brought out goes back when the
+            // same tab is pressed again, whether or not anything inside it holds the focus — the
+            // press is the user asking for it. A preview is the exception; that press is the user
+            // asking to keep the panel they are pointing at, not to put it away.
+            AutoHideDismissTrigger.TabPressed => reason == AutoHideOpenReason.Activation,
 
             _ => false,
         };

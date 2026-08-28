@@ -241,7 +241,8 @@ Unpinned windows become tabs on the dock site edge. Pointing at a tab slides its
 layout as a preview, which is not activated and slides back when the pointer leaves; clicking the
 tab opens it for real, and then it stays until the focus goes somewhere else. A click that takes no
 focus with it — empty chrome, a splitter, a control that refuses focus — leaves a panel being typed
-into where it is.
+into where it is. The tab is a switch: clicking the tab of a panel that is out puts it away again,
+without having to find somewhere else to click.
 
 ```xml
 <docking:DockSite AutoHideOpenTrigger="Click">
