@@ -358,7 +358,7 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
 
             if (State == DockingWindowState.AutoHide && site.FindAutoHideGroup(this) is { } group)
             {
-                LayoutManager.DockAutoHideGroup(site, group);
+                LayoutManager.DockAutoHideGroup(site, group, this as ToolWindow);
             }
             else if (State == DockingWindowState.Floating && site.FindFloatingHost(this) is { } host)
             {

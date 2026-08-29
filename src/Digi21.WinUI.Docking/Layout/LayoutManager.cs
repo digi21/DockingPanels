@@ -617,15 +617,21 @@ internal static class LayoutManager
         return (edge, size, offset);
     }
 
-    // Pins an auto-hide group back into the layout at the edge it collapsed from.
-    internal static void DockAutoHideGroup(DockSite site, AutoHideGroup group)
+    // Pins an auto-hide group back into the layout at the edge it collapsed from. The group docks
+    // as a whole, and the window the gesture came from is the one left selected, so pinning the
+    // panel on screen keeps showing that panel instead of the first tab of the group.
+    internal static void DockAutoHideGroup(DockSite site, AutoHideGroup group, ToolWindow? active = null)
     {
+        var selected = active is not null && group.Windows.Contains(active)
+            ? active
+            : group.Windows.FirstOrDefault();
+
         site.RemoveAutoHideGroup(group);
 
         RestoreWindows(site, group.Windows, group.RestoreHint, group.Edge);
 
         site.NotifyLayoutChanged(LayoutChangeKind.WindowDocked);
-        group.Windows.FirstOrDefault()?.Activate();
+        selected?.Activate();
     }
 
     // Captures where a container sits in the layout tree, so it can be put back there after being
