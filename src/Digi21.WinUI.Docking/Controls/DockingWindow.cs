@@ -1,3 +1,4 @@
+using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -18,6 +19,18 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     /// which WinUI raises in that order for an element that never left the tree.
     /// </summary>
     public event EventHandler? Relocated;
+
+    /// <summary>
+    /// Raised when <see cref="IsContentVisible"/> changes: the window's content has just come on
+    /// screen, or has just gone off it.
+    /// </summary>
+    /// <remarks>
+    /// Content that costs something to keep running while nobody is looking — a video feed, a
+    /// render loop, a subscription to a stream someone else has to produce — should start and stop
+    /// on this event. <see cref="Relocated"/> answers a different question: it says the window
+    /// moved, not whether it can be seen.
+    /// </remarks>
+    public event EventHandler? ContentVisibilityChanged;
 
     /// <summary>Identifies the <see cref="Title"/> dependency property.</summary>
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(
@@ -49,7 +62,7 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
 
     /// <summary>Identifies the <see cref="IsOpen"/> dependency property.</summary>
     public static readonly DependencyProperty IsOpenProperty = DependencyProperty.Register(
-        nameof(IsOpen), typeof(bool), typeof(DockingWindow), new PropertyMetadata(false));
+        nameof(IsOpen), typeof(bool), typeof(DockingWindow), new PropertyMetadata(false, OnContentVisibilityInputChanged));
 
     /// <summary>Identifies the <see cref="IsActive"/> dependency property.</summary>
     public static readonly DependencyProperty IsActiveProperty = DependencyProperty.Register(
@@ -57,11 +70,68 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
 
     /// <summary>Identifies the <see cref="IsSelected"/> dependency property.</summary>
     public static readonly DependencyProperty IsSelectedProperty = DependencyProperty.Register(
-        nameof(IsSelected), typeof(bool), typeof(DockingWindow), new PropertyMetadata(false));
+        nameof(IsSelected), typeof(bool), typeof(DockingWindow), new PropertyMetadata(false, OnContentVisibilityInputChanged));
 
     /// <summary>Identifies the <see cref="State"/> dependency property.</summary>
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
-        nameof(State), typeof(DockingWindowState), typeof(DockingWindow), new PropertyMetadata(DockingWindowState.Docked));
+        nameof(State), typeof(DockingWindowState), typeof(DockingWindow), new PropertyMetadata(DockingWindowState.Docked, OnContentVisibilityInputChanged));
+
+    /// <summary>Identifies the <see cref="IsContentVisible"/> dependency property.</summary>
+    public static readonly DependencyProperty IsContentVisibleProperty = DependencyProperty.Register(
+        nameof(IsContentVisible), typeof(bool), typeof(DockingWindow), new PropertyMetadata(false, OnIsContentVisibleChanged));
+
+    /// <summary>
+    /// Whether the window's content is actually on screen right now.
+    /// </summary>
+    /// <remarks>
+    /// It is not the same as being open. A docked window that shares a pane with others is only
+    /// visible while its tab is the selected one, and an auto-hidden window only while its flyout
+    /// is out. Both cases collapse the content without taking it out of the tree, so neither shows
+    /// up as <see cref="FrameworkElement.Unloaded"/>.
+    /// </remarks>
+    public bool IsContentVisible
+    {
+        get => (bool)GetValue(IsContentVisibleProperty);
+        private set => SetValue(IsContentVisibleProperty, value);
+    }
+
+    // Set by the DockSite as it shows and releases the flyout, which is the only thing that knows
+    // whether an auto-hidden window is currently out.
+    internal bool IsAutoHideFlyoutOpen
+    {
+        get => isAutoHideFlyoutOpen;
+        set
+        {
+            if (isAutoHideFlyoutOpen == value)
+            {
+                return;
+            }
+
+            isAutoHideFlyoutOpen = value;
+            RefreshContentVisibility();
+        }
+    }
+
+    private bool isAutoHideFlyoutOpen;
+
+    private static void OnContentVisibilityInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+        ((DockingWindow)d).RefreshContentVisibility();
+
+    private static void OnIsContentVisibleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+        ((DockingWindow)d).ContentVisibilityChanged?.Invoke(d, EventArgs.Empty);
+
+    private void RefreshContentVisibility() =>
+        IsContentVisible = IsOpen && State switch
+        {
+            // A floating window is a top-level window of its own: if it is open, it is on screen.
+            DockingWindowState.Floating => true,
+
+            // Unpinned to an edge, it is only on screen while its flyout is out.
+            DockingWindowState.AutoHide => IsAutoHideFlyoutOpen,
+
+            // Docked or a document: its pane collapses every window but the selected one.
+            _ => IsSelected,
+        };
 
     private bool pendingOpenedNotification;
     private DockSite? dockSite;

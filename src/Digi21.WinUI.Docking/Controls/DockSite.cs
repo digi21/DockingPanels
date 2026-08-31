@@ -758,7 +758,15 @@ public partial class DockSite : Control, IDockSurface
 
         // Showing the flyout takes the window out of the auto-hide group and into the flyout's own
         // content host, which is a move like any other as far as its content is concerned.
+        // One panel coming out puts the previous one away without going through HideAutoHideFlyout,
+        // so its flag has to be cleared here or it would claim to be on screen for ever.
+        if (autoHideFlyout.Window is { } outgoing)
+        {
+            outgoing.IsAutoHideFlyoutOpen = false;
+        }
+
         autoHideFlyout.Show(window);
+        window.IsAutoHideFlyoutOpen = true;
         NotifyRelocated(window);
 
         PositionAutoHideFlyout(group);
@@ -1048,6 +1056,7 @@ public partial class DockSite : Control, IDockSurface
                 SetActiveWindow(null);
             }
 
+            shown.IsAutoHideFlyoutOpen = false;
             autoHideFlyout.Release();
         }
 

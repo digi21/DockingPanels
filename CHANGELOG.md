@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `DockingWindow.IsContentVisible` and `ContentVisibilityChanged`, which say whether a window's
+  content is actually on screen. Being open is not the same thing: a docked window that shares a
+  pane is only visible while its tab is selected, and an auto-hidden one only while its flyout is
+  out. Both cases collapse the content without taking it out of the tree, so neither shows up as
+  `Unloaded`, and content that costs something to keep running while nobody is looking — a video
+  feed, a render loop, a subscription to a stream someone else has to produce — had no signal to
+  hang off. `Relocated` answers a different question: that the window moved, not that it can be
+  seen.
+
 ## [1.3.2] - 2026-08-29
 
 ### Fixed
