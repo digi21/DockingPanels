@@ -40,6 +40,8 @@ layout serialization.
 - Cancelable close, activation tracking, and layout-change events on `DockSite`.
 - A `Relocated` event on every element that carries application content, for hosting a
   `SwapChainPanel`, a `WebView2` or anything else with a life cycle of its own.
+- `IsContentVisible` and `ContentVisibilityChanged` on every window, for stopping what costs
+  something to keep running while nobody is looking at it.
 - Light, dark, and high-contrast aware out of the box (built on WinUI theme resources), and
   recolorable through the library's own brush keys.
 - Every tab reachable by UI Automation: tabs report themselves as tab items with the invoke and
@@ -322,6 +324,34 @@ viewerWorkspace.Relocated += (_, _) => RestartRenderLoop();
 ```
 
 Reloading a layout that has not changed moves nothing, and raises nothing.
+
+#### Knowing when nobody is looking
+
+Being open is not the same as being on screen. A docked window that shares a pane with others is
+collapsed whenever its tab is not the selected one, and an auto-hidden window whenever its flyout
+is in. Neither takes the content out of the tree, so neither shows up as `Unloaded`, and
+`Relocated` answers a different question: it says the window moved, not whether it can be seen.
+
+`IsContentVisible` answers that one, and `ContentVisibilityChanged` announces when it turns over,
+which is where content that costs something to keep running while nobody is looking — a video
+feed, a render loop, a subscription to a stream someone else has to produce — should start and
+stop:
+
+```csharp
+cameraWindow.ContentVisibilityChanged += (sender, _) =>
+{
+    if (((DockingWindow)sender).IsContentVisible)
+    {
+        feed.Resume();
+    }
+    else
+    {
+        feed.Suspend();
+    }
+};
+```
+
+A floating window is on screen whenever it is open, being a top-level window of its own.
 
 #### Hosting a SwapChainPanel
 
