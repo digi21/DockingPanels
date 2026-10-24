@@ -34,6 +34,7 @@
                 IsEnabled="False" />
             <Button Click="OnToggleTheme" Content="Toggle Theme" />
             <ToggleButton Click="OnToggleAutoHideTrigger" Content="Click To Open Panels" />
+            <ToggleButton Click="OnToggleAutoHideOpenDelay" Content="Delay Hover Previews" />
             <TextBlock
                 x:Name="EventLog"
                 VerticalAlignment="Center"

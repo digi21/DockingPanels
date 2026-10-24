@@ -192,6 +192,17 @@ public sealed partial class MainWindow : Window
         EventLog.Text = $"Auto-hide tabs open on: {DockSite.AutoHideOpenTrigger}";
     }
 
+    // The middle ground between the two triggers: the pointer still opens a panel, but only once it
+    // rests on the tab.
+    private void OnToggleAutoHideOpenDelay(object sender, RoutedEventArgs e)
+    {
+        DockSite.AutoHideOpenDelay = ((ToggleButton)sender).IsChecked == true
+            ? TimeSpan.FromMilliseconds(400)
+            : TimeSpan.Zero;
+
+        EventLog.Text = $"Hover previews wait: {DockSite.AutoHideOpenDelay.TotalMilliseconds} ms";
+    }
+
     private void OnWindowEvent(object? sender, DockingWindowEventArgs e)
     {
         EventLog.Text = $"{e.Window.Title}: last event at {DateTime.Now:HH:mm:ss}";

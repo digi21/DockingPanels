@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `DockSite.AutoHideOpenDelay`: how long the pointer has to rest on the tab of an auto-hidden
+  panel before the panel slides out as a preview. A pointer that only crosses the tab on its way
+  somewhere else opens nothing, without going as far as `AutoHideOpenTrigger.Click`, where only a
+  click does. Once a panel is out, pointing at another tab still swaps it at once, and clicking a
+  tab is never delayed. Defaults to zero, which keeps the previous behaviour.
+
 ## [1.4.0] - 2026-08-31
 
 ### Added

@@ -98,6 +98,13 @@ public partial class DockSite : Control, IDockSurface
         typeof(DockSite),
         new PropertyMetadata(TimeSpan.FromMilliseconds(350)));
 
+    /// <summary>Identifies the <see cref="AutoHideOpenDelay"/> dependency property.</summary>
+    public static readonly DependencyProperty AutoHideOpenDelayProperty = DependencyProperty.Register(
+        nameof(AutoHideOpenDelay),
+        typeof(TimeSpan),
+        typeof(DockSite),
+        new PropertyMetadata(TimeSpan.Zero));
+
     private readonly List<ToolWindow> toolWindows = [];
     private readonly List<DocumentWindow> documents = [];
     private readonly List<AutoHideGroup> autoHideGroups = [];
@@ -108,6 +115,8 @@ public partial class DockSite : Control, IDockSurface
     private AutoHideOpenReason autoHideOpenReason;
     private bool autoHideCollapsing;
     private DispatcherQueueTimer? autoHideCollapseTimer;
+    private DispatcherQueueTimer? autoHideOpenTimer;
+    private ToolWindow? autoHidePendingWindow;
     private AutoHideFlyout? autoHideFlyout;
     private ContentPresenter? layoutRootPresenter;
     private AppWindow? ownerWindow;
@@ -250,6 +259,25 @@ public partial class DockSite : Control, IDockSurface
     {
         get => (TimeSpan)GetValue(AutoHideCloseDelayProperty);
         set => SetValue(AutoHideCloseDelayProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets how long the pointer has to rest on the tab of an auto-hidden panel before the
+    /// panel slides out as a preview. Leaving the tab sooner opens nothing, so a pointer crossing
+    /// the edge on its way somewhere else leaves the layout alone. Once a panel is out, pointing at
+    /// another tab swaps it at once. Defaults to zero: the panel slides out as soon as the pointer
+    /// reaches its tab.
+    /// </summary>
+    /// <remarks>
+    /// It only delays the pointer: clicking a tab, activating a window from code and selecting a
+    /// tab through UI Automation open the panel at once. With
+    /// <see cref="Docking.AutoHideOpenTrigger.Click"/> the pointer opens nothing, so there is
+    /// nothing to delay.
+    /// </remarks>
+    public TimeSpan AutoHideOpenDelay
+    {
+        get => (TimeSpan)GetValue(AutoHideOpenDelayProperty);
+        set => SetValue(AutoHideOpenDelayProperty, value);
     }
 
     /// <summary>
@@ -844,6 +872,53 @@ public partial class DockSite : Control, IDockSurface
             autoHideCollapsing = false;
             autoHideFlyout?.CancelSlide();
         }
+    }
+
+    // Called by an auto-hide tab when the pointer arrives on it. With AutoHideOpenDelay the preview
+    // waits for the pointer to rest there; leaving or pressing the tab first calls it off.
+    internal void NotifyAutoHideTabPointerEntered(ToolWindow window)
+    {
+        if (!AutoHideOpenPolicy.ShouldOpen(AutoHideOpenTrigger, AutoHideOpenReason.Hover))
+        {
+            return;
+        }
+
+        var delay = AutoHideOpenPolicy.HoverDelay(AutoHideOpenDelay, autoHideFlyout?.Window is not null);
+        if (delay <= TimeSpan.Zero || DispatcherQueue is null)
+        {
+            CancelAutoHidePreview();
+            ShowAutoHideFlyout(window, AutoHideOpenReason.Hover);
+            return;
+        }
+
+        autoHidePendingWindow = window;
+        autoHideOpenTimer ??= CreateAutoHideOpenTimer();
+        autoHideOpenTimer.Interval = delay;
+        autoHideOpenTimer.Start();
+    }
+
+    // The pointer left the tab, or pressed it, before its preview came out.
+    internal void CancelAutoHidePreview()
+    {
+        autoHideOpenTimer?.Stop();
+        autoHidePendingWindow = null;
+    }
+
+    private DispatcherQueueTimer CreateAutoHideOpenTimer()
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) =>
+        {
+            // A window taken out of auto-hide in the meantime has no group, and ShowAutoHideFlyout
+            // ignores it.
+            if (autoHidePendingWindow is { } window)
+            {
+                autoHidePendingWindow = null;
+                ShowAutoHideFlyout(window, AutoHideOpenReason.Hover);
+            }
+        };
+        return timer;
     }
 
     // Called by the flyout and the auto-hide tabs when the pointer arrives. Anything the pointer

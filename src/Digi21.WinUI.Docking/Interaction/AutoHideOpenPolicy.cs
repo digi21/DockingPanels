@@ -13,4 +13,12 @@ internal static class AutoHideOpenPolicy
         // Activate, or a screen reader that selects the tab, is not hovering over anything.
         return reason != AutoHideOpenReason.Hover || trigger == AutoHideOpenTrigger.Pointer;
     }
+
+    // How long the pointer has to rest on a tab before its panel slides out. Once a panel is out —
+    // or still on its way back into the edge — pointing at another tab swaps it at once, as a menu
+    // bar does: the user is already going through the panels.
+    internal static TimeSpan HoverDelay(TimeSpan configured, bool panelShowing)
+    {
+        return panelShowing || configured <= TimeSpan.Zero ? TimeSpan.Zero : configured;
+    }
 }

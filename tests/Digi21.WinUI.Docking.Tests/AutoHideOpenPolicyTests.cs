@@ -27,4 +27,25 @@ public class AutoHideOpenPolicyTests
         // arrive as an activation: none of them is hovering over anything, so none is refused.
         Assert.True(AutoHideOpenPolicy.ShouldOpen(trigger, AutoHideOpenReason.Activation));
     }
+
+    [Fact]
+    public void HoverDelay_WaitsWhenNoPanelIsOut()
+    {
+        Assert.Equal(TimeSpan.FromMilliseconds(400), AutoHideOpenPolicy.HoverDelay(TimeSpan.FromMilliseconds(400), panelShowing: false));
+    }
+
+    [Fact]
+    public void HoverDelay_SwapsAtOnceWhenAPanelIsOut()
+    {
+        // Moving from one tab to the next while a panel is showing is going through the panels, not passing by.
+        Assert.Equal(TimeSpan.Zero, AutoHideOpenPolicy.HoverDelay(TimeSpan.FromMilliseconds(400), panelShowing: true));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-100)]
+    public void HoverDelay_ZeroOrLessOpensAtOnce(int milliseconds)
+    {
+        Assert.Equal(TimeSpan.Zero, AutoHideOpenPolicy.HoverDelay(TimeSpan.FromMilliseconds(milliseconds), panelShowing: false));
+    }
 }

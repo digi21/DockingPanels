@@ -74,11 +74,11 @@ public partial class AutoHideTabItem : Control
     {
         base.OnPointerEntered(e);
 
-        // Pointing at a tab previews its window, as in Visual Studio. The panel is shown without
-        // being activated, and leaving the tab takes it away again.
+        // Pointing at a tab previews its window, as in Visual Studio, after DockSite.AutoHideOpenDelay.
+        // The panel is shown without being activated, and leaving the tab takes it away again.
         if (Window is { } window)
         {
-            this.FindAncestor<DockSite>()?.ShowAutoHideFlyout(window, AutoHideOpenReason.Hover);
+            this.FindAncestor<DockSite>()?.NotifyAutoHideTabPointerEntered(window);
         }
     }
 
@@ -86,7 +86,9 @@ public partial class AutoHideTabItem : Control
     protected override void OnPointerExited(PointerRoutedEventArgs e)
     {
         base.OnPointerExited(e);
-        this.FindAncestor<DockSite>()?.NotifyAutoHidePointerExited();
+        var site = this.FindAncestor<DockSite>();
+        site?.CancelAutoHidePreview();
+        site?.NotifyAutoHidePointerExited();
     }
 
     /// <inheritdoc />
@@ -95,10 +97,11 @@ public partial class AutoHideTabItem : Control
         base.OnPointerPressed(e);
 
         // The tab is a switch, not just a way in: pressing it while its panel is already out for
-        // real puts the panel away again.
-        if (Window is { } window)
+        // real puts the panel away again. A preview still waiting for its delay is overtaken by the press.
+        if (Window is { } window && this.FindAncestor<DockSite>() is { } site)
         {
-            this.FindAncestor<DockSite>()?.ToggleAutoHideFlyout(window);
+            site.CancelAutoHidePreview();
+            site.ToggleAutoHideFlyout(window);
         }
     }
 
