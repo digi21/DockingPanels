@@ -278,6 +278,15 @@ back, for the pointer that crosses outside the panel on its way to a control nea
 Returning within it keeps the panel open. It has no effect on a panel opened by clicking, which the
 pointer does not dismiss at all.
 
+`AutoHideOpenDelay` is the same cushion on the way in: how long the pointer has to rest on a tab
+before its panel slides out as a preview. A pointer that only crosses the tab opens nothing, which
+keeps the previews without going as far as `Click`. It is zero by default, so the panel comes out as
+soon as the pointer reaches its tab. Once a panel is out, pointing at another tab swaps it at once,
+as a menu bar does, and a click never waits.
+
+```xml
+<docking:DockSite AutoHideOpenDelay="0:0:0.4">
+```
 An open panel is resized by dragging its inner edge, the way a docked pane is resized by its
 splitter, and it stays auto-hidden while it happens: the panel opened for one quick look at
 something too wide for it can be widened without being pinned back into the layout. Reaching for
