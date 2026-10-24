@@ -134,7 +134,12 @@ public partial class DockSite : Control, IDockSurface
 
         GotFocus += OnAnyDescendantGotFocus;
         Loaded += (_, _) => HookOwnerWindow();
-        Unloaded += (_, _) => ReleaseOwnerWindow();
+        Unloaded += (_, _) =>
+        {
+            // A preview still waiting for its delay would come out on a site that is no longer on screen.
+            CancelAutoHidePreview();
+            ReleaseOwnerWindow();
+        };
 
         // Registered once here rather than in OnApplyTemplate, which runs again every time the
         // template is re-applied and would stack the handler up; handledEventsToo, because
@@ -695,6 +700,11 @@ public partial class DockSite : Control, IDockSurface
     // Synchronizes the edge tab strips with the current auto-hide groups.
     internal void RefreshAutoHideStrips()
     {
+        // The tab a preview is waiting on may be taken out of the strip with the pointer still over
+        // it, and WinUI does not promise a PointerExited for that: the wait is called off rather than
+        // left to open a panel the pointer is no longer pointing at.
+        CancelAutoHidePreview();
+
         foreach (var (side, strip) in autoHideStrips)
         {
             var groups = autoHideGroups.Where(g => g.Edge == side && g.Windows.Count > 0).ToList();
