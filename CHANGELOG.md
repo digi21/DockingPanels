@@ -13,6 +13,10 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   window can hold a pane of several tabs, and only the selected one is visible; the others were
   reported visible all the same, so `ContentVisibilityChanged` never told their content it had gone
   out of sight.
+- Tabs no longer outlive the pane or auto-hide strip that discarded them. Rebuilding a pane's tab
+  strip, which happens whenever a window joins or leaves the pane, threw its tabs away while they
+  were still subscribed to their windows, so each window kept every tab it had ever had alive and
+  updating them on every title or selection change.
 
 ## [1.5.0] - 2026-10-24
 

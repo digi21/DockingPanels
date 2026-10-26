@@ -420,9 +420,9 @@ public abstract partial class DockingWindowContainer : Control
             }
         }
 
-        pinnedTabStrip?.Children.Clear();
-        tabStrip?.Children.Clear();
-        provisionalTabStrip?.Children.Clear();
+        ReleaseTabs(pinnedTabStrip);
+        ReleaseTabs(tabStrip);
+        ReleaseTabs(provisionalTabStrip);
 
         if (ShowTabs(items.Count))
         {
@@ -456,6 +456,32 @@ public abstract partial class DockingWindowContainer : Control
         }
 
         return tabStrip;
+    }
+
+    // Empties a strip, letting each tab go of its window first. A tab subscribes to its window's
+    // properties, and the window outlives every rebuild: a tab discarded still holding it would be
+    // kept alive, and kept updating, for as long as the window exists.
+    private static void ReleaseTabs(Panel? strip)
+    {
+        if (strip is null)
+        {
+            return;
+        }
+
+        foreach (var child in strip.Children)
+        {
+            switch (child)
+            {
+                case ToolWindowTabItem tab:
+                    tab.Window = null;
+                    break;
+                case DocumentTabItem tab:
+                    tab.Window = null;
+                    break;
+            }
+        }
+
+        strip.Children.Clear();
     }
 
     private static void SetStripVisibility(Panel? strip, bool visible)

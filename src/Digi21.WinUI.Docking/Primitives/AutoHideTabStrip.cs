@@ -66,6 +66,13 @@ public partial class AutoHideTabStrip : Control
             return;
         }
 
+        // Each tab subscribes to its window, which outlives the strip's rebuilds: let it go first, or
+        // the window keeps every discarded tab alive.
+        foreach (var tab in tabs)
+        {
+            tab.Window = null;
+        }
+
         itemsHost.Children.Clear();
         tabs.Clear();
 
