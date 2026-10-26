@@ -478,7 +478,6 @@
                 <ControlTemplate TargetType="primitives:DocumentTabItem">
                     <Grid
                         x:Name="Root"
-                        Padding="10,0,4,0"
                         Background="{TemplateBinding Background}"
                         CornerRadius="{ThemeResource DockingDocumentTabCornerRadius}">
                         <VisualStateManager.VisualStateGroups>
@@ -522,14 +521,52 @@
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
+                            <!--  The attention cue, as on a ToolWindowTabItem.  -->
+                            <VisualStateGroup x:Name="AttentionStates">
+                                <VisualState x:Name="NoAttention" />
+                                <VisualState x:Name="AttentionPulsing">
+                                    <VisualState.Setters>
+                                        <Setter Target="AttentionHighlight.Visibility" Value="Visible" />
+                                    </VisualState.Setters>
+                                    <Storyboard AutoReverse="True" RepeatBehavior="Forever">
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="AttentionHighlight"
+                                            Storyboard.TargetProperty="Opacity"
+                                            From="0.15"
+                                            To="1"
+                                            Duration="0:0:0.9">
+                                            <DoubleAnimation.EasingFunction>
+                                                <SineEase EasingMode="EaseInOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="AttentionSteady">
+                                    <VisualState.Setters>
+                                        <Setter Target="AttentionHighlight.Visibility" Value="Visible" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
                         </VisualStateManager.VisualStateGroups>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="4" />
                         </Grid.ColumnDefinitions>
+                        <!--  The root has no padding so this can fill the whole tab; the title and the last column carry it.  -->
+                        <Border
+                            x:Name="AttentionHighlight"
+                            Grid.ColumnSpan="4"
+                            Background="{ThemeResource DockingTabAttentionBackgroundBrush}"
+                            BorderBrush="{ThemeResource DockingTabAttentionBorderBrush}"
+                            BorderThickness="{ThemeResource DockingTabAttentionBorderThickness}"
+                            CornerRadius="{ThemeResource DockingDocumentTabCornerRadius}"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed" />
                         <TextBlock
                             x:Name="PART_Title"
+                            Margin="10,0,0,0"
                             VerticalAlignment="Center"
                             Foreground="{TemplateBinding Foreground}"
                             Style="{ThemeResource DockingTabTextStyle}"
@@ -663,7 +700,8 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:ToolWindowTabItem">
-                    <Grid x:Name="Root" Background="{TemplateBinding Background}" Padding="8,0">
+                    <!--  No padding on the root: the attention highlight has to fill the whole tab.  -->
+                    <Grid x:Name="Root" Background="{TemplateBinding Background}">
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="CommonStates">
                                 <VisualState x:Name="Normal" />
@@ -687,14 +725,58 @@
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
+                            <!--
+                                A window asking for attention (DockingWindow.RequestAttention) lights
+                                its tab until its content is shown. The pulse animates the highlight's
+                                opacity rather than a color: the color comes whole from a theme brush,
+                                and an opacity animation runs off the UI thread. AttentionSteady is the
+                                same highlight without motion, for when Windows has animations off or a
+                                high contrast theme is on. The states touch nothing but the highlight:
+                                the title's color belongs to the other groups, and two groups setting
+                                one property undo each other as they change state.
+                            -->
+                            <VisualStateGroup x:Name="AttentionStates">
+                                <VisualState x:Name="NoAttention" />
+                                <VisualState x:Name="AttentionPulsing">
+                                    <VisualState.Setters>
+                                        <Setter Target="AttentionHighlight.Visibility" Value="Visible" />
+                                    </VisualState.Setters>
+                                    <Storyboard AutoReverse="True" RepeatBehavior="Forever">
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="AttentionHighlight"
+                                            Storyboard.TargetProperty="Opacity"
+                                            From="0.15"
+                                            To="1"
+                                            Duration="0:0:0.9">
+                                            <DoubleAnimation.EasingFunction>
+                                                <SineEase EasingMode="EaseInOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="AttentionSteady">
+                                    <VisualState.Setters>
+                                        <Setter Target="AttentionHighlight.Visibility" Value="Visible" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
                         </VisualStateManager.VisualStateGroups>
+                        <Border
+                            x:Name="AttentionHighlight"
+                            Background="{ThemeResource DockingTabAttentionBackgroundBrush}"
+                            BorderBrush="{ThemeResource DockingTabAttentionBorderBrush}"
+                            BorderThickness="{ThemeResource DockingTabAttentionBorderThickness}"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed" />
                         <TextBlock
                             x:Name="PART_Title"
+                            Margin="8,0"
                             VerticalAlignment="Center"
                             Foreground="{TemplateBinding Foreground}"
                             Style="{ThemeResource DockingTabTextStyle}" />
                         <Rectangle
                             x:Name="SelectionIndicator"
+                            Margin="8,0"
                             Height="2"
                             VerticalAlignment="Bottom"
                             Fill="{ThemeResource DockingTabSelectionIndicatorBrush}"
@@ -728,13 +810,49 @@
                 <ControlTemplate TargetType="primitives:AutoHideTabItem">
                     <Grid
                         x:Name="Root"
-                        Padding="10,6"
                         Background="{TemplateBinding Background}"
                         BorderBrush="{ThemeResource DockingAutoHideTabBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="4">
+                        <VisualStateManager.VisualStateGroups>
+                            <!--  The attention cue, as on a ToolWindowTabItem.  -->
+                            <VisualStateGroup x:Name="AttentionStates">
+                                <VisualState x:Name="NoAttention" />
+                                <VisualState x:Name="AttentionPulsing">
+                                    <VisualState.Setters>
+                                        <Setter Target="AttentionHighlight.Visibility" Value="Visible" />
+                                    </VisualState.Setters>
+                                    <Storyboard AutoReverse="True" RepeatBehavior="Forever">
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="AttentionHighlight"
+                                            Storyboard.TargetProperty="Opacity"
+                                            From="0.15"
+                                            To="1"
+                                            Duration="0:0:0.9">
+                                            <DoubleAnimation.EasingFunction>
+                                                <SineEase EasingMode="EaseInOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="AttentionSteady">
+                                    <VisualState.Setters>
+                                        <Setter Target="AttentionHighlight.Visibility" Value="Visible" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <Border
+                            x:Name="AttentionHighlight"
+                            Background="{ThemeResource DockingTabAttentionBackgroundBrush}"
+                            BorderBrush="{ThemeResource DockingTabAttentionBorderBrush}"
+                            BorderThickness="{ThemeResource DockingTabAttentionBorderThickness}"
+                            CornerRadius="3"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed" />
                         <TextBlock
                             x:Name="PART_Title"
+                            Margin="10,6"
                             VerticalAlignment="Center"
                             Foreground="{TemplateBinding Foreground}"
                             Style="{ThemeResource DockingTabTextStyle}" />

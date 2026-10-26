@@ -363,6 +363,33 @@ cameraWindow.ContentVisibilityChanged += (sender, _) =>
 A floating window follows the same rule as a docked one: it can hold a pane of several tabs, and
 only the selected one is on screen.
 
+#### Asking for attention
+
+A panel written to while nobody is looking — a log, a list of search results — should not open
+itself over whatever the user is doing, but it should say there is something new. `RequestAttention`
+lights the window's tab instead — in its pane, on its auto-hide edge, in a floating window, or in
+the document strip — and the tab pulses until the content is shown, then goes back to normal by
+itself.
+
+```csharp
+outputLog.Append(line);
+outputWindow.RequestAttention();   // does nothing if the panel is already on screen
+```
+
+It returns `false` when there is nothing to point at: the content is already on screen, or the
+window is closed and has no tab. A closed window stays closed. `IsAttentionRequested` says whether a
+tab is lit right now, and `ClearAttentionRequest` takes the request back. Call it on the UI thread:
+a log written from a background thread asks through the window's `DispatcherQueue`.
+
+An auto-hidden panel's flyout has to stay out for half a second before its request counts as
+answered, so a pointer crossing the edge on its way elsewhere does not wipe the cues it passes over.
+
+The pulse stops, leaving the tab lit, when Windows has animation effects turned off, and a high
+contrast theme draws the cue as an outline in the system highlight color instead. The color is the
+theme key `DockingTabAttentionBackgroundBrush`. A screen reader learns about it through the tab's
+UI Automation item status, `DockingAttentionStatusText`, since the highlight alone says nothing
+to it.
+
 #### Hosting a SwapChainPanel
 
 This one is worth spelling out, because the symptom is a frozen last frame that looks like a hang.

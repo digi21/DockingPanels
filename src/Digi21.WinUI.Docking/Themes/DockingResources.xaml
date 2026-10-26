@@ -41,6 +41,9 @@
             <StaticResource x:Key="DockingTabPressedBackgroundBrush" ResourceKey="SubtleFillColorTertiaryBrush" />
             <StaticResource x:Key="DockingTabSelectedForegroundBrush" ResourceKey="AccentTextFillColorPrimaryBrush" />
             <StaticResource x:Key="DockingTabSelectionIndicatorBrush" ResourceKey="AccentFillColorDefaultBrush" />
+            <SolidColorBrush x:Key="DockingTabAttentionBackgroundBrush" Opacity="0.35" Color="{ThemeResource SystemAccentColorLight2}" />
+            <StaticResource x:Key="DockingTabAttentionBorderBrush" ResourceKey="SubtleFillColorTransparentBrush" />
+            <Thickness x:Key="DockingTabAttentionBorderThickness">0</Thickness>
 
             <StaticResource x:Key="DockingDocumentTabSelectedBackgroundBrush" ResourceKey="CardBackgroundFillColorDefaultBrush" />
             <StaticResource x:Key="DockingDocumentTabActiveBackgroundBrush" ResourceKey="AccentFillColorDefaultBrush" />
@@ -94,6 +97,9 @@
             <StaticResource x:Key="DockingTabPressedBackgroundBrush" ResourceKey="SubtleFillColorTertiaryBrush" />
             <StaticResource x:Key="DockingTabSelectedForegroundBrush" ResourceKey="AccentTextFillColorPrimaryBrush" />
             <StaticResource x:Key="DockingTabSelectionIndicatorBrush" ResourceKey="AccentFillColorDefaultBrush" />
+            <SolidColorBrush x:Key="DockingTabAttentionBackgroundBrush" Opacity="0.25" Color="{ThemeResource SystemAccentColorDark1}" />
+            <StaticResource x:Key="DockingTabAttentionBorderBrush" ResourceKey="SubtleFillColorTransparentBrush" />
+            <Thickness x:Key="DockingTabAttentionBorderThickness">0</Thickness>
 
             <StaticResource x:Key="DockingDocumentTabSelectedBackgroundBrush" ResourceKey="CardBackgroundFillColorDefaultBrush" />
             <StaticResource x:Key="DockingDocumentTabActiveBackgroundBrush" ResourceKey="AccentFillColorDefaultBrush" />
@@ -152,6 +158,13 @@
             <StaticResource x:Key="DockingTabPressedBackgroundBrush" ResourceKey="SubtleFillColorTertiaryBrush" />
             <StaticResource x:Key="DockingTabSelectedForegroundBrush" ResourceKey="AccentTextFillColorPrimaryBrush" />
             <StaticResource x:Key="DockingTabSelectionIndicatorBrush" ResourceKey="AccentFillColorDefaultBrush" />
+            <!--
+                An outline in the system highlight color, without pulsing, rather than a fill: the
+                title keeps its own color, and a highlight fill under it would not leave it readable.
+            -->
+            <StaticResource x:Key="DockingTabAttentionBackgroundBrush" ResourceKey="SubtleFillColorTransparentBrush" />
+            <StaticResource x:Key="DockingTabAttentionBorderBrush" ResourceKey="SystemColorHighlightColorBrush" />
+            <Thickness x:Key="DockingTabAttentionBorderThickness">2</Thickness>
 
             <StaticResource x:Key="DockingDocumentTabSelectedBackgroundBrush" ResourceKey="CardBackgroundFillColorDefaultBrush" />
             <StaticResource x:Key="DockingDocumentTabActiveBackgroundBrush" ResourceKey="AccentFillColorDefaultBrush" />
@@ -258,6 +271,12 @@
     <x:String x:Key="DockingCloseButtonName">Close</x:String>
     <x:String x:Key="DockingAutoHideButtonName">Auto-hide</x:String>
     <x:String x:Key="DockingDockButtonName">Dock</x:String>
+
+    <!--
+        What a tab asking for attention (DockingWindow.RequestAttention) says to a screen reader, as
+        its UI Automation item status, since the highlight alone says nothing to one.
+    -->
+    <x:String x:Key="DockingAttentionStatusText">New content</x:String>
 
     <!--
         The document tab's own pin button and the commands of its context menu. "Pin" here fixes the

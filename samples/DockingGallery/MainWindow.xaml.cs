@@ -218,6 +218,17 @@ public sealed partial class MainWindow : Window
         Reopen(Output, DockSide.Bottom);
     }
 
+    // What a log does when it is written to while nobody is looking: it lights its tab instead of
+    // opening itself over whatever the user is doing. Already on screen, the line is the news.
+    private void OnWriteToOutput(object sender, RoutedEventArgs e)
+    {
+        OutputText.Text += $"\nWritten at {DateTime.Now:HH:mm:ss}";
+
+        EventLog.Text = Output.RequestAttention()
+            ? "Output is asking for attention"
+            : $"Output did not ask for attention (open: {Output.IsOpen}, on screen: {Output.IsContentVisible})";
+    }
+
     private void Reopen(ToolWindow window, DockSide side)
     {
         if (window.IsOpen)

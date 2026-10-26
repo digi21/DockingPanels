@@ -29,6 +29,7 @@ public partial class DocumentTabItem : Control, IDockingWindowTab
     private long canCloseToken = -1;
     private long isPinnedToken = -1;
     private long isProvisionalToken = -1;
+    private readonly TabAttention attention;
     private TextBlock? titleText;
     private Button? pinButton;
     private Button? closeButton;
@@ -37,6 +38,7 @@ public partial class DocumentTabItem : Control, IDockingWindowTab
     /// <summary>Initializes a new instance of the <see cref="DocumentTabItem"/> class.</summary>
     public DocumentTabItem()
     {
+        attention = new(this);
         DefaultStyleKey = typeof(DocumentTabItem);
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
 
@@ -84,6 +86,7 @@ public partial class DocumentTabItem : Control, IDockingWindowTab
         }
 
         Update();
+        attention.Apply();
     }
 
     /// <inheritdoc />
@@ -151,6 +154,7 @@ public partial class DocumentTabItem : Control, IDockingWindowTab
         }
 
         observed = Window;
+        attention.Observe(observed);
 
         if (observed is not null)
         {

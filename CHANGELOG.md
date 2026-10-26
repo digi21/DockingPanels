@@ -7,6 +7,20 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `DockingWindow.RequestAttention`, `IsAttentionRequested` and `ClearAttentionRequest`: a panel
+  written to while nobody is looking can light its tab instead of opening itself. The tab — in its
+  pane, on its auto-hide edge, in a floating window or in the document strip — pulses until the
+  content comes on screen, and then goes back to normal by itself. An auto-hidden panel's flyout has
+  to stay out for half a second to answer it, so a pointer crossing the edge does not. The pulse
+  becomes a steady highlight when Windows has animation effects turned off, and an outline in the
+  system highlight color in high contrast. A closed window has no tab, stays closed and remembers
+  nothing. New theme keys `DockingTabAttentionBackgroundBrush`, `DockingTabAttentionBorderBrush`,
+  `DockingTabAttentionBorderThickness` and `DockingAttentionStatusText`, the UI Automation item
+  status the tab reports while it is lit. A custom tab template shows the cue only if it declares
+  the `AttentionStates` visual state group the default templates now do.
+
 ### Fixed
 
 - `IsContentVisible` no longer reports every window of a floating window as on screen. A floating

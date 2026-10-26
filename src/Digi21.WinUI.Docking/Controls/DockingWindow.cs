@@ -1,4 +1,5 @@
 using System;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -95,6 +96,66 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
         private set => SetValue(IsContentVisibleProperty, value);
     }
 
+    /// <summary>Identifies the <see cref="IsAttentionRequested"/> dependency property.</summary>
+    public static readonly DependencyProperty IsAttentionRequestedProperty = DependencyProperty.Register(
+        nameof(IsAttentionRequested), typeof(bool), typeof(DockingWindow), new PropertyMetadata(false));
+
+    /// <summary>
+    /// Gets a value indicating whether the window's tab is asking the user to look at it.
+    /// </summary>
+    /// <remarks>
+    /// Set by <see cref="RequestAttention"/>, and cleared by the library once the content has come
+    /// on screen, however that happens: the user selecting the tab, opening the window's auto-hide
+    /// flyout, or the application activating the window. The library checks again before clearing
+    /// it, so a window that only passes through a visible state while a docking operation moves it
+    /// keeps its request, and an auto-hidden window's flyout has to stay out for half a second, so
+    /// a pointer crossing the edge does not answer it. It is not part of a saved layout.
+    /// </remarks>
+    public bool IsAttentionRequested
+    {
+        get => (bool)GetValue(IsAttentionRequestedProperty);
+        private set => SetValue(IsAttentionRequestedProperty, value);
+    }
+
+    /// <summary>
+    /// Marks the window's tab as having something new to show, without bringing the window forward.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> if a tab now carries the cue; <see langword="false"/> if the content
+    /// is already on screen, where there is nothing to point at, or the window is closed and has no
+    /// tab to point with.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// Meant for content that is written to while nobody is looking, such as a log or a list of
+    /// results, and that should say so without opening itself over whatever the user is doing. The
+    /// tab's background pulses until the content is shown, and stays lit without pulsing when
+    /// Windows has animation effects turned off or a high contrast theme is on.
+    /// </para>
+    /// <para>
+    /// A closed window stays closed and remembers nothing: reopening it shows the content anyway.
+    /// A tab drawn by a custom template shows the cue only if the template declares the
+    /// <c>AttentionStates</c> group the default templates do.
+    /// </para>
+    /// <para>
+    /// Like every member of a XAML element, it has to be called on the UI thread. Content written
+    /// from a background thread asks through the window's <c>DispatcherQueue</c>.
+    /// </para>
+    /// </remarks>
+    public bool RequestAttention()
+    {
+        if (!IsOpen || IsContentVisible)
+        {
+            return false;
+        }
+
+        IsAttentionRequested = true;
+        return true;
+    }
+
+    /// <summary>Takes back an attention request the user has not answered yet.</summary>
+    public void ClearAttentionRequest() => IsAttentionRequested = false;
+
     // Set by the DockSite as it shows and releases the flyout, which is the only thing that knows
     // whether an auto-hidden window is currently out.
     internal bool IsAutoHideFlyoutOpen
@@ -117,10 +178,75 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     private static void OnContentVisibilityInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((DockingWindow)d).RefreshContentVisibility();
 
-    private static void OnIsContentVisibleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
-        ((DockingWindow)d).ContentVisibilityChanged?.Invoke(d, EventArgs.Empty);
+    private static void OnIsContentVisibleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var window = (DockingWindow)d;
 
-    private void RefreshContentVisibility() =>
+        if (window.IsContentVisible && window.IsAttentionRequested)
+        {
+            window.ClearAttentionOnceSettled();
+        }
+
+        window.ContentVisibilityChanged?.Invoke(d, EventArgs.Empty);
+    }
+
+    // Whatever the tab was pointing at is in front of the user, unless the window only passed through
+    // a visible state on its way somewhere else: a pane being emptied selects each window in turn as
+    // the others leave it, which is what unpinning a group or pinning it back does. So the answer
+    // waits for the operation to finish, and the cue goes only if the content is still on screen.
+    //
+    // An auto-hidden window waits longer. Its flyout slides out as a preview the moment the pointer
+    // touches its tab, so a pointer only crossing the edge on its way elsewhere would otherwise wipe
+    // every cue it passed over without anyone having looked at a panel.
+    private void ClearAttentionOnceSettled()
+    {
+        if (DispatcherQueue is not { } queue)
+        {
+            IsAttentionRequested = false;
+            return;
+        }
+
+        if (State == DockingWindowState.AutoHide)
+        {
+            if (attentionTimer is null)
+            {
+                attentionTimer = queue.CreateTimer();
+                attentionTimer.IsRepeating = false;
+                attentionTimer.Tick += (_, _) => ClearAttentionIfStillVisible();
+            }
+
+            attentionTimer.Interval = AutoHideAttentionDwell;
+            attentionTimer.Start();
+            return;
+        }
+
+        if (!queue.TryEnqueue(DispatcherQueuePriority.Low, ClearAttentionIfStillVisible))
+        {
+            IsAttentionRequested = false;
+        }
+    }
+
+    private void ClearAttentionIfStillVisible()
+    {
+        if (IsContentVisible)
+        {
+            IsAttentionRequested = false;
+        }
+    }
+
+    // How long an auto-hidden window's flyout has to stay out before its request counts as answered.
+    private static readonly TimeSpan AutoHideAttentionDwell = TimeSpan.FromMilliseconds(500);
+
+    private DispatcherQueueTimer? attentionTimer;
+
+    private void RefreshContentVisibility()
+    {
+        // A closed window has no tab left to carry the cue, and reopening it shows the content.
+        if (!IsOpen)
+        {
+            IsAttentionRequested = false;
+        }
+
         IsContentVisible = IsOpen && State switch
         {
             // Unpinned to an edge, it is only on screen while its flyout is out.
@@ -130,6 +256,7 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
             // A floating window is no exception, since it can hold a pane of several tabs.
             _ => IsSelected,
         };
+    }
 
     private bool pendingOpenedNotification;
     private DockSite? dockSite;

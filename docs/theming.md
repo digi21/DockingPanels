@@ -97,6 +97,16 @@ The *active* pair is what marks the pane holding the active window.
 | `DockingDocumentTabSelectedBackgroundBrush` | `CardBackgroundFillColorDefaultBrush` | Selected document tab |
 | `DockingDocumentTabActiveBackgroundBrush` | `AccentFillColorDefaultBrush` | Document tab holding the active window |
 | `DockingDocumentTabActiveForegroundBrush` | `TextOnAccentFillColorPrimaryBrush` | Its text and close button |
+| `DockingTabAttentionBackgroundBrush` | The accent color, at 35 % in dark and 25 % in light; transparent in high contrast | Any tab whose window asked for attention |
+| `DockingTabAttentionBorderBrush` | Transparent; `SystemColorHighlightColorBrush` in high contrast | The outline of that highlight |
+| `DockingTabAttentionBorderThickness` (`Thickness`) | `0`; `2` in high contrast | Its width |
+
+A tab whose window called `RequestAttention` pulses its highlight's opacity between 15 % and 100 %
+of `DockingTabAttentionBackgroundBrush`, so the brush's own opacity sets how strong the cue gets at
+its peak. With animation effects off or a high contrast theme on, the tab holds the highlight at
+full strength instead. The title keeps its own color throughout, which is why high contrast draws
+an outline rather than a fill: a highlight fill under text in the window text color would not leave
+it readable.
 
 ### Splitters
 
@@ -252,6 +262,7 @@ along with the colors:
 | `DockingCloseAllTabsName` | `x:String` | `Close all tabs` |
 | `DockingCloseAllButPinnedTabsName` | `x:String` | `Close all but pinned` |
 | `DockingCloseAllButThisTabName` | `x:String` | `Close all but this` |
+| `DockingAttentionStatusText` | `x:String` | `New content` |
 
 A tool window's pin button takes whichever of `DockingAutoHideButtonName` and
 `DockingDockButtonName` matches what clicking it would do, the same way it picks its glyph. A
@@ -259,6 +270,10 @@ document tab's pin button does the same with the two `…TabButtonName` keys, an
 commands of the document tab's context menu — `DockingKeepTabOpenName` appearing only while the tab
 is the provisional one. Tabs themselves are named after the window they
 carry, so they need no key of their own.
+
+`DockingAttentionStatusText` is the item status a tab reports while its window is asking for
+attention, which is how a screen reader learns what the highlight shows; the tab announces the
+change as it happens.
 
 ## Text
 

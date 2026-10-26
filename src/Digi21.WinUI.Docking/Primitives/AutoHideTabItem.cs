@@ -33,11 +33,13 @@ public partial class AutoHideTabItem : Control
 
     private ToolWindow? observed;
     private long titleToken = -1;
+    private readonly TabAttention attention;
     private TextBlock? titleText;
 
     /// <summary>Initializes a new instance of the <see cref="AutoHideTabItem"/> class.</summary>
     public AutoHideTabItem()
     {
+        attention = new(this);
         DefaultStyleKey = typeof(AutoHideTabItem);
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
     }
@@ -67,6 +69,7 @@ public partial class AutoHideTabItem : Control
         base.OnApplyTemplate();
         titleText = GetTemplateChild("PART_Title") as TextBlock;
         Update();
+        attention.Apply();
     }
 
     /// <inheritdoc />
@@ -165,6 +168,7 @@ public partial class AutoHideTabItem : Control
         }
 
         observed = Window;
+        attention.Observe(observed);
 
         if (observed is not null)
         {

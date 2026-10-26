@@ -22,12 +22,14 @@ public partial class ToolWindowTabItem : Control, IDockingWindowTab
     private DockingWindow? observed;
     private long titleToken = -1;
     private long isSelectedToken = -1;
+    private readonly TabAttention attention;
     private TextBlock? titleText;
     private bool pointerOver;
 
     /// <summary>Initializes a new instance of the <see cref="ToolWindowTabItem"/> class.</summary>
     public ToolWindowTabItem()
     {
+        attention = new(this);
         DefaultStyleKey = typeof(ToolWindowTabItem);
         DefaultStyleResourceUri = new Uri("ms-appx:///Digi21.WinUI.Docking/Themes/Generic.xaml");
     }
@@ -48,6 +50,7 @@ public partial class ToolWindowTabItem : Control, IDockingWindowTab
         base.OnApplyTemplate();
         titleText = GetTemplateChild("PART_Title") as TextBlock;
         Update();
+        attention.Apply();
     }
 
     /// <inheritdoc />
@@ -95,6 +98,7 @@ public partial class ToolWindowTabItem : Control, IDockingWindowTab
         }
 
         observed = Window;
+        attention.Observe(observed);
 
         if (observed is not null)
         {
