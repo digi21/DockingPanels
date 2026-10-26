@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `IsContentVisible` no longer reports every window of a floating window as on screen. A floating
+  window can hold a pane of several tabs, and only the selected one is visible; the others were
+  reported visible all the same, so `ContentVisibilityChanged` never told their content it had gone
+  out of sight.
+
 ## [1.5.0] - 2026-10-24
 
 ### Added

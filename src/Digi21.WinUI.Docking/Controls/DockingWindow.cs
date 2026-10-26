@@ -84,10 +84,10 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     /// Whether the window's content is actually on screen right now.
     /// </summary>
     /// <remarks>
-    /// It is not the same as being open. A docked window that shares a pane with others is only
-    /// visible while its tab is the selected one, and an auto-hidden window only while its flyout
-    /// is out. Both cases collapse the content without taking it out of the tree, so neither shows
-    /// up as <see cref="FrameworkElement.Unloaded"/>.
+    /// It is not the same as being open. A window that shares a pane with others, docked or in a
+    /// floating window, is only visible while its tab is the selected one, and an auto-hidden window
+    /// only while its flyout is out. Both cases collapse the content without taking it out of the
+    /// tree, so neither shows up as <see cref="FrameworkElement.Unloaded"/>.
     /// </remarks>
     public bool IsContentVisible
     {
@@ -123,13 +123,11 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     private void RefreshContentVisibility() =>
         IsContentVisible = IsOpen && State switch
         {
-            // A floating window is a top-level window of its own: if it is open, it is on screen.
-            DockingWindowState.Floating => true,
-
             // Unpinned to an edge, it is only on screen while its flyout is out.
             DockingWindowState.AutoHide => IsAutoHideFlyoutOpen,
 
-            // Docked or a document: its pane collapses every window but the selected one.
+            // Docked, floating or a document: its pane collapses every window but the selected one.
+            // A floating window is no exception, since it can hold a pane of several tabs.
             _ => IsSelected,
         };
 

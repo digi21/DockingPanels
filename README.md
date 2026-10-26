@@ -360,7 +360,8 @@ cameraWindow.ContentVisibilityChanged += (sender, _) =>
 };
 ```
 
-A floating window is on screen whenever it is open, being a top-level window of its own.
+A floating window follows the same rule as a docked one: it can hold a pane of several tabs, and
+only the selected one is on screen.
 
 #### Hosting a SwapChainPanel
 
