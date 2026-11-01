@@ -204,6 +204,18 @@ internal static class LayoutTree
         }
     }
 
+    // Tells whether a layout subtree holds a work area: a workspace or a document area. A document
+    // area counts as a whole, whatever is docked inside it.
+    internal static bool HoldsWorkArea(UIElement? node)
+    {
+        return node switch
+        {
+            Workspace or DocumentHost => true,
+            SplitContainer split => split.GetPanes().Any(HoldsWorkArea),
+            _ => false,
+        };
+    }
+
     // Enumerates the document areas of a layout tree, in layout order.
     internal static IEnumerable<DocumentHost> DocumentHosts(UIElement? node)
     {

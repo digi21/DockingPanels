@@ -23,6 +23,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A panel auto-hidden from the middle of a split now collapses to the edge on its own side of the
+  workspace or document area. A panel docked between a window at the far left and the documents
+  used to collapse to the right edge, on the other side of the documents, because the middle of an
+  odd number of panes always went to the trailing edge. A split with no work area in it keeps that
+  rule.
 - `IsContentVisible` no longer reports every window of a floating window as on screen. A floating
   window can hold a pane of several tabs, and only the selected one is visible; the others were
   reported visible all the same, so `ContentVisibilityChanged` never told their content it had gone

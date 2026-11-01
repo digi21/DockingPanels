@@ -921,21 +921,47 @@ internal static class LayoutManager
 
         var panes = parent.GetPanes();
         var index = panes.IndexOf(element);
+        if (index < 0)
+        {
+            return DockSide.Left;
+        }
 
-        return index < 0 ? DockSide.Left : EdgeOfPane(parent.Orientation, index, panes.Count);
+        var workAreas = new List<int>();
+        for (var i = 0; i < panes.Count; i++)
+        {
+            if (LayoutTree.HoldsWorkArea(panes[i]))
+            {
+                workAreas.Add(i);
+            }
+        }
+
+        return EdgeOfPane(parent.Orientation, index, panes.Count, workAreas);
     }
 
-    // Picks the edge a pane collapses to from where it sits among its siblings: the closer half of
-    // the split it belongs to decides the side.
+    // Picks the edge a pane collapses to from where it sits among its siblings.
+    //
+    // A pane on one side of the work area (the workspace or the document area, directly or further
+    // down a sibling pane) collapses to the edge on that side, so a pane docked to the left of the
+    // documents stays on the left whatever else is docked further out. A split with no work area,
+    // or a pane with work areas on both sides of it, falls back to the closer half of the split,
+    // and the middle of an odd number of panes to the trailing edge.
     //
     // orientation: The orientation of the split holding the pane.
     //
     // index: The position of the pane among the panes of that split.
     //
     // count: How many panes the split holds.
-    internal static DockSide EdgeOfPane(Orientation orientation, int index, int count)
+    //
+    // workAreas: The positions of the panes of that split that hold a work area.
+    internal static DockSide EdgeOfPane(
+        Orientation orientation,
+        int index,
+        int count,
+        IReadOnlyCollection<int>? workAreas = null)
     {
-        var leading = index < count - index - 1;
+        var before = workAreas?.Any(i => i < index) ?? false;
+        var after = workAreas?.Any(i => i > index) ?? false;
+        var leading = before != after ? after : index < count - index - 1;
 
         return orientation == Orientation.Vertical
             ? (leading ? DockSide.Top : DockSide.Bottom)
