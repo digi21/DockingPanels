@@ -28,6 +28,9 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   used to collapse to the right edge, on the other side of the documents, because the middle of an
   odd number of panes always went to the trailing edge. A split with no work area in it keeps that
   rule.
+- A saved layout now remembers where an auto-hidden or floating panel came from when the pane it
+  sat next to was a split, such as the documents with a panel docked below them. Pinning the panel
+  back after a reload used to put it at the far edge of the dock site, past its other neighbours.
 - `IsContentVisible` no longer reports every window of a floating window as on screen. A floating
   window can hold a pane of several tabs, and only the selected one is visible; the others were
   reported visible all the same, so `ContentVisibilityChanged` never told their content it had gone

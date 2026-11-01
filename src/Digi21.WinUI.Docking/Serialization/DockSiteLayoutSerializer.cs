@@ -691,9 +691,11 @@ public class DockSiteLayoutSerializer
 
     // Converts a live restore-sibling element into a stable reference for the XML: "Workspace:n"
     // and "DocumentHost:n" for the n-th of those in document order, "Window:id" for a tool window
-    // container and "Document:id" for a document group. Split containers (and elements no longer in
-    // this site) yield no reference, so pinning back falls to the group's edge, same as when the
-    // sibling disappears at runtime.
+    // container and "Document:id" for a document group. A split container has no identity of its
+    // own, so it is reached from a pane inside it: "Split:d:reference" is the split d levels above
+    // the pane the reference names. Elements no longer in this site, and a split with nothing
+    // identifiable inside, yield no reference, so pinning back falls to the group's edge, same as
+    // when the sibling disappears at runtime.
     private static string? CaptureSiblingReference(DockSite site, FrameworkElement? sibling)
     {
         if (sibling is null || !ReferenceEquals(sibling.FindAncestor<DockSite>(), site))
@@ -703,6 +705,9 @@ public class DockSiteLayoutSerializer
 
         switch (sibling)
         {
+            case SplitContainer split:
+                return CaptureSplitReference(site, split, 0);
+
             case Workspace workspace:
                 var workspacePosition = PositionOf(new ReusableElements(site.Child).Workspaces, workspace);
                 return workspacePosition < 0 ? null : $"Workspace:{workspacePosition}";
@@ -722,6 +727,50 @@ public class DockSiteLayoutSerializer
             default:
                 return null;
         }
+    }
+
+    // Finds the first pane below a split, in layout order, that a reference can name, and refers
+    // to the split through it. A document area is a pane in its own right here: the panes inside
+    // it belong to a tree of their own, which walking back up from them would not leave.
+    //
+    // depth: How many levels the split being referred to sits above this one.
+    private static string? CaptureSplitReference(DockSite site, SplitContainer split, int depth)
+    {
+        foreach (var pane in split.GetPanes())
+        {
+            var reference = pane is SplitContainer inner
+                ? CaptureSplitReference(site, inner, depth + 1)
+                : CaptureSiblingReference(site, pane as FrameworkElement) is { } leaf
+                    ? $"Split:{depth + 1}:{leaf}"
+                    : null;
+
+            if (reference is not null)
+            {
+                return reference;
+            }
+        }
+
+        return null;
+    }
+
+    // Walks back up from the pane a "Split:d:reference" names to the split it refers to.
+    private static SplitContainer? ResolveSplitReference(DockSite site, string value, WindowIndex index)
+    {
+        var separator = value.IndexOf(':', StringComparison.Ordinal);
+        if (separator < 0
+            || !int.TryParse(value[..separator], NumberStyles.None, CultureInfo.InvariantCulture, out var depth)
+            || depth < 1)
+        {
+            return null;
+        }
+
+        UIElement? current = ResolveSiblingReference(site, value[(separator + 1)..], index);
+        for (var level = 0; level < depth && current is not null; level++)
+        {
+            current = LayoutTree.Locate(site, current)?.Split;
+        }
+
+        return current as SplitContainer;
     }
 
     private static int PositionOf<T>(Queue<T> candidates, T element)
@@ -771,6 +820,9 @@ public class DockSiteLayoutSerializer
 
             case "Document":
                 return index.Documents.TryGetValue(value, out var document) ? document.Container : null;
+
+            case "Split":
+                return ResolveSplitReference(site, value, index);
 
             default:
                 return null;

@@ -83,7 +83,8 @@ internal sealed class AutoHideGroupNode
 
     // Gets or sets a stable reference to the pane the group re-docks next to when pinned back
     // ("Workspace:n" for the n-th workspace in document order, "Window:id" for the container
-    // hosting that window), or null when the group falls back to docking at its edge.
+    // hosting that window, "Split:d:reference" for the split d levels above the pane the reference
+    // names), or null when the group falls back to docking at its edge.
     internal string? RestoreSibling { get; set; }
 
     // Gets or sets the side of the restore sibling the container sat on.
@@ -117,8 +118,8 @@ internal sealed class FloatingWindowNode
     internal string? RestoreContainer { get; set; }
 
     // Gets or sets a stable reference to the pane the windows re-dock next to when the original
-    // container is gone ("Workspace:n" or "Window:id"), or null when they fall back to a dock site
-    // edge.
+    // container is gone ("Workspace:n", "Window:id" or "Split:d:reference"), or null when they
+    // fall back to a dock site edge.
     internal string? RestoreSibling { get; set; }
 
     // Gets or sets the side of the restore sibling the container sat on.
