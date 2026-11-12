@@ -64,7 +64,7 @@
             x:Name="EventLog"
             Grid.Row="1"
             Margin="8,0,8,4"
-            Style="{ThemeResource CaptionTextBlockStyle}"
+            Style="{ThemeResource BodyTextBlockStyle}"
             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
         <docking:DockSite
