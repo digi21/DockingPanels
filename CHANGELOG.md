@@ -7,6 +7,15 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The library now works in an app published with NativeAOT. The content of docked windows was missing,
+  and tab titles, title bar text and button glyphs were wrong, because the library cast template
+  parts to WinUI classes such as `ContentPresenter` and `TextBlock` that nothing constructs, so the
+  AOT compiler removed them and the casts quietly returned `null`. Template parts are now looked up
+  through a helper that keeps the class it casts to, and no trimmer root descriptor is needed. See
+  `docs/nativeaot.md`.
+
 ## [1.6.0] - 2026-11-02
 
 ### Added

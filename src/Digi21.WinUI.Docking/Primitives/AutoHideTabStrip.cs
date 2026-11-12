@@ -55,7 +55,7 @@ public partial class AutoHideTabStrip : Control
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
-        itemsHost = GetTemplateChild("PART_Items") as Grid;
+        itemsHost = this.TemplatePart<Grid>("PART_Items");
         Rebuild();
     }
 

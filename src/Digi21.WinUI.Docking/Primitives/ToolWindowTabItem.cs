@@ -48,7 +48,7 @@ public partial class ToolWindowTabItem : Control, IDockingWindowTab
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
-        titleText = GetTemplateChild("PART_Title") as TextBlock;
+        titleText = this.TemplatePart<TextBlock>("PART_Title");
         Update();
         attention.Apply();
     }

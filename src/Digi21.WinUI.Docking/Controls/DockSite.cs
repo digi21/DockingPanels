@@ -387,20 +387,20 @@ public partial class DockSite : Control, IDockSurface
             ("PART_AutoHideStripBottom", DockSide.Bottom),
         })
         {
-            if (GetTemplateChild(name) is AutoHideTabStrip strip)
+            if (this.TemplatePart<AutoHideTabStrip>(name) is { } strip)
             {
                 autoHideStrips[side] = strip;
             }
         }
 
-        autoHideFlyout = GetTemplateChild("PART_AutoHideFlyout") as AutoHideFlyout;
+        autoHideFlyout = this.TemplatePart<AutoHideFlyout>("PART_AutoHideFlyout");
 
         if (layoutRootPresenter is not null)
         {
             layoutRootPresenter.SizeChanged -= OnLayoutRootSizeChanged;
         }
 
-        layoutRootPresenter = GetTemplateChild("PART_LayoutRoot") as ContentPresenter;
+        layoutRootPresenter = this.TemplatePart<ContentPresenter>("PART_LayoutRoot");
 
         if (layoutRootPresenter is not null)
         {
@@ -409,18 +409,18 @@ public partial class DockSite : Control, IDockSurface
 
         RefreshAutoHideStrips();
 
-        if (GetTemplateChild("PART_DockPreview") is Rectangle preview
-            && GetTemplateChild("PART_CenterGuides") is DockGuidePanel centerGuides
-            && GetTemplateChild("PART_EdgeGuideLeft") is DockGuide left
-            && GetTemplateChild("PART_EdgeGuideTop") is DockGuide top
-            && GetTemplateChild("PART_EdgeGuideRight") is DockGuide right
-            && GetTemplateChild("PART_EdgeGuideBottom") is DockGuide bottom)
+        if (this.TemplatePart<Rectangle>("PART_DockPreview") is { } preview
+            && this.TemplatePart<DockGuidePanel>("PART_CenterGuides") is { } centerGuides
+            && this.TemplatePart<DockGuide>("PART_EdgeGuideLeft") is { } left
+            && this.TemplatePart<DockGuide>("PART_EdgeGuideTop") is { } top
+            && this.TemplatePart<DockGuide>("PART_EdgeGuideRight") is { } right
+            && this.TemplatePart<DockGuide>("PART_EdgeGuideBottom") is { } bottom)
         {
             overlay = new DockGuideOverlay(
                 this,
                 preview,
-                GetTemplateChild("PART_DragGhost") as Border,
-                GetTemplateChild("PART_DragGhostText") as TextBlock,
+                this.TemplatePart<Border>("PART_DragGhost"),
+                this.TemplatePart<TextBlock>("PART_DragGhostText"),
                 centerGuides,
                 new Dictionary<DockSide, DockGuide>
                 {

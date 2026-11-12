@@ -56,6 +56,12 @@ missing XML documentation on public members. Beyond that:
 - Keep the layout invariants in `LayoutManager`. Every structural mutation goes through it, so that
   empty containers are removed, single-pane splits collapse, and elements are detached before being
   attached elsewhere, in exactly one place.
+- Look template parts up with `this.TemplatePart<TextBlock>("PART_Title")`, not `GetTemplateChild(...)
+  as TextBlock`; calling `GetTemplateChild` directly is a build error. A cast of anything else that
+  native code returned to a WinUI class the library does not construct itself goes through
+  `ProjectedClassCast.As<T>`. Under NativeAOT a class that is only ever cast to is removed and the
+  cast quietly returns `null`; naming the class in those calls is what keeps it. See the comment in
+  `ProjectedClassCast.cs`.
 - Match the surrounding code: file-scoped namespaces, nullable enabled, no abbreviations in names.
 
 ## Commits and pull requests

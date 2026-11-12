@@ -613,6 +613,8 @@ Two things about the tree are worth knowing before hunting for a floating window
   around them, and the rules the layout system enforces. Six runtime trees for the usual arrangements.
 - [Theming](https://github.com/Digi21/DockingPanels/blob/main/docs/theming.md) — every brush and
   metric key, and how to retemplate a control.
+- [NativeAOT](https://github.com/Digi21/DockingPanels/blob/main/docs/nativeaot.md) — publishing an
+  app that uses the library with `PublishAot`, and what a custom template has to keep.
 
 ## Sample
 

@@ -93,11 +93,11 @@ public partial class DockGuidePanel : Control
     {
         base.OnApplyTemplate();
 
-        CenterGuide = GetTemplateChild("PART_CenterGuide") as DockGuide;
-        LeftGuide = GetTemplateChild("PART_LeftGuide") as DockGuide;
-        TopGuide = GetTemplateChild("PART_TopGuide") as DockGuide;
-        RightGuide = GetTemplateChild("PART_RightGuide") as DockGuide;
-        BottomGuide = GetTemplateChild("PART_BottomGuide") as DockGuide;
+        CenterGuide = this.TemplatePart<DockGuide>("PART_CenterGuide");
+        LeftGuide = this.TemplatePart<DockGuide>("PART_LeftGuide");
+        TopGuide = this.TemplatePart<DockGuide>("PART_TopGuide");
+        RightGuide = this.TemplatePart<DockGuide>("PART_RightGuide");
+        BottomGuide = this.TemplatePart<DockGuide>("PART_BottomGuide");
 
         UpdateCenterVisibility();
         UpdateSideVisibility();

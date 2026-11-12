@@ -66,7 +66,7 @@ public partial class FloatingWindowRoot : Control, IDockSurface
     {
         base.OnApplyTemplate();
 
-        caption = GetTemplateChild("PART_Caption") as FloatingWindowCaption;
+        caption = this.TemplatePart<FloatingWindowCaption>("PART_Caption");
         if (caption is not null)
         {
             caption.Host = Host;
@@ -74,18 +74,18 @@ public partial class FloatingWindowRoot : Control, IDockSurface
 
         ApplyCaption();
 
-        if (GetTemplateChild("PART_DockPreview") is Rectangle preview
-            && GetTemplateChild("PART_CenterGuides") is DockGuidePanel centerGuides
-            && GetTemplateChild("PART_EdgeGuideLeft") is DockGuide left
-            && GetTemplateChild("PART_EdgeGuideTop") is DockGuide top
-            && GetTemplateChild("PART_EdgeGuideRight") is DockGuide right
-            && GetTemplateChild("PART_EdgeGuideBottom") is DockGuide bottom)
+        if (this.TemplatePart<Rectangle>("PART_DockPreview") is { } preview
+            && this.TemplatePart<DockGuidePanel>("PART_CenterGuides") is { } centerGuides
+            && this.TemplatePart<DockGuide>("PART_EdgeGuideLeft") is { } left
+            && this.TemplatePart<DockGuide>("PART_EdgeGuideTop") is { } top
+            && this.TemplatePart<DockGuide>("PART_EdgeGuideRight") is { } right
+            && this.TemplatePart<DockGuide>("PART_EdgeGuideBottom") is { } bottom)
         {
             Overlay = new DockGuideOverlay(
                 this,
                 preview,
-                GetTemplateChild("PART_DragGhost") as Border,
-                GetTemplateChild("PART_DragGhostText") as TextBlock,
+                this.TemplatePart<Border>("PART_DragGhost"),
+                this.TemplatePart<TextBlock>("PART_DragGhostText"),
                 centerGuides,
                 new Dictionary<DockSide, DockGuide>
                 {

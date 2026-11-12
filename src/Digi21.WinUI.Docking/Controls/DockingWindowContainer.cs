@@ -148,16 +148,16 @@ public abstract partial class DockingWindowContainer : Control
             contentSlot.Content = null;
         }
 
-        contentSlot = GetTemplateChild("PART_ContentHost") as ContentPresenter;
+        contentSlot = this.TemplatePart<ContentPresenter>("PART_ContentHost");
         if (contentSlot is not null)
         {
             contentSlot.Content = windowsHost;
         }
 
-        pinnedTabStrip = GetTemplateChild("PART_PinnedTabStrip") as Panel;
-        tabStrip = GetTemplateChild("PART_TabStrip") as Panel;
-        provisionalTabStrip = GetTemplateChild("PART_ProvisionalTabStrip") as Panel;
-        titleBar = GetTemplateChild("PART_TitleBar") as ToolWindowTitleBar;
+        pinnedTabStrip = this.TemplatePanel("PART_PinnedTabStrip");
+        tabStrip = this.TemplatePanel("PART_TabStrip");
+        provisionalTabStrip = this.TemplatePanel("PART_ProvisionalTabStrip");
+        titleBar = this.TemplatePart<ToolWindowTitleBar>("PART_TitleBar");
 
         Rebuild();
     }

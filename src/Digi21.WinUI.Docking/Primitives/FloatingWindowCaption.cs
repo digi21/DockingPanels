@@ -53,8 +53,8 @@ public partial class FloatingWindowCaption : Control
             closeButton.Click -= OnCloseClick;
         }
 
-        titleText = GetTemplateChild("PART_Title") as TextBlock;
-        closeButton = GetTemplateChild("PART_CloseButton") as Button;
+        titleText = this.TemplatePart<TextBlock>("PART_Title");
+        closeButton = this.TemplatePart<Button>("PART_CloseButton");
 
         if (closeButton is not null)
         {
