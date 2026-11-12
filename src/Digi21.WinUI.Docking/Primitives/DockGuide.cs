@@ -68,7 +68,7 @@ public partial class DockGuide : Control
 
     private void UpdateIcon()
     {
-        if (GetTemplateChild("PART_Icon") is not FontIcon icon)
+        if (this.TemplatePart<FontIcon>("PART_Icon") is not { } icon)
         {
             return;
         }

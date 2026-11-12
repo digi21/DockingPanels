@@ -71,9 +71,9 @@ public partial class DocumentTabItem : Control, IDockingWindowTab
             pinButton.Click -= OnPinClick;
         }
 
-        titleText = GetTemplateChild("PART_Title") as TextBlock;
-        pinButton = GetTemplateChild("PART_PinTabButton") as Button;
-        closeButton = GetTemplateChild("PART_CloseButton") as Button;
+        titleText = this.TemplatePart<TextBlock>("PART_Title");
+        pinButton = this.TemplatePart<Button>("PART_PinTabButton");
+        closeButton = this.TemplatePart<Button>("PART_CloseButton");
 
         if (closeButton is not null)
         {
@@ -232,7 +232,7 @@ public partial class DocumentTabItem : Control, IDockingWindowTab
 
         pinButton.Visibility = Visibility.Visible;
 
-        if (pinButton.Content is FontIcon icon)
+        if (ProjectedClassCast.As<FontIcon>(pinButton.Content) is { } icon)
         {
             icon.Glyph = document.IsPinned
                 ? DockingThemeResources.Value("DockingTabUnpinGlyph", "\uE77A")

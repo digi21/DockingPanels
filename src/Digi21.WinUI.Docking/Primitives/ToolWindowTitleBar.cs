@@ -58,9 +58,9 @@ public partial class ToolWindowTitleBar : Control
             pinButton.Click -= OnPinClick;
         }
 
-        titleText = GetTemplateChild("PART_Title") as TextBlock;
-        closeButton = GetTemplateChild("PART_CloseButton") as Button;
-        pinButton = GetTemplateChild("PART_PinButton") as Button;
+        titleText = this.TemplatePart<TextBlock>("PART_Title");
+        closeButton = this.TemplatePart<Button>("PART_CloseButton");
+        pinButton = this.TemplatePart<Button>("PART_PinButton");
 
         if (closeButton is not null)
         {
@@ -177,7 +177,7 @@ public partial class ToolWindowTitleBar : Control
             // an automated test looking for it by name.
             var unpinned = observed?.State == DockingWindowState.AutoHide;
 
-            if (pinButton.Content is FontIcon icon)
+            if (ProjectedClassCast.As<FontIcon>(pinButton.Content) is { } icon)
             {
                 icon.Glyph = unpinned
                     ? DockingThemeResources.Value("DockingUnpinGlyph", "\uE77A")

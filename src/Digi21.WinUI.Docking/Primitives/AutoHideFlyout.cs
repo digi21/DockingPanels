@@ -68,15 +68,15 @@ public partial class AutoHideFlyout : Control
             contentSlot.Content = null;
         }
 
-        contentSlot = GetTemplateChild("PART_ContentHost") as ContentPresenter;
+        contentSlot = this.TemplatePart<ContentPresenter>("PART_ContentHost");
         if (contentSlot is not null)
         {
             contentSlot.Content = windowHost;
         }
 
-        titleBar = GetTemplateChild("PART_TitleBar") as ToolWindowTitleBar;
-        frame = GetTemplateChild("PART_Frame") as FrameworkElement;
-        resizer = GetTemplateChild("PART_Resizer") as AutoHideResizeGrip;
+        titleBar = this.TemplatePart<ToolWindowTitleBar>("PART_TitleBar");
+        frame = this.TemplatePart<FrameworkElement>("PART_Frame");
+        resizer = this.TemplatePart<AutoHideResizeGrip>("PART_Resizer");
     }
 
     // Puts the resize grip on the side the panel comes out of, and keeps the panel's own frame off

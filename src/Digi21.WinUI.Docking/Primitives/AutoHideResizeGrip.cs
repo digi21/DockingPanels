@@ -163,7 +163,7 @@ public partial class AutoHideResizeGrip : Control
         ProtectedCursor = InputSystemCursor.Create(
             IsHorizontal ? InputSystemCursorShape.SizeWestEast : InputSystemCursorShape.SizeNorthSouth);
 
-        if (GetTemplateChild("GripLine") is Rectangle grip)
+        if (this.TemplatePart<Rectangle>("GripLine") is { } grip)
         {
             // Which axis the line runs along depends on the edge, so its thickness cannot come from
             // the template; it is read from the resources instead of being fixed here.

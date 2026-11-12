@@ -1,0 +1,1 @@
+M:Microsoft.UI.Xaml.Controls.Control.GetTemplateChild(System.String);Use TemplatePart<T>, TemplatePanel or ProjectedClassCast.As<T> from ProjectedClassCast so the class the template part is cast to survives NativeAOT trimming.

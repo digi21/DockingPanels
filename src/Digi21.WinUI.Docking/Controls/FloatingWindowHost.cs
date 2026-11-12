@@ -39,7 +39,7 @@ internal sealed partial class FloatingWindowHost
 
         window.AppWindow.MoveAndResize(bounds);
 
-        if (window.AppWindow.Presenter is OverlappedPresenter presenter)
+        if (ProjectedClassCast.As<OverlappedPresenter>(window.AppWindow.Presenter) is { } presenter)
         {
             presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: false);
             presenter.IsMaximizable = false;
