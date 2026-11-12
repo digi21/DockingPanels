@@ -44,6 +44,97 @@ public sealed partial class MainWindow : Window
         EventLog.Text = $"Opened {id}";
     }
 
+    // Arranging the open documents from code, in one step: the documents are dealt into the groups in the order they
+    // are in now, and what the layout does not name (more documents than groups) becomes tabs of the last group.
+    private void OnArrangeTabs(object sender, RoutedEventArgs e) => Arrange(DocumentLayout.Group(Documents.Documents), "all in tabs");
+
+    // Every document the dock site knows, closed ones included: a closed document the layout names is opened where it says.
+    private void OnArrangeKnown(object sender, RoutedEventArgs e) => Arrange(DocumentLayout.Group(DockSite.Documents), "every known document in tabs");
+
+    // The same moves one document at a time, which dragging a tab onto a guide does by hand: the active document goes to the
+    // side of (or into the group of) the first other open document.
+    private void OnDockActiveRight(object sender, RoutedEventArgs e) => DockActive(DockSide.Right, "to the right of");
+
+    private void OnDockActiveBelow(object sender, RoutedEventArgs e) => DockActive(DockSide.Bottom, "below");
+
+    private void OnAttachActive(object sender, RoutedEventArgs e) => DockActive(side: null, "into the group of");
+
+    private void DockActive(DockSide? side, string description)
+    {
+        if (DockSite.ActiveDocument is not { } active)
+        {
+            EventLog.Text = "Activate a document first";
+            return;
+        }
+
+        var target = Documents.Documents.FirstOrDefault(d => !ReferenceEquals(d, active));
+        if (target is null)
+        {
+            EventLog.Text = "Open a second document first";
+            return;
+        }
+
+        if (side is { } dockSide)
+        {
+            DockSite.DockDocument(active, target, dockSide);
+        }
+        else
+        {
+            DockSite.AttachDocument(active, target);
+        }
+
+        EventLog.Text = $"Docked {active.Title} {description} {target.Title}";
+    }
+
+    private void OnArrangeColumns(object sender, RoutedEventArgs e)
+    {
+        var documents = Documents.Documents.ToArray();
+        Arrange(
+            DocumentLayout.Split(
+                Orientation.Horizontal,
+                DocumentLayout.Group(documents.Take(1)),
+                DocumentLayout.Group(documents.Skip(1).Take(1)),
+                DocumentLayout.Group(documents.Skip(2))),
+            "three columns");
+    }
+
+    private void OnArrangeGrid(object sender, RoutedEventArgs e)
+    {
+        var documents = Documents.Documents.ToArray();
+        Arrange(
+            DocumentLayout.Split(
+                Orientation.Vertical,
+                DocumentLayout.Split(
+                    Orientation.Horizontal,
+                    DocumentLayout.Group(documents.Take(1)),
+                    DocumentLayout.Group(documents.Skip(1).Take(1))),
+                DocumentLayout.Split(
+                    Orientation.Horizontal,
+                    DocumentLayout.Group(documents.Skip(2).Take(1)),
+                    DocumentLayout.Group(documents.Skip(3)))),
+            "a grid");
+    }
+
+    private void OnArrangeMain(object sender, RoutedEventArgs e)
+    {
+        var documents = Documents.Documents.ToArray();
+        Arrange(
+            DocumentLayout.Split(
+                Orientation.Horizontal,
+                DocumentLayout.Group(documents.Take(1)).WithRelativeSize(0.6),
+                DocumentLayout.Split(
+                    Orientation.Vertical,
+                    DocumentLayout.Group(documents.Skip(1).Take(1)),
+                    DocumentLayout.Group(documents.Skip(2))).WithRelativeSize(0.4)),
+            "one large, two small");
+    }
+
+    private void Arrange(DocumentLayout layout, string description)
+    {
+        Documents.Arrange(layout);
+        EventLog.Text = $"Arranged the documents: {description}";
+    }
+
     // What a single click in a file list does in Visual Studio: the document opens in preview,
     // replacing whatever was being previewed instead of leaving a tab behind. Which documents open
     // this way is the application's decision, which is why it is a flag on the call.

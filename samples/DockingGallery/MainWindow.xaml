@@ -20,6 +20,26 @@
             <Button Click="OnPreviewDocument" Content="Preview Document" />
             <Button Click="OnPinDocument" Content="Pin Active Document" />
             <Button Click="OnCloseDocuments" Content="Close All But Pinned" />
+            <DropDownButton Content="Arrange Documents">
+                <DropDownButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Click="OnArrangeTabs" Text="All in tabs" />
+                        <MenuFlyoutItem Click="OnArrangeKnown" Text="All known documents in tabs (reopens closed ones)" />
+                        <MenuFlyoutItem Click="OnArrangeColumns" Text="Three columns" />
+                        <MenuFlyoutItem Click="OnArrangeGrid" Text="Grid (2 x 2)" />
+                        <MenuFlyoutItem Click="OnArrangeMain" Text="One large, two small" />
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
+            <DropDownButton Content="Dock Active Document">
+                <DropDownButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Click="OnDockActiveRight" Text="Split off to the right of another" />
+                        <MenuFlyoutItem Click="OnDockActiveBelow" Text="Split off below another" />
+                        <MenuFlyoutItem Click="OnAttachActive" Text="Tab into another's group" />
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
             <Button Click="OnReopenSolutionExplorer" Content="Reopen Solution Explorer" />
             <Button Click="OnReopenOutput" Content="Reopen Output" />
             <Button Click="OnWriteToOutput" Content="Write To Output" />
