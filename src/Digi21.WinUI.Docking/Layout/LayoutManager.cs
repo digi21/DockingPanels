@@ -390,6 +390,106 @@ internal static class LayoutManager
         FinishDock(surface, document, wasOpen);
     }
 
+    // Rebuilds the document area as the given arrangement: every document is taken out of the group it is in, a fresh
+    // tree of groups and splits is built with the documents in it, and that tree becomes the root of the area.
+    //
+    // Rebuilding rather than moving documents one by one keeps the result what was asked for whatever the area looked
+    // like before, and every step is one the drag gestures already rely on (Detach, InsertChild, SetLayoutChild), so the
+    // invariants of the tree hold. The windows themselves are the same instances throughout, so what they hold (a terminal,
+    // a web view) is not recreated; it is relocated, which is announced through the dock site as for any other move. One
+    // LayoutChanged is raised at the end, not one per document.
+    //
+    // documents: every document the area ends up holding, which is every one the plan names. Documents already in the area
+    // that the plan does not name were added to the plan's last group before it got here.
+    internal static void ArrangeDocuments(DockSite site, DocumentHost host, ArrangementNode<DocumentWindow>? plan, IReadOnlyList<DocumentWindow> documents)
+    {
+        if (plan is null || LayoutTree.Locate(site, host)?.Surface is not { } surface)
+        {
+            return;
+        }
+
+        var active = site.ActiveDocument;
+        var wasOpen = new Dictionary<DocumentWindow, bool>(ReferenceEqualityComparer.Instance as IEqualityComparer<DocumentWindow>);
+        foreach (var document in documents)
+        {
+            wasOpen[document] = document.IsOpen;
+            Detach(site, document);
+        }
+
+        // Nothing is left in the area when every document of it was in the plan, as they all are; whatever the
+        // detaching left of the old tree goes too.
+        SetLayoutChild(site, host, null);
+
+        var groups = new List<(DocumentContainer Container, DocumentWindow? Selected)>();
+        var root = BuildArrangement(site, plan, groups);
+        SetLayoutChild(site, host, root);
+
+        foreach (var document in documents)
+        {
+            FinishArranged(surface, document, wasOpen[document]);
+        }
+
+        foreach (var (container, selected) in groups)
+        {
+            container.SelectedItem = selected ?? container.Items.FirstOrDefault();
+        }
+
+        surface.OnLayoutMutated();
+        site.NotifyLayoutChanged(LayoutChangeKind.DocumentsArranged);
+
+        // The document that was active still is, if it is still there.
+        (active is not null && wasOpen.ContainsKey(active) ? active : documents[0]).Activate();
+    }
+
+    private static FrameworkElement BuildArrangement(DockSite site, ArrangementNode<DocumentWindow> node,
+        List<(DocumentContainer Container, DocumentWindow? Selected)> groups)
+    {
+        switch (node)
+        {
+            case ArrangementGroup<DocumentWindow> group:
+                var container = new DocumentContainer();
+                DockSite.SetRelativeSize(container, group.Size);
+                foreach (var document in group.Items)
+                {
+                    container.Items.Add(document);
+                }
+
+                groups.Add((container, group.Selected));
+                return container;
+
+            case ArrangementSplit<DocumentWindow> split:
+                var splitContainer = new SplitContainer { Orientation = split.Orientation };
+                DockSite.SetRelativeSize(splitContainer, split.Size);
+                foreach (var child in split.Children)
+                {
+                    InsertChild(site, splitContainer, splitContainer.Children.Count, BuildArrangement(site, child, groups));
+                }
+
+                return splitContainer;
+
+            default:
+                throw new InvalidOperationException("Unknown arrangement node.");
+        }
+    }
+
+    // What FinishDock does for a window docked on its own, without the layout notification and the activation, which
+    // ArrangeDocuments does once for all the documents it places.
+    private static void FinishArranged(IDockSurface surface, DockingWindow window, bool wasOpen)
+    {
+        var site = surface.Site;
+        window.IsRelocating = false;
+        window.DockSite = site;
+        window.State = DockingWindowState.Docked;
+
+        site.RegisterWindow(window);
+        site.NotifyRelocated(window);
+
+        if (!wasOpen)
+        {
+            site.NotifyWindowOpened(window);
+        }
+    }
+
     // Removes the window from its current container as part of a move, without raising closed
     // events, and collapses the abandoned part of the tree.
     private static void Detach(DockSite site, DockingWindow window)

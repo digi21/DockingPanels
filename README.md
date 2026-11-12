@@ -130,6 +130,33 @@ var active = dockSite.ActiveDocument;       // last activated document
 var open = dockSite.DocumentHost?.Documents;     // documents across all tab groups
 ```
 
+#### Arranging the documents from code
+
+`DocumentHost.Arrange` takes a description of the groups and splits and builds it in one step, with
+the same document instances, so what they hold (a terminal, a web view) is moved, not recreated:
+
+```csharp
+// Four documents in a grid: two rows of two.
+dockSite.DocumentHost?.Arrange(DocumentLayout.Split(Orientation.Vertical,
+    DocumentLayout.Split(Orientation.Horizontal, DocumentLayout.Group(a), DocumentLayout.Group(b)),
+    DocumentLayout.Split(Orientation.Horizontal, DocumentLayout.Group(c), DocumentLayout.Group(d))));
+
+// One large group on the left with 60 percent of the width, two stacked on the right.
+dockSite.DocumentHost?.Arrange(DocumentLayout.Split(Orientation.Horizontal,
+    DocumentLayout.Group(a).WithRelativeSize(0.6),
+    DocumentLayout.Split(Orientation.Vertical, DocumentLayout.Group(b), DocumentLayout.Group(c)).WithRelativeSize(0.4)));
+
+// Everything back in tabs of one group.
+dockSite.DocumentHost?.Arrange(DocumentLayout.Group(dockSite.DocumentHost.Documents));
+```
+
+A group the layout leaves without a document is dropped, and a split left with one pane is replaced
+by it, so a grid for three documents is two on top and one across the bottom. A document that is
+open but not named becomes a tab of the last group: an arrangement never closes anything. To split
+or tab one document at a time, use `DockSite.DockDocument(document, target, side)` and
+`DockSite.AttachDocument(document, target)`, the document counterparts of `DockToolWindow` and
+`AttachToolWindow`.
+
 #### Pinned tabs
 
 A document whose `IsPinned` is set keeps its tab at the head of its group, in a block of its own

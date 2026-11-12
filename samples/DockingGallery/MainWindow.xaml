@@ -9,17 +9,39 @@
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel
-            Padding="8,4"
-            Orientation="Horizontal"
-            Spacing="8">
+        <!-- The buttons roll over onto further rows when the window is narrower than they are. -->
+        <local:WrapPanel
+            Margin="8,4"
+            HorizontalSpacing="8"
+            VerticalSpacing="4">
             <Button Click="OnNewDocument" Content="New Document" />
             <Button Click="OnPreviewDocument" Content="Preview Document" />
             <Button Click="OnPinDocument" Content="Pin Active Document" />
             <Button Click="OnCloseDocuments" Content="Close All But Pinned" />
+            <DropDownButton Content="Arrange Documents">
+                <DropDownButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Click="OnArrangeTabs" Text="All in tabs" />
+                        <MenuFlyoutItem Click="OnArrangeKnown" Text="All known documents in tabs (reopens closed ones)" />
+                        <MenuFlyoutItem Click="OnArrangeColumns" Text="Three columns" />
+                        <MenuFlyoutItem Click="OnArrangeGrid" Text="Grid (2 x 2)" />
+                        <MenuFlyoutItem Click="OnArrangeMain" Text="One large, two small" />
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
+            <DropDownButton Content="Dock Active Document">
+                <DropDownButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Click="OnDockActiveRight" Text="Split off to the right of another" />
+                        <MenuFlyoutItem Click="OnDockActiveBelow" Text="Split off below another" />
+                        <MenuFlyoutItem Click="OnAttachActive" Text="Tab into another's group" />
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
             <Button Click="OnReopenSolutionExplorer" Content="Reopen Solution Explorer" />
             <Button Click="OnReopenOutput" Content="Reopen Output" />
             <Button Click="OnWriteToOutput" Content="Write To Output" />
@@ -36,16 +58,18 @@
             <Button Click="OnToggleTheme" Content="Toggle Theme" />
             <ToggleButton Click="OnToggleAutoHideTrigger" Content="Click To Open Panels" />
             <ToggleButton Click="OnToggleAutoHideOpenDelay" Content="Delay Hover Previews" />
-            <TextBlock
-                x:Name="EventLog"
-                VerticalAlignment="Center"
-                Style="{ThemeResource CaptionTextBlockStyle}"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-        </StackPanel>
+        </local:WrapPanel>
+
+        <TextBlock
+            x:Name="EventLog"
+            Grid.Row="1"
+            Margin="8,0,8,4"
+            Style="{ThemeResource BodyTextBlockStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
         <docking:DockSite
             x:Name="DockSite"
-            Grid.Row="1"
+            Grid.Row="2"
             WindowActivated="OnWindowEvent"
             WindowClosed="OnWindowEvent"
             WindowOpened="OnWindowEvent">

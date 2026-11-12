@@ -112,6 +112,68 @@ public partial class DocumentHost : Control, ILayoutHost, IRelocatable
     }
 
     /// <summary>
+    /// Arranges the documents of this area into the tab groups and splits a <see cref="DocumentLayout"/> describes, in one
+    /// step: side by side, stacked, in a grid, or all in tabs of one group.
+    /// </summary>
+    /// <param name="layout">The arrangement. Each document is named once.</param>
+    /// <remarks>
+    /// <para>
+    /// The documents are the same instances afterwards, moved: nothing they hold is recreated, and nothing is closed. A
+    /// document the layout names that is closed is opened where the layout puts it; one in a floating window is brought
+    /// back. A document open in this area that the layout does <em>not</em> name becomes a tab of the layout's last
+    /// group, so no document is left out of the area or closed by the arrangement. A group the layout leaves with no
+    /// document is dropped, and a split left with one pane is replaced by it, so the layout of "three columns" for two
+    /// documents is two columns.
+    /// </para>
+    /// <para>
+    /// Tool windows, auto-hidden panels and floating windows are not touched. The active document stays active, and
+    /// <see cref="DockSite.LayoutChanged"/> is raised once, with <see cref="LayoutChangeKind.DocumentsArranged"/>.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentException">A document is named twice.</exception>
+    /// <exception cref="InvalidOperationException">This area is not part of a dock site.</exception>
+    public void Arrange(DocumentLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+
+        if (this.FindSurface()?.Site is not { } site)
+        {
+            throw new InvalidOperationException("The document area is not part of a dock site, so there is nothing to arrange it in.");
+        }
+
+        var requested = ToArrangement(layout);
+        var plan = DocumentArrangementPlanner.Plan(requested, Documents.ToList());
+        if (plan is null)
+        {
+            return;
+        }
+
+        var documents = ArrangementItems(plan).ToList();
+        LayoutManager.ArrangeDocuments(site, this, plan, documents);
+    }
+
+    private static ArrangementNode<DocumentWindow> ToArrangement(DocumentLayout layout)
+    {
+        return layout switch
+        {
+            DocumentGroupLayout group => new ArrangementGroup<DocumentWindow>(layout.RelativeSize, group.Documents, group.Selected),
+            DocumentSplitLayout split => new ArrangementSplit<DocumentWindow>(
+                layout.RelativeSize, split.Orientation, [.. split.Panes.Select(ToArrangement)]),
+            _ => throw new ArgumentException("Unknown kind of document layout.", nameof(layout)),
+        };
+    }
+
+    private static IEnumerable<DocumentWindow> ArrangementItems(ArrangementNode<DocumentWindow> node)
+    {
+        return node switch
+        {
+            ArrangementGroup<DocumentWindow> group => group.Items,
+            ArrangementSplit<DocumentWindow> split => split.Children.SelectMany(ArrangementItems),
+            _ => [],
+        };
+    }
+
+    /// <summary>
     /// Closes the documents of this area in one go, the way "Close All Tabs" does in Visual Studio.
     /// </summary>
     /// <param name="scope">Which documents to close.</param>

@@ -534,6 +534,69 @@ public partial class DockSite : Control, IDockSurface
         throw new InvalidOperationException("The target window is not placed in the layout, so there is nothing to attach it to.");
     }
 
+    /// <summary>
+    /// Docks a document as a new tab group beside the group of another document: the document area is split, the way
+    /// dropping a tab on the side of a group does. This is what <see cref="DockToolWindow(ToolWindow, DockingWindow, DockSide)"/>
+    /// is for tool windows.
+    /// </summary>
+    /// <param name="document">The document to dock. If it is open it is moved, keeping its content; if it is closed it is
+    /// opened there.</param>
+    /// <param name="target">A document that is placed in the layout, whose group is split.</param>
+    /// <param name="side">The side of the target's group to dock to.</param>
+    /// <remarks>
+    /// The new group takes half of the target group's share of space. Docking a document that is alone in the target's
+    /// group beside that group does nothing. To arrange many documents in one step, see <see cref="DocumentHost.Arrange"/>.
+    /// </remarks>
+    /// <exception cref="ArgumentException">The target is not a document.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The target is not placed in the layout: it is closed, or it is a window a layout being loaded has not put back
+    /// yet. Test <see cref="DockingWindow.IsPlaced"/> before docking against a window whose state is not yours to know.
+    /// </exception>
+    public void DockDocument(DocumentWindow document, DockingWindow target, DockSide side)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (target is not DocumentWindow)
+        {
+            throw new ArgumentException("A document is docked beside another document; a tool window cannot be the target.", nameof(target));
+        }
+
+        if (PaneOf(target) is not { } container)
+        {
+            throw new InvalidOperationException("The target document is not placed in the layout, so there is no group to dock beside.");
+        }
+
+        LayoutManager.DockRelativeTo(this, document, container, side);
+    }
+
+    /// <summary>
+    /// Attaches a document as a new tab of the group another document is in. This is what
+    /// <see cref="AttachToolWindow"/> is for tool windows.
+    /// </summary>
+    /// <param name="document">The document to attach. If it is open it is moved, keeping its content; if it is closed it is
+    /// opened there.</param>
+    /// <param name="target">A document that is placed in the layout, whose group receives the new tab.</param>
+    /// <exception cref="ArgumentException">The target is not a document.</exception>
+    /// <exception cref="InvalidOperationException">The target is not placed in the layout (see <see cref="DockingWindow.IsPlaced"/>).</exception>
+    public void AttachDocument(DocumentWindow document, DockingWindow target)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (target is not DocumentWindow)
+        {
+            throw new ArgumentException("A document is attached to another document; a tool window cannot be the target.", nameof(target));
+        }
+
+        if (PaneOf(target) is not { } container)
+        {
+            throw new InvalidOperationException("The target document is not placed in the layout, so there is nothing to attach it to.");
+        }
+
+        LayoutManager.AttachAsTab(this, document, container);
+    }
+
     // The pane a window is in, and only when that pane is still part of the layout. A window a load
     // has taken out and not put back yet still holds the container it was in, and inserting a tab
     // into that one would show it nowhere: refusing is what turns a panel that silently disappears

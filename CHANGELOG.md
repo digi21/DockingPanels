@@ -7,6 +7,22 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `DocumentHost.Arrange(DocumentLayout)` arranges the documents of the document area into tab groups
+  and splits in one step: side by side, stacked, in a grid, or all in tabs of one group. A
+  `DocumentLayout` is built with `DocumentLayout.Group(...)` and `DocumentLayout.Split(orientation,
+  ...)`, with `WithRelativeSize` for panes that should not share equally. The documents are the same
+  instances afterwards, moved, so what they hold is not recreated; a closed document the layout names
+  is opened, one in a floating window is brought back, and an open document the layout does not name
+  becomes a tab of its last group, so nothing is closed by an arrangement. A group left with no
+  document is dropped and a split left with one pane is replaced by it, so a layout of three columns
+  for two documents is two columns. `LayoutChanged` is raised once, with the new
+  `LayoutChangeKind.DocumentsArranged`.
+- `DockSite.DockDocument(document, target, side)` and `DockSite.AttachDocument(document, target)`,
+  the document twins of `DockToolWindow` beside another window and `AttachToolWindow`: split the
+  group of another document, or add a tab to it, from code. Until now only dragging could do either.
+
 ## [1.6.0] - 2026-11-02
 
 ### Added

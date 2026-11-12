@@ -58,6 +58,9 @@ public enum LayoutChangeKind
 
     /// <summary>An open auto-hidden panel was resized by dragging its inner edge.</summary>
     AutoHidePanelResized,
+
+    /// <summary>The documents of the document area were rearranged into new groups with <see cref="DocumentHost.Arrange"/>.</summary>
+    DocumentsArranged,
 }
 
 /// <summary>
