@@ -1,7 +1,10 @@
 using Digi21.WinUI.Docking;
 using Digi21.WinUI.Docking.Serialization;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Controls.Primitives;
 
 namespace DockingGallery;
@@ -11,6 +14,15 @@ public sealed partial class MainWindow : Window
     private readonly DockSiteLayoutSerializer serializer = new();
     private string? savedLayout;
     private int newDocumentCount;
+
+    // The attention peek demo: one auto-hidden panel per edge, created the first time it is asked
+    // for, and counters that say whether a peek disturbed anything. A peek must raise no Relocated,
+    // move no focus and activate no window; if a counter climbs while panels only peek, it did.
+    private readonly Dictionary<DockSide, ToolWindow> peekPanels = [];
+    private readonly HashSet<DockingWindow> relocationWatched = [];
+    private int relocatedCount;
+    private int focusChangeCount;
+    private int activationCount;
 
     public MainWindow()
     {
@@ -35,6 +47,163 @@ public sealed partial class MainWindow : Window
         // it is here because it costs nothing and is the line that is missed until a File > Exit
         // command takes the process down with a floating window open.
         Closed += (_, _) => DockSite.CloseFloatingWindows();
+
+        FocusManager.GotFocus += (_, _) =>
+        {
+            focusChangeCount++;
+            ShowPeekCounters();
+        };
+        DockSite.WindowActivated += (_, _) =>
+        {
+            activationCount++;
+            ShowPeekCounters();
+        };
+        DockSite.Loaded += (_, _) =>
+        {
+            WatchRelocations();
+            ShowPeekCounters();
+        };
+    }
+
+    // Asks a panel at each of the four edges for attention at once. Each one peeks out of its edge
+    // twice and goes back, and its tab carries on pulsing until the panel is opened.
+    private void OnPeekEveryEdge(object sender, RoutedEventArgs e)
+    {
+        foreach (var side in new[] { DockSide.Left, DockSide.Top, DockSide.Right, DockSide.Bottom })
+        {
+            EnsurePeekPanel(side);
+        }
+
+        WatchRelocations();
+
+        // Setting the panels up docks and unpins them, which relocates them; the requests wait for
+        // that to settle, so the counters only show what the peeks themselves do.
+        AfterSettling(() =>
+        {
+            ResetPeekCounters();
+            var asked = peekPanels.Values.Count(panel => panel.RequestAttention());
+            EventLog.Text = $"{asked} of {peekPanels.Count} edge panels asked for attention";
+        });
+    }
+
+    // What a log does while a build writes to it: it asks on every line. The panel peeks for the
+    // first request only; the other 49 find the tab already lit and leave the panel still.
+    private void OnPeekOutputBurst(object sender, RoutedEventArgs e)
+    {
+        if (!Output.IsOpen)
+        {
+            DockSite.DockToolWindow(Output, DockSide.Bottom);
+        }
+
+        if (Output.State != DockingWindowState.AutoHide)
+        {
+            Output.AutoHide(AutoHideScope.Window);
+        }
+
+        WatchRelocations();
+
+        AfterSettling(() =>
+        {
+            ResetPeekCounters();
+
+            var timer = DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(20);
+            var calls = 0;
+            var accepted = 0;
+            timer.Tick += (_, _) =>
+            {
+                OutputText.Text += $"\nLine {++calls} at {DateTime.Now:HH:mm:ss.fff}";
+                if (Output.RequestAttention())
+                {
+                    accepted++;
+                }
+
+                if (calls == 50)
+                {
+                    timer.Stop();
+                    EventLog.Text = $"Output: {calls} requests, {accepted} accepted";
+                }
+            };
+            timer.Start();
+        });
+    }
+
+    // Slows every peek down to three seconds, so a screen capture can follow it frame by frame.
+    private void OnToggleSlowPeeks(object sender, RoutedEventArgs e)
+    {
+        DockSite.AttentionPeekDuration = ((ToggleButton)sender).IsChecked == true
+            ? TimeSpan.FromSeconds(3)
+            : TimeSpan.FromMilliseconds(500);
+
+        EventLog.Text = $"One peek takes {DockSite.AttentionPeekDuration.TotalMilliseconds} ms";
+    }
+
+    private void EnsurePeekPanel(DockSide side)
+    {
+        if (!peekPanels.TryGetValue(side, out var panel))
+        {
+            panel = new ToolWindow
+            {
+                Title = $"{side} Panel",
+                SerializationId = $"peek{side}",
+                Content = new TextBlock { Margin = new Thickness(8), Text = $"Something new at the {side.ToString().ToLowerInvariant()} edge." },
+            };
+            AutomationProperties.SetAutomationId(panel, $"Peek{side}Panel");
+            peekPanels[side] = panel;
+        }
+
+        if (!panel.IsOpen)
+        {
+            DockSite.DockToolWindow(panel, side);
+        }
+
+        if (panel.State != DockingWindowState.AutoHide)
+        {
+            panel.AutoHide(AutoHideScope.Window);
+        }
+    }
+
+    private void WatchRelocations()
+    {
+        foreach (var window in DockSite.ToolWindows.Cast<DockingWindow>().Concat(DockSite.Documents))
+        {
+            if (relocationWatched.Add(window))
+            {
+                window.Relocated += (_, _) =>
+                {
+                    relocatedCount++;
+                    ShowPeekCounters();
+                };
+            }
+        }
+    }
+
+    // Relocated is flushed after the next layout pass and a low-priority turn, so anything queued
+    // behind it at the same priority after a layout pass runs once it is out.
+    private void AfterSettling(Action action)
+    {
+        void OnLayoutUpdated(object? sender, object args)
+        {
+            DockSite.LayoutUpdated -= OnLayoutUpdated;
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+                DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => action()));
+        }
+
+        DockSite.LayoutUpdated += OnLayoutUpdated;
+        DockSite.InvalidateArrange();
+    }
+
+    private void ResetPeekCounters()
+    {
+        relocatedCount = 0;
+        focusChangeCount = 0;
+        activationCount = 0;
+        ShowPeekCounters();
+    }
+
+    private void ShowPeekCounters()
+    {
+        PeekCounters.Text = $"Since the last peek request: Relocated {relocatedCount}, focus changes {focusChangeCount}, activations {activationCount}";
     }
 
     private void OnNewDocument(object sender, RoutedEventArgs e)

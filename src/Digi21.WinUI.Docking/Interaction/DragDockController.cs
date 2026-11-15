@@ -52,6 +52,10 @@ internal sealed partial class DragDockController
         this.site = site;
     }
 
+    // Whether a window is being dragged, or has been pressed and may be about to be. Read by the
+    // dock site, which leaves the edges still while the user has hold of something.
+    internal bool IsDragging => draggedWindow is not null;
+
     // Starts tracking a pointer press on a tab or title bar. The drag only becomes visible once the
     // pointer moves past a small threshold, so plain clicks are unaffected.
     internal void BeginPotentialDrag(DockingWindow window, UIElement sourceElement, PointerRoutedEventArgs e)

@@ -49,6 +49,12 @@ public partial class DockSplitter : Control
 
     private bool IsDragging => capturedPointer is not null;
 
+    // How many splitters are being dragged right now, in any dock site or floating window of the
+    // process. Read by the dock site, which leaves the edges still while a pane is being resized.
+    private static int activeDrags;
+
+    internal static bool IsAnyDragging => activeDrags > 0;
+
     /// <inheritdoc />
     protected override void OnApplyTemplate()
     {
@@ -98,6 +104,7 @@ public partial class DockSplitter : Control
         var position = e.GetCurrentPoint(Owner).Position;
 
         capturedPointer = e.Pointer;
+        activeDrags++;
         startPosition = horizontal ? position.X : position.Y;
         startNearSize = horizontal ? near.ActualSize.X : near.ActualSize.Y;
         startFarSize = horizontal ? far.ActualSize.X : far.ActualSize.Y;
@@ -161,6 +168,12 @@ public partial class DockSplitter : Control
     protected override void OnPointerCaptureLost(PointerRoutedEventArgs e)
     {
         base.OnPointerCaptureLost(e);
+
+        if (IsDragging)
+        {
+            activeDrags--;
+        }
+
         capturedPointer = null;
         VisualStateManager.GoToState(this, "Normal", true);
     }

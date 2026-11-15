@@ -7,6 +7,21 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- An auto-hidden panel that asks for attention now peeks out of its edge as well: its frame comes a
+  short way out and goes back, twice by default, like an icon bouncing in a dock, and the tab then
+  carries on pulsing as before. Only the panel's empty frame moves, never the window, so the peek
+  raises no `Relocated`, takes no focus, opens nothing and leaves the layout alone; pointing at the
+  tab or clicking it during the peek stops it and opens the panel as usual. A request that finds
+  the tab already lit peeks only once `AttentionPeekMinimumInterval` has passed since the panel's
+  last peek, so content that asks on every write does not keep the panel moving. Windows with
+  animation effects turned off, another panel out at the same edge, a drag or a resize in progress,
+  and windows that are not auto-hidden get the tab's cue alone. Shaped by four new `DockSite`
+  properties: `AttentionPeekCount` (2; zero turns it off), `AttentionPeekDistance` (40 DIP),
+  `AttentionPeekDuration` (500 ms for one peek, out and back) and `AttentionPeekMinimumInterval`
+  (10 s).
+
 ## [1.6.0] - 2026-11-02
 
 ### Added

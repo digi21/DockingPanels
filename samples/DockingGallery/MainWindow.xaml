@@ -9,6 +9,7 @@
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -43,9 +44,35 @@
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </StackPanel>
 
+        <!--  The attention peek: an auto-hidden panel that asks for attention comes a short way out of its edge.  -->
+        <StackPanel
+            Grid.Row="1"
+            Padding="8,0,8,4"
+            Orientation="Horizontal"
+            Spacing="8">
+            <Button
+                AutomationProperties.AutomationId="PeekEveryEdge"
+                Click="OnPeekEveryEdge"
+                Content="Peek Every Edge" />
+            <Button
+                AutomationProperties.AutomationId="PeekOutputBurst"
+                Click="OnPeekOutputBurst"
+                Content="Output: 50 Requests In 1 s" />
+            <ToggleButton
+                AutomationProperties.AutomationId="SlowPeeks"
+                Click="OnToggleSlowPeeks"
+                Content="Slow Peeks" />
+            <TextBlock
+                x:Name="PeekCounters"
+                VerticalAlignment="Center"
+                AutomationProperties.AutomationId="PeekCounters"
+                Style="{ThemeResource CaptionTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+
         <docking:DockSite
             x:Name="DockSite"
-            Grid.Row="1"
+            Grid.Row="2"
             WindowActivated="OnWindowEvent"
             WindowClosed="OnWindowEvent"
             WindowOpened="OnWindowEvent">

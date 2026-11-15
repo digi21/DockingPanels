@@ -247,6 +247,66 @@ public partial class AutoHideFlyout : Control
                 : new KeySpline { ControlPoint1 = new Point(0.7, 0.0), ControlPoint2 = new Point(1.0, 0.5) },
         });
 
+        return Run(transform, vertical, animation, onCompleted);
+    }
+
+    // Brings the panel's frame a short way out of its edge and back, count times over, the way an
+    // icon bounces in a dock: quick to leave the edge and slowing as it reaches the top, then
+    // gathering speed on the way back. Used by the dock site on a flyout of its own that hosts no
+    // window, so the panel that asked for attention never leaves its place in the tree — moving it
+    // into a flyout would raise Relocated, which tells content with a life cycle of its own to tear
+    // itself down and set itself up again, for a gesture that shows none of that content.
+    //
+    // The flyout is sized and placed as the real panel would be, and clips to its own bounds as it
+    // does when it slides, so what comes out is the inner edge of the panel. onCompleted runs once
+    // the frame is back out of sight, unless the peek is cancelled first; nothing to animate returns
+    // false and calls nothing, as SlideOut does.
+    internal bool Peek(DockSide edge, double distance, TimeSpan cycle, int count, Action onCompleted)
+    {
+        CancelSlide();
+
+        if (GetTemplateRoot() is not FrameworkElement root || count <= 0 || cycle <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        var vertical = edge is DockSide.Top or DockSide.Bottom;
+        var size = vertical ? Height : Width;
+        if (!double.IsFinite(size) || size <= 0 || !double.IsFinite(distance) || distance <= 0)
+        {
+            return false;
+        }
+
+        var sign = edge is DockSide.Left or DockSide.Top ? -1 : 1;
+        var hidden = sign * size;
+        var peak = sign * (size - Math.Min(distance, size));
+
+        // Set before the storyboard starts, or the first frame shows the whole panel at rest.
+        var transform = vertical ? new TranslateTransform { Y = hidden } : new TranslateTransform { X = hidden };
+        root.RenderTransform = transform;
+        Clip = new RectangleGeometry { Rect = new Rect(0, 0, Width, Height) };
+
+        var outward = TimeSpan.FromTicks(cycle.Ticks * 2 / 5);
+        var animation = new DoubleAnimationUsingKeyFrames { RepeatBehavior = new RepeatBehavior(count) };
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame { KeyTime = TimeSpan.Zero, Value = hidden });
+        animation.KeyFrames.Add(new SplineDoubleKeyFrame
+        {
+            KeyTime = outward,
+            Value = peak,
+            KeySpline = new KeySpline { ControlPoint1 = new Point(0.1, 0.9), ControlPoint2 = new Point(0.2, 1.0) },
+        });
+        animation.KeyFrames.Add(new SplineDoubleKeyFrame
+        {
+            KeyTime = cycle,
+            Value = hidden,
+            KeySpline = new KeySpline { ControlPoint1 = new Point(0.7, 0.0), ControlPoint2 = new Point(1.0, 0.5) },
+        });
+
+        return Run(transform, vertical, animation, onCompleted);
+    }
+
+    private bool Run(TranslateTransform transform, bool vertical, Timeline animation, Action? onCompleted)
+    {
         Storyboard.SetTarget(animation, transform);
         Storyboard.SetTargetProperty(animation, vertical ? "Y" : "X");
 

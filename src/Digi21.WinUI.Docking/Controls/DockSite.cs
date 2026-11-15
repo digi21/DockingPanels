@@ -2,6 +2,8 @@ using Digi21.WinUI.Docking.Interaction;
 using Digi21.WinUI.Docking.Primitives;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Markup;
@@ -105,6 +107,34 @@ public partial class DockSite : Control, IDockSurface
         typeof(DockSite),
         new PropertyMetadata(TimeSpan.Zero));
 
+    /// <summary>Identifies the <see cref="AttentionPeekCount"/> dependency property.</summary>
+    public static readonly DependencyProperty AttentionPeekCountProperty = DependencyProperty.Register(
+        nameof(AttentionPeekCount),
+        typeof(int),
+        typeof(DockSite),
+        new PropertyMetadata(2));
+
+    /// <summary>Identifies the <see cref="AttentionPeekDistance"/> dependency property.</summary>
+    public static readonly DependencyProperty AttentionPeekDistanceProperty = DependencyProperty.Register(
+        nameof(AttentionPeekDistance),
+        typeof(double),
+        typeof(DockSite),
+        new PropertyMetadata(40.0));
+
+    /// <summary>Identifies the <see cref="AttentionPeekDuration"/> dependency property.</summary>
+    public static readonly DependencyProperty AttentionPeekDurationProperty = DependencyProperty.Register(
+        nameof(AttentionPeekDuration),
+        typeof(TimeSpan),
+        typeof(DockSite),
+        new PropertyMetadata(TimeSpan.FromMilliseconds(500)));
+
+    /// <summary>Identifies the <see cref="AttentionPeekMinimumInterval"/> dependency property.</summary>
+    public static readonly DependencyProperty AttentionPeekMinimumIntervalProperty = DependencyProperty.Register(
+        nameof(AttentionPeekMinimumInterval),
+        typeof(TimeSpan),
+        typeof(DockSite),
+        new PropertyMetadata(TimeSpan.FromSeconds(10)));
+
     private readonly List<ToolWindow> toolWindows = [];
     private readonly List<DocumentWindow> documents = [];
     private readonly List<AutoHideGroup> autoHideGroups = [];
@@ -118,6 +148,13 @@ public partial class DockSite : Control, IDockSurface
     private DispatcherQueueTimer? autoHideOpenTimer;
     private ToolWindow? autoHidePendingWindow;
     private AutoHideFlyout? autoHideFlyout;
+    private Canvas? overlayCanvas;
+    private bool autoHideResizing;
+
+    // The flyouts that show a panel peeking out of an edge for attention, one per edge, created the
+    // first time an edge needs one. They host no window: see AutoHideFlyout.Peek.
+    private readonly Dictionary<DockSide, AutoHideFlyout> attentionPeeks = [];
+    private readonly Dictionary<DockSide, ToolWindow> peekingWindows = [];
     private ContentPresenter? layoutRootPresenter;
     private AppWindow? ownerWindow;
     private DockGuideOverlay? overlay;
@@ -286,6 +323,78 @@ public partial class DockSite : Control, IDockSurface
     }
 
     /// <summary>
+    /// Gets or sets how many times an auto-hidden panel peeks out of its edge and back when
+    /// <see cref="DockingWindow.RequestAttention"/> is called on it. Defaults to 2; zero turns the
+    /// peek off and leaves the tab's cue alone.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The peek is the panel's frame coming <see cref="AttentionPeekDistance"/> out of the edge and
+    /// going back, the way an icon bounces in a dock, after which the tab carries on pulsing until
+    /// the content is shown. What comes out is the frame alone, empty: the window and its content
+    /// stay where they are, so the peek raises no <see cref="DockingWindow.Relocated"/>, takes no
+    /// focus, opens nothing and leaves the layout as it was. It does not respond to the pointer
+    /// either. Pointing at the tab or clicking it while the panel peeks stops the peek, and the
+    /// panel opens the way it always does.
+    /// </para>
+    /// <para>
+    /// A panel peeks for a request that finds its tab unlit. While the tab is still lit, further
+    /// requests only make it peek again once <see cref="AttentionPeekMinimumInterval"/> has passed
+    /// since its last peek, so content that asks on every write does not keep it moving.
+    /// </para>
+    /// <para>
+    /// The tab's cue is all there is, with no peek, when Windows has animation effects turned off,
+    /// when another panel is out at the same edge, while the user is dragging a window or resizing a
+    /// pane or a panel, and for any window that is not auto-hidden: a docked window behind another
+    /// tab of its pane, and a floating one, only light their tab. <see cref="IsAutoHideAnimated"/>
+    /// does not govern the peek; this property does.
+    /// </para>
+    /// </remarks>
+    public int AttentionPeekCount
+    {
+        get => (int)GetValue(AttentionPeekCountProperty);
+        set => SetValue(AttentionPeekCountProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets how far, in device-independent pixels, an auto-hidden panel comes out of its
+    /// edge when it peeks for attention. Defaults to 40: enough to be seen moving at the edge
+    /// without covering what the user is working on. A panel narrower than this comes out no
+    /// further than its own size.
+    /// </summary>
+    public double AttentionPeekDistance
+    {
+        get => (double)GetValue(AttentionPeekDistanceProperty);
+        set => SetValue(AttentionPeekDistanceProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets how long one peek of an auto-hidden panel takes, out of its edge and back.
+    /// Defaults to 500 milliseconds; the whole cue lasts this times
+    /// <see cref="AttentionPeekCount"/>.
+    /// </summary>
+    public TimeSpan AttentionPeekDuration
+    {
+        get => (TimeSpan)GetValue(AttentionPeekDurationProperty);
+        set => SetValue(AttentionPeekDurationProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets how long a panel whose tab is still lit waits after peeking before another
+    /// <see cref="DockingWindow.RequestAttention"/> makes it peek again. Defaults to 10 seconds.
+    /// </summary>
+    /// <remarks>
+    /// A request that finds the tab unlit, because the user has seen the content since the last
+    /// one, peeks without waiting. <see cref="TimeSpan.Zero"/> makes every request peek, except
+    /// those that arrive while the panel is still peeking, which are never more than the tab's cue.
+    /// </remarks>
+    public TimeSpan AttentionPeekMinimumInterval
+    {
+        get => (TimeSpan)GetValue(AttentionPeekMinimumIntervalProperty);
+        set => SetValue(AttentionPeekMinimumIntervalProperty, value);
+    }
+
+    /// <summary>
     /// Gets or sets what it takes for an auto-hidden panel to slide out: pointing at its tab, which
     /// is the default, or clicking it.
     /// </summary>
@@ -394,6 +503,19 @@ public partial class DockSite : Control, IDockSurface
         }
 
         autoHideFlyout = GetTemplateChild("PART_AutoHideFlyout") as AutoHideFlyout;
+
+        // Peek flyouts belong to the overlay of the template that made them.
+        CancelAttentionPeeks();
+        if (overlayCanvas is not null)
+        {
+            foreach (var peek in attentionPeeks.Values)
+            {
+                overlayCanvas.Children.Remove(peek);
+            }
+        }
+
+        attentionPeeks.Clear();
+        overlayCanvas = GetTemplateChild("PART_Overlay") as Canvas;
 
         if (layoutRootPresenter is not null)
         {
@@ -705,6 +827,9 @@ public partial class DockSite : Control, IDockSurface
         // left to open a panel the pointer is no longer pointing at.
         CancelAutoHidePreview();
 
+        // A peek is drawn where its group sits, and the groups have just changed.
+        CancelAttentionPeeks();
+
         foreach (var (side, strip) in autoHideStrips)
         {
             var groups = autoHideGroups.Where(g => g.Edge == side && g.Windows.Count > 0).ToList();
@@ -772,6 +897,9 @@ public partial class DockSite : Control, IDockSurface
         }
 
         CancelAutoHideCollapse();
+
+        // The real panel takes over from a peek at its edge, whichever panel was peeking.
+        CancelAttentionPeek(group.Edge);
 
         // A panel asked for again while it was sliding away comes straight back. It was never
         // released, so it is still the one the flyout is showing, and the fast path below applies.
@@ -888,6 +1016,13 @@ public partial class DockSite : Control, IDockSurface
     // waits for the pointer to rest there; leaving or pressing the tab first calls it off.
     internal void NotifyAutoHideTabPointerEntered(ToolWindow window)
     {
+        // The user has found the tab the peek was pointing at, so it has done its job. What happens
+        // next is the ordinary hover, whatever the trigger and the delay say.
+        if (FindAutoHideGroup(window) is { } peekGroup)
+        {
+            CancelAttentionPeek(peekGroup.Edge);
+        }
+
         if (!AutoHideOpenPolicy.ShouldOpen(AutoHideOpenTrigger, AutoHideOpenReason.Hover))
         {
             return;
@@ -1029,7 +1164,17 @@ public partial class DockSite : Control, IDockSurface
     // maximizing the window would leave the flyout hanging where it was.
     private void PositionAutoHideFlyout(AutoHideGroup group)
     {
-        if (autoHideFlyout is null || layoutRootPresenter is null)
+        if (autoHideFlyout is not null)
+        {
+            PlaceFlyout(autoHideFlyout, group);
+        }
+    }
+
+    // Sizes and places a flyout where the panel of the given group comes out. The peek flyouts are
+    // placed by the same rule, so what peeks is exactly where the panel would be.
+    private void PlaceFlyout(AutoHideFlyout flyout, AutoHideGroup group)
+    {
+        if (layoutRootPresenter is null)
         {
             return;
         }
@@ -1042,16 +1187,16 @@ public partial class DockSite : Control, IDockSurface
         var (width, height) = horizontal ? (size, cellHeight) : (cellWidth, size);
 
         // The grip goes on the side the panel came out of, which is only known here.
-        autoHideFlyout.SetEdge(group.Edge);
+        flyout.SetEdge(group.Edge);
 
-        autoHideFlyout.Width = width;
-        autoHideFlyout.Height = height;
+        flyout.Width = width;
+        flyout.Height = height;
 
         var origin = layoutRootPresenter
             .TransformToVisual(this)
             .TransformPoint(new Windows.Foundation.Point(0, 0));
-        Canvas.SetLeft(autoHideFlyout, origin.X + (group.Edge == DockSide.Right ? cellWidth - width : 0));
-        Canvas.SetTop(autoHideFlyout, origin.Y + (group.Edge == DockSide.Bottom ? cellHeight - height : 0));
+        Canvas.SetLeft(flyout, origin.X + (group.Edge == DockSide.Right ? cellWidth - width : 0));
+        Canvas.SetTop(flyout, origin.Y + (group.Edge == DockSide.Bottom ? cellHeight - height : 0));
     }
 
     // Resizes the panel that is out to the size its grip is being dragged to, within what the
@@ -1095,20 +1240,132 @@ public partial class DockSite : Control, IDockSurface
         autoHideFlyout?.CancelSlide();
 
         autoHideOpenReason = AutoHideOpenReason.Activation;
+        autoHideResizing = true;
     }
 
     // The drag is over. The layout has been changing all along, but it is announced once here: an
     // application that saves its layout on every change would otherwise save one per frame.
     internal void NotifyAutoHideResizeCompleted()
     {
+        autoHideResizing = false;
         NotifyLayoutChanged(LayoutChangeKind.AutoHidePanelResized);
     }
 
     private void OnLayoutRootSizeChanged(object sender, SizeChangedEventArgs e)
     {
+        // A peek is placed once, for the size it started at; one that would now hang in the wrong
+        // place is simply over.
+        CancelAttentionPeeks();
+
         if (autoHideFlyout?.Window is { } shown && FindAutoHideGroup(shown) is { } group)
         {
             PositionAutoHideFlyout(group);
+        }
+    }
+
+    // Called by RequestAttention on an auto-hidden window, after it has lit the tab. Makes the panel
+    // peek out of its edge if nothing says it should not; otherwise the lit tab is the whole cue.
+    internal void PeekForAttention(ToolWindow window, bool alreadyRequested)
+    {
+        if (!AttentionPeekPolicy.IsEnabled(AttentionPeekCount, AttentionPeekDistance, AttentionPeekDuration)
+            || !ScreenInterop.SystemAnimationsEnabled
+            || overlayCanvas is null
+            || layoutRootPresenter is null
+            || FindAutoHideGroup(window) is not { } group)
+        {
+            return;
+        }
+
+        var edge = group.Edge;
+
+        // Something is already happening at this edge or under the pointer: a panel out there, or on
+        // its way back in; another peek, this window's own included; a drag or a resize, which a
+        // panel moving at the edge would only get in the way of.
+        if ((AutoHideFlyoutWindow is { } shown && FindAutoHideGroup(shown)?.Edge == edge)
+            || peekingWindows.ContainsKey(edge)
+            || autoHideResizing
+            || DockSplitter.IsAnyDragging
+            || DragController?.IsDragging == true)
+        {
+            return;
+        }
+
+        var now = Environment.TickCount64;
+        TimeSpan? sinceLastPeek = window.LastAttentionPeek is { } last ? TimeSpan.FromMilliseconds(now - last) : null;
+        if (!AttentionPeekPolicy.IsDue(alreadyRequested, sinceLastPeek, AttentionPeekMinimumInterval))
+        {
+            return;
+        }
+
+        var peek = AttentionPeekFor(edge);
+        PlaceFlyout(peek, group);
+        peek.Visibility = Visibility.Visible;
+
+        // Laid out now, so the template root the peek moves exists and has its size before it starts.
+        peek.UpdateLayout();
+
+        if (!peek.Peek(edge, AttentionPeekDistance, AttentionPeekDuration, AttentionPeekCount, () => EndAttentionPeek(edge)))
+        {
+            peek.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        peekingWindows[edge] = window;
+        window.LastAttentionPeek = now;
+    }
+
+    // The peek flyout of an edge, made the first time the edge needs one. It goes into the overlay
+    // just under the real flyout, so a panel opened at another edge covers it, and is kept out of
+    // everything a peek must not take part in: hit testing, the focus, the automation tree.
+    private AutoHideFlyout AttentionPeekFor(DockSide edge)
+    {
+        if (attentionPeeks.TryGetValue(edge, out var existing))
+        {
+            return existing;
+        }
+
+        var canvas = overlayCanvas!;
+        var peek = new AutoHideFlyout
+        {
+            IsHitTestVisible = false,
+            IsTabStop = false,
+            Visibility = Visibility.Collapsed,
+        };
+        AutomationProperties.SetAccessibilityView(peek, AccessibilityView.Raw);
+
+        var index = autoHideFlyout is not null ? canvas.Children.IndexOf(autoHideFlyout) : -1;
+        canvas.Children.Insert(index >= 0 ? index : canvas.Children.Count, peek);
+        peek.ApplyTemplate();
+
+        attentionPeeks[edge] = peek;
+        return peek;
+    }
+
+    private void EndAttentionPeek(DockSide edge)
+    {
+        peekingWindows.Remove(edge);
+
+        if (attentionPeeks.TryGetValue(edge, out var peek))
+        {
+            peek.CancelSlide();
+            peek.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    // Stops the peek at an edge where it is, and puts its frame away.
+    private void CancelAttentionPeek(DockSide edge)
+    {
+        if (peekingWindows.ContainsKey(edge))
+        {
+            EndAttentionPeek(edge);
+        }
+    }
+
+    private void CancelAttentionPeeks()
+    {
+        foreach (var edge in peekingWindows.Keys.ToList())
+        {
+            EndAttentionPeek(edge);
         }
     }
 

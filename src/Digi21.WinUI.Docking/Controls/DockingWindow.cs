@@ -138,6 +138,12 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
     /// <c>AttentionStates</c> group the default templates do.
     /// </para>
     /// <para>
+    /// An auto-hidden <see cref="ToolWindow"/> also peeks a short way out of its edge and back, as
+    /// set by <see cref="DockSite.AttentionPeekCount"/> and the properties beside it, without
+    /// taking the focus or moving its content. See <see cref="DockSite.AttentionPeekCount"/> for
+    /// when it does not.
+    /// </para>
+    /// <para>
     /// Like every member of a XAML element, it has to be called on the UI thread. Content written
     /// from a background thread asks through the window's <c>DispatcherQueue</c>.
     /// </para>
@@ -149,9 +155,23 @@ public abstract partial class DockingWindow : ContentControl, IRelocatable
             return false;
         }
 
+        var alreadyRequested = IsAttentionRequested;
         IsAttentionRequested = true;
+
+        // An auto-hidden panel can also peek out of its edge. Whether it does is the dock site's to
+        // decide, since it depends on what else is happening at that edge.
+        if (this is ToolWindow { State: DockingWindowState.AutoHide } tool)
+        {
+            DockSite?.PeekForAttention(tool, alreadyRequested);
+        }
+
         return true;
     }
+
+    // When this window last peeked out of its auto-hide edge for attention, as Environment.TickCount64,
+    // or null if it never has. Read by the dock site to keep a panel that asks many times a second
+    // from peeking on every request.
+    internal long? LastAttentionPeek { get; set; }
 
     /// <summary>Takes back an attention request the user has not answered yet.</summary>
     public void ClearAttentionRequest() => IsAttentionRequested = false;

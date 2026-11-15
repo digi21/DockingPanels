@@ -384,6 +384,24 @@ a log written from a background thread asks through the window's `DispatcherQueu
 An auto-hidden panel's flyout has to stay out for half a second before its request counts as
 answered, so a pointer crossing the edge on its way elsewhere does not wipe the cues it passes over.
 
+An auto-hidden panel also peeks: its frame comes a short way out of its edge and goes back, twice,
+like an icon bouncing in a dock, and then the tab carries on pulsing. Only the empty frame moves —
+the window stays where it is, so the peek raises no `Relocated`, takes no focus and changes nothing
+in the layout — and pointing at the tab or clicking it while the panel peeks opens the panel as
+usual. A log that asks on every line peeks once; while its tab stays lit, it peeks again only after
+`AttentionPeekMinimumInterval`. Four properties of the dock site shape it:
+
+```xml
+<docking:DockSite AttentionPeekCount="2"
+                  AttentionPeekDistance="40"
+                  AttentionPeekDuration="0:0:0.5"
+                  AttentionPeekMinimumInterval="0:0:10">
+```
+
+`AttentionPeekCount="0"` turns it off. There is no peek, only the tab's cue, when Windows has
+animation effects turned off, when another panel is out at the same edge, while the user drags a
+window or resizes a pane, and for windows that are not auto-hidden.
+
 The pulse stops, leaving the tab lit, when Windows has animation effects turned off, and a high
 contrast theme draws the cue as an outline in the system highlight color instead. The color is the
 theme key `DockingTabAttentionBackgroundBrush`. A screen reader learns about it through the tab's
