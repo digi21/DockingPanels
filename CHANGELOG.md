@@ -7,6 +7,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-18
+
 ### Added
 
 - An auto-hidden panel that asks for attention now peeks out of its edge as well: its frame comes a
@@ -365,6 +367,7 @@ a real application, and the private `0.1.0-dev.*` packages were where it changed
 - Windows App SDK 1.8 or later, .NET 8 or later, and Windows 10 version 1809 (build 17763) or
   later.
 
+[1.7.0]: https://github.com/Digi21/DockingPanels/releases/tag/v1.7.0
 [1.6.0]: https://github.com/Digi21/DockingPanels/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Digi21/DockingPanels/releases/tag/v1.5.0
 [1.4.0]: https://github.com/Digi21/DockingPanels/releases/tag/v1.4.0
